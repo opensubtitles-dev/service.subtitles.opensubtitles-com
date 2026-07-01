@@ -44,6 +44,18 @@ msgctxt "#32009"
 msgid "Unexpected error while searching for subtitles."
 msgstr ""
 
+msgctxt "#32010"
+msgid "Test Connection"
+msgstr ""
+
+msgctxt "#32011"
+msgid "Connection Successful"
+msgstr ""
+
+msgctxt "#32012"
+msgid "Please enter your username and password first."
+msgstr ""
+
 msgctxt "#32101"
 msgid "Login Details"
 msgstr ""

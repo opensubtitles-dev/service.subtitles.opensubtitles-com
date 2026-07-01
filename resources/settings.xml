@@ -28,6 +28,13 @@
                     <level>4</level>
                     <default>qo2wQs1PXwIHJsXvIiWXu1ZbVjaboPh6</default>
                 </setting>
+                <setting id="test_connection" type="action" label="32010">
+                    <level>0</level>
+                    <default/>
+                    <control type="button" format="action">
+                        <data>RunScript(special://home/addons/service.subtitles.opensubtitles-com/test_connection.py)</data>
+                    </control>
+                </setting>
             </group>
         </category>
         <category id="filter" label="32102">

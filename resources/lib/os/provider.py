@@ -18,6 +18,7 @@ API_URL = "https://api.opensubtitles.com/api/v1/"
 API_LOGIN = "login"
 API_SUBTITLES = "subtitles"
 API_DOWNLOAD = "download"
+API_USER_INFO = "infos/user"
 
 
 CONTENT_TYPE = "application/json"
@@ -75,7 +76,7 @@ class OpenSubtitlesProvider:
             logging(f"Username: {self.username}, Password: {self.password}")
 
 
-        self.request_headers = {"Api-Key": self.api_key, "User-Agent": "Opensubtitles.com Kodi plugin v1.0.8" ,"Content-Type": CONTENT_TYPE, "Accept": CONTENT_TYPE}
+        self.request_headers = {"Api-Key": self.api_key, "User-Agent": "Opensubtitles.com Kodi plugin v1.0.9" ,"Content-Type": CONTENT_TYPE, "Accept": CONTENT_TYPE}
 
         self.session = Session()
         self.session.headers = self.request_headers
@@ -141,6 +142,33 @@ class OpenSubtitlesProvider:
                 logging(f"Failed to parse login response JSON: {e}")
                 raise ValueError("Invalid JSON returned by provider")
 
+    def get_user_info(self):
+        user_info_url = API_URL + API_USER_INFO
+        auth_headers = {"Authorization": "Bearer " + self.user_token}
+
+        logging(f"Fetching user info from: {user_info_url}")
+
+        try:
+            r = self.session.get(user_info_url, headers=auth_headers, timeout=REQUEST_TIMEOUT)
+            r.raise_for_status()
+        except (ConnectionError, Timeout, ReadTimeout) as e:
+            raise ServiceUnavailable(f"Connection error: {e!r}")
+        except HTTPError as e:
+            status_code = e.response.status_code
+            if status_code == 401:
+                raise AuthenticationError(f"Authentication failed: {e}")
+            elif status_code == 429:
+                raise TooManyRequests()
+            elif status_code == 503:
+                raise ServiceUnavailable("OpenSubtitles.com is currently unavailable.")
+            else:
+                raise ProviderError(f"Bad status code: {status_code}")
+
+        try:
+            return r.json()["data"]
+        except (ValueError, KeyError):
+            raise ProviderError("Invalid JSON returned by provider")
+
     @property
     def user_token(self):
         return self.cache.get(key="user_token")
@@ -167,7 +195,7 @@ class OpenSubtitlesProvider:
                 cache_ttl = 0 # Default if undefined
             else:
                 cache_ttl = int(float(cache_setting)) * 60 # Convert minutes to seconds
-        except Exception as e:
+        except (ValueError, TypeError) as e:
             logging(f"Error reading cache setting: {e}")
             cache_ttl = 0
 
@@ -179,9 +207,9 @@ class OpenSubtitlesProvider:
         cache_key = None
         if use_cache:
             try:
-                # Create unique key from params
+                # Create unique cache key from params (non-cryptographic, for cache keying only)
                 params_str = json.dumps(params, sort_keys=True)
-                cache_key = hashlib.md5(params_str.encode('utf-8')).hexdigest()
+                cache_key = hashlib.sha256(params_str.encode('utf-8')).hexdigest()
                 
                 cached_result = self.cache.get(cache_key)
                 if cached_result:

@@ -8,7 +8,7 @@ import xbmcgui
 
 from urllib.parse import parse_qsl
 
-__addon__ = xbmcaddon.Addon()
+__addon__ = xbmcaddon.Addon("service.subtitles.opensubtitles-com")
 __addon_name__ = __addon__.getAddonInfo("name")
 __language__ = __addon__.getLocalizedString
 
