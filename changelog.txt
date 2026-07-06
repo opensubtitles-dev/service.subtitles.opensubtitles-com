@@ -1,4 +1,8 @@
 
+v1.0.10 (2026-07-01)
+- fixed "ModuleNotFoundError: No module named 'resources.lib.os'" on some devices (notably Android): added package __init__.py files so imports no longer rely on implicit namespace packages, and renamed the internal 'os' package to 'osclient' to stop it shadowing Python's standard-library os module
+- fixed subtitle search for TV shows in non-English (localized) libraries by querying the show's original title from the Kodi library instead of the translated on-screen title (thanks notoco)
+
 v1.0.9 (2026-03-01)
 - added Test Connection button in settings to verify credentials and view account info
 - show specific error message when search or download fails (thanks wildsands)

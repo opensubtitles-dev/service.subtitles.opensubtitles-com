@@ -2,7 +2,7 @@ import xbmcaddon
 import xbmcgui
 from requests import RequestException
 
-from resources.lib.os.provider import OpenSubtitlesProvider
+from resources.lib.osclient.provider import OpenSubtitlesProvider
 from resources.lib.exceptions import (
     AuthenticationError,
     BadUsernameError,

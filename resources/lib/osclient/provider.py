@@ -5,8 +5,8 @@ import hashlib
 
 from requests import Session, ConnectionError, HTTPError, ReadTimeout, Timeout, RequestException
 
-from resources.lib.os.model.request.subtitles import OpenSubtitlesSubtitlesRequest
-from resources.lib.os.model.request.download import OpenSubtitlesDownloadRequest
+from resources.lib.osclient.model.request.subtitles import OpenSubtitlesSubtitlesRequest
+from resources.lib.osclient.model.request.download import OpenSubtitlesDownloadRequest
 
 '''local kodi module imports. replace by any other exception, cache, log provider'''
 from resources.lib.exceptions import AuthenticationError, ConfigurationError, DownloadLimitExceeded, ProviderError, \
@@ -76,7 +76,7 @@ class OpenSubtitlesProvider:
             logging(f"Username: {self.username}, Password: {self.password}")
 
 
-        self.request_headers = {"Api-Key": self.api_key, "User-Agent": "Opensubtitles.com Kodi plugin v1.0.9" ,"Content-Type": CONTENT_TYPE, "Accept": CONTENT_TYPE}
+        self.request_headers = {"Api-Key": self.api_key, "User-Agent": "Opensubtitles.com Kodi plugin v1.0.10" ,"Content-Type": CONTENT_TYPE, "Accept": CONTENT_TYPE}
 
         self.session = Session()
         self.session.headers = self.request_headers

@@ -526,16 +526,29 @@ def get_media_data():
             except Exception as e:
                 log(__name__, f"Failed to read episode IDs from InfoLabels: {e}")
 
-        # 3) If still missing, fall back to library JSON-RPC (when the show is in the library)
-        if len(item["tvshowid"]) != 0 and (not item["parent_tmdb_id"] or not item["parent_imdb_id"]):
+        # 3) Query the library (when the show is in it) for the true parent IDs and the
+        #    show's ORIGINAL title. Runs whenever we have a tvshowid: even when parent IDs
+        #    are already known we still want originaltitle so localized libraries
+        #    (e.g. Polish "Żywe trupy" -> "The Walking Dead") match on OS.com.
+        #    NB: this is the *show's* originaltitle from the library, unlike
+        #    VideoPlayer.OriginalTitle, which during episode playback returns the
+        #    *episode's* original title (usually empty). Thanks to @notoco (PR #38)
+        #    for reporting the localized-title search failure.
+        if len(item["tvshowid"]) != 0:
             try:
                 TVShowDetails = xbmc.executeJSONRPC(
                     '{ "jsonrpc": "2.0", "id":"1", "method": "VideoLibrary.GetTVShowDetails", '
-                    '"params":{"tvshowid":' + item["tvshowid"] + ', "properties": ["episodeguide", "imdbnumber", "uniqueid"]} }'
+                    '"params":{"tvshowid":' + item["tvshowid"] + ', "properties": ["originaltitle", "episodeguide", "imdbnumber", "uniqueid"]} }'
                 )
                 TVShowDetails_dict = json.loads(TVShowDetails)
                 if "result" in TVShowDetails_dict and "tvshowdetails" in TVShowDetails_dict["result"]:
                     tvshow_details = TVShowDetails_dict["result"]["tvshowdetails"]
+
+                    # Prefer the show's original title for the search query (localized-library fix)
+                    original_show_title = normalize_string(tvshow_details.get("originaltitle") or "")
+                    if original_show_title:
+                        item["query"] = original_show_title
+                        log(__name__, f"Using show original title for query: '{original_show_title}'")
 
                     # parent IMDb
                     if not item["parent_imdb_id"]:
