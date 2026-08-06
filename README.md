@@ -4,6 +4,11 @@ Search and download subtitles for movies and TV-Series from OpenSubtitles.com. S
 
 REST API implementation based on tomburke25 [python-opensubtitles-rest-api](https://github.com/tomburke25/python-opensubtitles-rest-api)                            
 
+v1.0.11 (2026-08-06)
+- fixed Test Connection failing with "ModuleNotFoundError: No module named 'resources.lib.osclient'" when another installed add-on ships its own top-level 'resources' package: the settings script now puts its own directory first on the import path (the v1.0.10 rename did not address this)
+- fixed TV episode searches returning nothing when only the episode's own IMDb/TMDb id is known: the id is now sent on its own instead of alongside query/season/episode, with an automatic title fallback if it finds nothing (thanks peno64)
+- fixed connection and timeout errors crashing with AttributeError instead of reporting the service as unavailable, during login, search and download
+
 v1.0.10 (2026-07-01)
 - fixed "ModuleNotFoundError: No module named 'resources.lib.os'" on some devices (notably Android): added package __init__.py files so imports no longer rely on implicit namespace packages, and renamed the internal 'os' package to 'osclient' to stop it shadowing Python's standard-library os module
 - fixed subtitle search for TV shows in non-English (localized) libraries by querying the show's original title from the Kodi library instead of the translated on-screen title (thanks notoco)
