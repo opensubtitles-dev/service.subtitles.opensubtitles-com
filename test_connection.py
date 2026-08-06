@@ -1,4 +1,24 @@
+import os
+import sys
+
 import xbmcaddon
+import xbmcvfs
+
+__addon__ = xbmcaddon.Addon("service.subtitles.opensubtitles-com")
+
+# Kodi launches this file with RunScript(<file path>), which it treats as a script "invoked
+# without an addon". It then appends *every* installed add-on's library directory to sys.path
+# and puts ours last. Any other add-on shipping a top-level `resources` package therefore wins
+# `import resources`, and our own submodules become invisible:
+#   ModuleNotFoundError: No module named 'resources.lib.osclient'
+# even when the add-on is installed correctly (issue #39, support ticket #168978).
+# Put our own directory first, and drop any `resources` already bound, before importing ours.
+_addon_path = xbmcvfs.translatePath(__addon__.getAddonInfo("path"))
+sys.path = [p for p in sys.path if os.path.normpath(p) != os.path.normpath(_addon_path)]
+sys.path.insert(0, _addon_path)
+for _module in [m for m in list(sys.modules) if m == "resources" or m.startswith("resources.")]:
+    del sys.modules[_module]
+
 import xbmcgui
 from requests import RequestException
 
@@ -12,7 +32,6 @@ from resources.lib.exceptions import (
     TooManyRequests,
 )
 
-__addon__ = xbmcaddon.Addon("service.subtitles.opensubtitles-com")
 __addon_name__ = __addon__.getAddonInfo("name")
 __language__ = __addon__.getLocalizedString
 

@@ -83,8 +83,35 @@ class SubtitleDownloader:
 
         self.query = {**media_data, **file_data, **language_data}
 
+        self.subtitles, searched_ok = self._search_subtitles(self.query)
+
+        # An episode-level imdb_id/tmdb_id is searched on its own (see get_media_data): exact,
+        # but it only finds anything when OS.com holds subtitles filed against that episode id.
+        # When it comes back empty, retry with the title + season/episode we set aside.
+        retry_query = self.query.get("retry_query")
+        if searched_ok and not self.subtitles and retry_query:
+            retry = {k: v for k, v in self.query.items() if k != "retry_query"}
+            retry.update({k: v for k, v in retry_query.items() if v})
+            retry["imdb_id"] = None
+            retry["tmdb_id"] = None
+            log(__name__, f"Episode ID search found nothing, retrying with title/season/episode: {retry_query}")
+            self.subtitles, _ = self._search_subtitles(retry)
+
+        if self.subtitles and len(self.subtitles):
+            log(__name__, len(self.subtitles))
+            self.list_subtitles()
+        else:
+            # TODO retry using guessit???
+            log(__name__, "No subtitle found")
+
+    def _search_subtitles(self, query):
+        """Run one search, turning provider failures into a user-facing message.
+
+        Returns (results, ok); ok is False when the provider errored, so the caller can
+        tell "no subtitles for this query" apart from "the search never got through".
+        """
         try:
-            self.subtitles = self.open_subtitles.search_subtitles(self.query)
+            return self.open_subtitles.search_subtitles(query), True
         except TooManyRequests as e:
             error(__name__, 32007, e, detail=str(e))
         except ServiceUnavailable as e:
@@ -93,13 +120,7 @@ class SubtitleDownloader:
             error(__name__, 32009, e, detail=str(e))
         except ValueError as e:
             error(__name__, 32001, e, detail=str(e))
-
-        if self.subtitles and len(self.subtitles):
-            log(__name__, len(self.subtitles))
-            self.list_subtitles()
-        else:
-            # TODO retry using guessit???
-            log(__name__, "No subtitle found")
+        return None, False
 
     def download(self):
         valid = 1

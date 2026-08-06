@@ -76,7 +76,7 @@ class OpenSubtitlesProvider:
             logging(f"Username: {self.username}, Password: {self.password}")
 
 
-        self.request_headers = {"Api-Key": self.api_key, "User-Agent": "Opensubtitles.com Kodi plugin v1.0.10" ,"Content-Type": CONTENT_TYPE, "Accept": CONTENT_TYPE}
+        self.request_headers = {"Api-Key": self.api_key, "User-Agent": "Opensubtitles.com Kodi plugin v1.0.11" ,"Content-Type": CONTENT_TYPE, "Accept": CONTENT_TYPE}
 
         self.session = Session()
         self.session.headers = self.request_headers
@@ -109,8 +109,11 @@ class OpenSubtitlesProvider:
 
             r.raise_for_status()
         except (ConnectionError, Timeout, ReadTimeout) as e:
+            # A DNS/connect/read failure carries no HTTP response, so there is no status
+            # code to report - reading one here raised AttributeError inside the handler
+            # instead of surfacing the intended "service unavailable" message.
             logging(f"Connection error during login: {e}")
-            raise ServiceUnavailable(f"Unknown Error: {e.response.status_code}: {e!r}")
+            raise ServiceUnavailable(f"Connection error: {e!r}")
         except HTTPError as e:
             status_code = e.response.status_code
             logging(f"HTTP error during login: {status_code}")
@@ -245,7 +248,7 @@ class OpenSubtitlesProvider:
             r.raise_for_status()
         except (ConnectionError, Timeout, ReadTimeout) as e:
             logging(f"Connection error during search: {e}")
-            raise ServiceUnavailable(f"Unknown Error, empty response: {e.status_code}: {e!r}")
+            raise ServiceUnavailable(f"Connection error: {e!r}")
         except HTTPError as e:
             status_code = e.response.status_code
             logging(f"HTTP error during subtitle search: {e}")
@@ -346,7 +349,8 @@ class OpenSubtitlesProvider:
             logging(r.url)
             r.raise_for_status()
         except (ConnectionError, Timeout, ReadTimeout) as e:
-            raise ServiceUnavailable(f"Unknown Error, empty response: {e.status_code}: {e!r}")
+            logging(f"Connection error during download: {e}")
+            raise ServiceUnavailable(f"Connection error: {e!r}")
         except HTTPError as e:
             status_code = e.response.status_code
             if status_code == 401:

@@ -491,7 +491,14 @@ def get_media_data():
 
         # 1) Try to get TRUE parent show IDs first (these are more reliable)
         try:
-            # True parent show IMDb ID from TvShow properties
+            # True parent show IMDb ID from TvShow properties. Neither of these is a core
+            # Kodi InfoLabel, so both are usually empty and step 3 below (JSON-RPC on
+            # VideoPlayer.TvShowDBID) is what actually resolves the parent ID; they are kept
+            # because a skin or video add-on may set the ListItem property itself.
+            # Do NOT "fix" this to VideoPlayer.IMDBNumber (suggested in issue #40): during
+            # episode playback that label returns the *episode's* id, so it would be filed
+            # as a parent id and then searched together with season/episode - which matches
+            # nothing. It is already read as an episode id in step 2 below.
             parent_imdb_raw = (xbmc.getInfoLabel("ListItem.Property(TvShow.IMDBNumber)")
                                or xbmc.getInfoLabel("VideoPlayer.TvShow.IMDBNumber"))
             imdb_digits = _strip_imdb_tt(parent_imdb_raw)
@@ -729,6 +736,22 @@ def get_media_data():
     if isinstance(item.get("episode_number"), str) and item["episode_number"] and item["episode_number"].lower().find("s") > -1:
         item["season_number"] = "0"
         item["episode_number"] = item["episode_number"][-1:]
+
+    # ---------- Episode-level ID searches must travel alone ----------
+    # OS.com ANDs every search parameter. An episode's own imdb_id/tmdb_id already pins down
+    # the exact episode, so sending query + season_number + episode_number alongside it
+    # matches nothing and the search comes back empty. Park them under "retry_query" so
+    # subtitle_downloader can fall back to a title search when the ID lookup finds nothing.
+    # NB: this has to run *after* the query fallback above, which would otherwise refill
+    # "query" straight away. Reported by @peno64 (issue #40).
+    if item.get("tv_show_title") and (item.get("imdb_id") or item.get("tmdb_id")):
+        item["retry_query"] = {"query": item.get("query"),
+                               "season_number": item.get("season_number"),
+                               "episode_number": item.get("episode_number")}
+        item["query"] = ""
+        item["season_number"] = None
+        item["episode_number"] = None
+        log(__name__, "Episode-level ID search: dropped query/season/episode (kept for retry)")
 
     # Remove internal-only key
     if "tvshowid" in item:
