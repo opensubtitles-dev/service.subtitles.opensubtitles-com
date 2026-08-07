@@ -1,4 +1,7 @@
 
+v1.0.12 (2026-08-07)
+- Test Connection now works with the credentials as typed: Kodi saves and closes the settings dialog before running the test, so you no longer have to press OK and reopen settings first. The settings reopen once you dismiss the result (thanks rosensama)
+
 v1.0.11 (2026-08-06)
 - fixed Test Connection failing with "ModuleNotFoundError: No module named 'resources.lib.osclient'" when another installed add-on ships its own top-level 'resources' package: the settings script now puts its own directory first on the import path (the v1.0.10 rename did not address this)
 - fixed TV episode searches returning nothing when only the episode's own IMDb/TMDb id is known: the id is now sent on its own instead of alongside query/season/episode, with an automatic title fallback if it finds nothing (thanks peno64)

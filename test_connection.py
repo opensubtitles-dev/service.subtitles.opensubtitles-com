@@ -1,6 +1,7 @@
 import os
 import sys
 
+import xbmc
 import xbmcaddon
 import xbmcvfs
 
@@ -82,4 +83,10 @@ def test_connection():
 
 
 if __name__ == "__main__":
-    test_connection()
+    try:
+        test_connection()
+    finally:
+        # Kodi saved the settings and closed the dialog before starting this script (see
+        # <close> in settings.xml), which is what lets us read credentials the user has only
+        # just typed. Put them back where they were once they dismiss the result.
+        xbmc.executebuiltin(f"Addon.OpenSettings({__addon__.getAddonInfo('id')})")

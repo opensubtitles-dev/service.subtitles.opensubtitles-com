@@ -32,6 +32,11 @@
                     <level>0</level>
                     <default/>
                     <control type="button" format="action">
+                        <!-- <close> makes Kodi save the settings and close this dialog before
+                             running the script. Without it the script reads the values last
+                             written to disk, so freshly typed credentials look empty and the
+                             user is asked for a username and password they just entered. -->
+                        <close>true</close>
                         <data>RunScript(special://home/addons/service.subtitles.opensubtitles-com/test_connection.py)</data>
                     </control>
                 </setting>
