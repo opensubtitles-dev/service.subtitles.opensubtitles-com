@@ -83,19 +83,27 @@ class SubtitleDownloader:
 
         self.query = {**media_data, **file_data, **language_data}
 
+        # get_media_data may hand us an ordered plan: when it cannot tell whether the id the
+        # player gave us belongs to the show or to the episode, each reading is a separate
+        # attempt. Take the first one that returns something (see issue #40).
+        fallbacks = self.query.pop("search_fallbacks", None) or []
+
+        # If we could not tell locally whether the player's id names the show or the episode,
+        # ask OS.com outright before resorting to trying both readings.
+        ambiguous = self.query.pop("ambiguous_player_id", None)
+        if ambiguous:
+            resolved = self._resolve_ambiguous_id(ambiguous)
+            if resolved:
+                self.query.update(resolved)
+
         self.subtitles, searched_ok = self._search_subtitles(self.query)
 
-        # An episode-level imdb_id/tmdb_id is searched on its own (see get_media_data): exact,
-        # but it only finds anything when OS.com holds subtitles filed against that episode id.
-        # When it comes back empty, retry with the title + season/episode we set aside.
-        retry_query = self.query.get("retry_query")
-        if searched_ok and not self.subtitles and retry_query:
-            retry = {k: v for k, v in self.query.items() if k != "retry_query"}
-            retry.update({k: v for k, v in retry_query.items() if v})
-            retry["imdb_id"] = None
-            retry["tmdb_id"] = None
-            log(__name__, f"Episode ID search found nothing, retrying with title/season/episode: {retry_query}")
-            self.subtitles, _ = self._search_subtitles(retry)
+        for attempt in fallbacks:
+            if self.subtitles or not searched_ok:
+                break
+            retry = {**self.query, **attempt}
+            log(__name__, f"No results, retrying with: {({k: v for k, v in attempt.items() if v})}")
+            self.subtitles, searched_ok = self._search_subtitles(retry)
 
         if self.subtitles and len(self.subtitles):
             log(__name__, len(self.subtitles))
@@ -103,6 +111,59 @@ class SubtitleDownloader:
         else:
             # TODO retry using guessit???
             log(__name__, "No subtitle found")
+
+    def _resolve_ambiguous_id(self, ambiguous):
+        """Turn a player-supplied id of unknown role into a definite set of search params.
+
+        Returns query overrides, or None when the lookup cannot answer - in which case
+        search() just falls back to trying both readings in turn.
+        """
+        try:
+            info = self.open_subtitles.get_feature_info(**ambiguous)
+        except (ProviderError, ServiceUnavailable, TooManyRequests, ValueError) as e:
+            log(__name__, f"Feature lookup unavailable, will try both readings instead: {e}")
+            return None
+
+        if not info:
+            log(__name__, f"OS.com does not know {ambiguous}, will try both readings instead")
+            return None
+
+        feature_type = str(info.get("feature_type") or "").lower()
+
+        if feature_type == "episode":
+            # Best case: we get the show's id and the true season/episode, so we can search
+            # the way most subtitles are actually filed, whatever Kodi reported.
+            parent_imdb = info.get("parent_imdb_id")
+            season = info.get("season_number")
+            episode = info.get("episode_number")
+            if parent_imdb and season and episode:
+                log(__name__, f"/features: {ambiguous} is episode S{season}E{episode} of "
+                              f"imdb {parent_imdb}")
+                return {"parent_imdb_id": int(parent_imdb), "parent_tmdb_id": None,
+                        "imdb_id": None, "tmdb_id": None,
+                        "season_number": str(season), "episode_number": str(episode),
+                        "query": ""}
+            # Known to be an episode but without parent details: search the id on its own.
+            log(__name__, f"/features: {ambiguous} is an episode, searching the id alone")
+            return {"parent_imdb_id": None, "parent_tmdb_id": None,
+                    "query": "", "season_number": None, "episode_number": None, **ambiguous}
+
+        if feature_type == "tvshow":
+            # Drop the title: with a confirmed show id it is just one more condition the
+            # results have to satisfy, and a localized or mis-parsed title would exclude
+            # perfectly good subtitles.
+            key = "parent_imdb_id" if "imdb_id" in ambiguous else "parent_tmdb_id"
+            log(__name__, f"/features: {ambiguous} is a show, pairing it with season/episode")
+            return {key: next(iter(ambiguous.values())), "imdb_id": None, "tmdb_id": None,
+                    "query": ""}
+
+        if feature_type == "movie":
+            log(__name__, f"/features: {ambiguous} is a movie, searching the id alone")
+            return {"parent_imdb_id": None, "parent_tmdb_id": None,
+                    "query": "", "season_number": None, "episode_number": None, **ambiguous}
+
+        log(__name__, f"/features returned unexpected feature_type {feature_type!r}")
+        return None
 
     def _search_subtitles(self, query):
         """Run one search, turning provider failures into a user-facing message.

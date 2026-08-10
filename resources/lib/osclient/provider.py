@@ -19,6 +19,10 @@ API_LOGIN = "login"
 API_SUBTITLES = "subtitles"
 API_DOWNLOAD = "download"
 API_USER_INFO = "infos/user"
+API_FEATURES = "features"
+
+# A feature's type, parent and episode numbers never change, so this can be cached hard.
+FEATURE_CACHE_TTL = 60 * 60 * 24 * 30
 
 
 CONTENT_TYPE = "application/json"
@@ -76,7 +80,7 @@ class OpenSubtitlesProvider:
             logging(f"Username: {self.username}, Password: {self.password}")
 
 
-        self.request_headers = {"Api-Key": self.api_key, "User-Agent": "Opensubtitles.com Kodi plugin v1.0.12" ,"Content-Type": CONTENT_TYPE, "Accept": CONTENT_TYPE}
+        self.request_headers = {"Api-Key": self.api_key, "User-Agent": "Opensubtitles.com Kodi plugin v1.0.13" ,"Content-Type": CONTENT_TYPE, "Accept": CONTENT_TYPE}
 
         self.session = Session()
         self.session.headers = self.request_headers
@@ -171,6 +175,52 @@ class OpenSubtitlesProvider:
             return r.json()["data"]
         except (ValueError, KeyError):
             raise ProviderError("Invalid JSON returned by provider")
+
+    def get_feature_info(self, imdb_id=None, tmdb_id=None):
+        """Ask OS.com what an id actually refers to: a Movie, a Tvshow or a single Episode.
+
+        Video add-ons hand Kodi either a show's id or an episode's id in the same field and
+        nothing on the device distinguishes them (issue #40). This does, and for an episode
+        it also returns parent_imdb_id plus the real season/episode numbers.
+
+        Returns the feature's attributes, or None if OS.com does not know the id.
+        """
+        if imdb_id:
+            params = {"imdb_id": imdb_id}
+            cache_key = f"feature_imdb_{imdb_id}"
+        elif tmdb_id:
+            params = {"tmdb_id": tmdb_id}
+            cache_key = f"feature_tmdb_{tmdb_id}"
+        else:
+            return None
+
+        cached = self.cache.get(cache_key)
+        if cached is not None:
+            logging(f"CACHE HIT: feature info for {params}")
+            return cached or None
+
+        try:
+            r = self.session.get(API_URL + API_FEATURES, params=params, timeout=REQUEST_TIMEOUT)
+            logging(f"Feature lookup URL: {r.url} -> {r.status_code}")
+            r.raise_for_status()
+        except (ConnectionError, Timeout, ReadTimeout) as e:
+            raise ServiceUnavailable(f"Connection error: {e!r}")
+        except HTTPError as e:
+            status_code = e.response.status_code
+            if status_code == 429:
+                raise TooManyRequests()
+            raise ProviderError(f"Bad status code on feature lookup: {status_code}")
+
+        try:
+            data = r.json().get("data") or []
+        except ValueError:
+            raise ProviderError("Invalid JSON returned by provider")
+
+        attributes = data[0].get("attributes") if data else None
+        # cache misses too, as {}, so an unknown id is not looked up again every search
+        self.cache.set(cache_key, attributes or {}, expires=FEATURE_CACHE_TTL)
+        logging(f"Feature lookup {params} -> {attributes.get('feature_type') if attributes else 'unknown'}")
+        return attributes
 
     @property
     def user_token(self):

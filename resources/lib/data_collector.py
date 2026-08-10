@@ -514,22 +514,28 @@ def get_media_data():
         except Exception as e:
             log(__name__, f"Failed to read true parent IDs from InfoLabels: {e}")
 
-        # 2) If no true parent IDs found, check if we have episode-specific IDs
+        # 2) No true parent IDs, so fall back to whatever id the player exposes.
+        #    These labels describe "the thing being played", and video add-ons disagree about
+        #    what they put there: Seren reports the *episode's* IMDb id, Umbrella and POV
+        #    report the *show's* (peno64's logs, issue #40). Nothing local tells them apart,
+        #    so record the id but flag its role as unknown - the search plan at the end of
+        #    this function tries both readings instead of guessing.
         if not item.get("parent_imdb_id") and not item.get("parent_tmdb_id"):
             try:
-                # These might be episode IDs, not parent IDs
                 possible_episode_imdb = (xbmc.getInfoLabel("VideoPlayer.UniqueID(imdb)")
                                          or xbmc.getInfoLabel("VideoPlayer.IMDBNumber")
                                          or xbmc.getInfoLabel("ListItem.IMDBNumber"))
                 imdb_digits = _strip_imdb_tt(possible_episode_imdb)
                 if imdb_digits and 6 <= len(imdb_digits) <= 8:
                     item["imdb_id"] = int(imdb_digits)
-                    log(__name__, f"Episode-specific IMDb ID (not parent): {item['imdb_id']}")
+                    item["_player_id_role_unknown"] = True
+                    log(__name__, f"Player IMDb ID (show or episode, role unknown): {item['imdb_id']}")
 
                 possible_episode_tmdb = xbmc.getInfoLabel("VideoPlayer.UniqueID(tmdb)")
                 if possible_episode_tmdb and possible_episode_tmdb.isdigit():
                     item["tmdb_id"] = int(possible_episode_tmdb)
-                    log(__name__, f"Episode-specific TMDb ID (not parent): {item['tmdb_id']}")
+                    item["_player_id_role_unknown"] = True
+                    log(__name__, f"Player TMDb ID (show or episode, role unknown): {item['tmdb_id']}")
             except Exception as e:
                 log(__name__, f"Failed to read episode IDs from InfoLabels: {e}")
 
@@ -592,16 +598,19 @@ def get_media_data():
             except (json.JSONDecodeError, ET.ParseError, ValueError, KeyError) as e:
                 log(__name__, f"Failed to extract TV show IDs via JSON-RPC: {e}")
 
-        # 4) Try to get specific episode IDs from dedicated episode fields (if available)
+        # 4) Try to get specific episode IDs from dedicated episode fields (if available).
+        #    Unlike step 2 these name the episode explicitly, so the id's role is not in doubt.
         try:
             ep_tmdb = xbmc.getInfoLabel("VideoPlayer.UniqueID(tmdbepisode)")
             if ep_tmdb and ep_tmdb.isdigit():
                 item["tmdb_id"] = int(ep_tmdb)
+                item["_player_id_role_unknown"] = False
                 log(__name__, f"Dedicated Episode TMDb ID: {item['tmdb_id']}")
             ep_imdb = xbmc.getInfoLabel("VideoPlayer.UniqueID(imdbepisode)")
             ep_imdb_digits = _strip_imdb_tt(ep_imdb)
             if ep_imdb_digits and ep_imdb_digits.isdigit():
                 item["imdb_id"] = int(ep_imdb_digits)
+                item["_player_id_role_unknown"] = False
                 log(__name__, f"Dedicated Episode IMDb ID: {item['imdb_id']}")
         except Exception as e:
             log(__name__, f"Failed to read dedicated episode IDs from InfoLabels: {e}")
@@ -737,21 +746,53 @@ def get_media_data():
         item["season_number"] = "0"
         item["episode_number"] = item["episode_number"][-1:]
 
-    # ---------- Episode-level ID searches must travel alone ----------
-    # OS.com ANDs every search parameter. An episode's own imdb_id/tmdb_id already pins down
-    # the exact episode, so sending query + season_number + episode_number alongside it
-    # matches nothing and the search comes back empty. Park them under "retry_query" so
-    # subtitle_downloader can fall back to a title search when the ID lookup finds nothing.
-    # NB: this has to run *after* the query fallback above, which would otherwise refill
-    # "query" straight away. Reported by @peno64 (issue #40).
-    if item.get("tv_show_title") and (item.get("imdb_id") or item.get("tmdb_id")):
-        item["retry_query"] = {"query": item.get("query"),
-                               "season_number": item.get("season_number"),
-                               "episode_number": item.get("episode_number")}
-        item["query"] = ""
-        item["season_number"] = None
-        item["episode_number"] = None
-        log(__name__, "Episode-level ID search: dropped query/season/episode (kept for retry)")
+    # ---------- Search plan for TV episodes ----------
+    # OS.com ANDs every search parameter, and the two kinds of id have to be sent differently:
+    #   a *show* id must be paired with season_number/episode_number
+    #   an *episode* id must travel alone, or the extra params match nothing
+    # Getting this wrong returns an empty result either way. Video add-ons disagree about
+    # which kind they hand us (Seren gives the episode's, Umbrella and POV the show's -
+    # peno64's logs on issue #40) and nothing local distinguishes them, so where the role is
+    # unknown we try both readings in order instead of guessing. "search_fallbacks" holds the
+    # later attempts as parameter overrides; SubtitleDownloader.search() applies them one at
+    # a time until something comes back.
+    # NB: must run *after* the query fallback above, which would otherwise refill "query".
+    if item.get("tv_show_title"):
+        title_attempt = {"query": item.get("query"),
+                         "season_number": item.get("season_number"),
+                         "episode_number": item.get("episode_number"),
+                         "imdb_id": None, "tmdb_id": None,
+                         "parent_imdb_id": None, "parent_tmdb_id": None}
+        role_unknown = item.pop("_player_id_role_unknown", False)
+
+        if role_unknown and (item.get("imdb_id") or item.get("tmdb_id")):
+            # Read it as the show's id first: that keeps season/episode in play, and it is
+            # the reading that was already working for Umbrella/POV before 1.0.11.
+            if item.get("imdb_id"):
+                id_key, parent_key, value = "imdb_id", "parent_imdb_id", item["imdb_id"]
+            else:
+                id_key, parent_key, value = "tmdb_id", "parent_tmdb_id", item["tmdb_id"]
+            item[parent_key] = value
+            item[id_key] = None
+            # SubtitleDownloader resolves this against OS.com's /features first; the
+            # attempts below are the offline answer for when that lookup cannot run.
+            item["ambiguous_player_id"] = {id_key: value}
+            item["search_fallbacks"] = [
+                # then as the episode's id, which has to be sent on its own (Seren)
+                {parent_key: None, id_key: value,
+                 "query": "", "season_number": None, "episode_number": None},
+                # and only if neither id matches anything, fall back to a title search
+                title_attempt,
+            ]
+            log(__name__, f"Ambiguous player ID {value}: trying {parent_key} + season/episode, "
+                          f"then {id_key} alone, then title search")
+        elif item.get("imdb_id") or item.get("tmdb_id"):
+            # Known to be the episode's own id, so it must travel alone.
+            item["query"] = ""
+            item["season_number"] = None
+            item["episode_number"] = None
+            item["search_fallbacks"] = [title_attempt]
+            log(__name__, "Episode-level ID search: dropped query/season/episode (kept for retry)")
 
     # Remove internal-only key
     if "tvshowid" in item:
