@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <addon id="service.subtitles.opensubtitles-com"
        name="OpenSubtitles.com"
-       version="1.0.13"
+       version="1.0.14"
        provider-name="amet, opensubtitles, juokelis, opensubtitlesdev">
 	<requires>
 		<import addon="xbmc.python" version="3.0.0"/>
@@ -52,6 +52,13 @@
 		<description lang="zh_CN">多语种的电影及剧集字幕，每日更新千余条翻译好的字幕。免费下载，提供API接口，已拥有上百万的用户。</description>
 		<disclaimer lang="en_GB">Users need to provide OpenSubtitles.com username and password in add-on configuration. This is our new extension, old opensubtitles.org will not work on this, but the account can be easily imported on opensubtitles.com.</disclaimer>
 		<news>
+v1.0.14 (2026-08-14)
+- security: stopped writing credentials, session tokens and API keys to the Kodi debug log
+- expired login sessions now refresh automatically instead of failing the download with "login failed"
+- fixed subtitle list failing to build when a subtitle has no rating
+- failed downloads no longer hand Kodi a subtitle file that does not exist
+- added a timeout to the filename-analysis request so playback can no longer hang on it
+
 v1.0.13 (2026-08-10)
 - TV episode searches now ask OpenSubtitles.com whether the id the video add-on supplied is a show or an episode, instead of assuming
 - fixed TV episode searches for video add-ons that report the show's IMDb id rather than the episode's (Umbrella, POV), which 1.0.11 broke (thanks peno64)
@@ -116,6 +123,6 @@ v1.0.1 (2023-07-28)
 			<screenshot>resources/media/screenshot_2.jpg</screenshot>
 			<screenshot>resources/media/screenshot_3.jpg</screenshot>
 		</assets>
-		<source>https://github.com/opensubtitlesdev/service.subtitles.opensubtitles-com</source>
+		<source>https://github.com/opensubtitles-dev/service.subtitles.opensubtitles-com</source>
 	</extension>
 </addon>

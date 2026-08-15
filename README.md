@@ -4,6 +4,13 @@ Search and download subtitles for movies and TV-Series from OpenSubtitles.com. S
 
 REST API implementation based on tomburke25 [python-opensubtitles-rest-api](https://github.com/tomburke25/python-opensubtitles-rest-api)                            
 
+v1.0.14 (2026-08-14)
+- security: stopped writing credentials, session tokens and API keys to the Kodi debug log
+- expired login sessions now refresh automatically instead of failing the download with "login failed"
+- fixed subtitle list failing to build when a subtitle has no rating
+- failed downloads no longer hand Kodi a subtitle file that does not exist
+- added a timeout to the filename-analysis request so playback can no longer hang on it
+
 v1.0.13 (2026-08-10)
 - TV episode searches now ask OpenSubtitles.com what the id supplied by the video add-on actually refers to, instead of assuming. One cached /features lookup says whether it is a show or an episode, and for an episode it also returns the show's id and the real season/episode numbers, so the search is built correctly whatever the add-on reported
 - fixed TV episode searches for video add-ons that report the show's IMDb/TMDb id rather than the episode's (Umbrella, POV), which 1.0.11 broke by always treating the player's id as an episode id. Add-ons disagree about what they put in that field and nothing local tells the two apart, so the add-on no longer guesses: it tries the show reading first (id + season/episode), then the episode reading (id on its own), and only falls back to a title search if neither matches. That also stops the title fallback from surfacing subtitles for a different show with a similar name (thanks peno64)
