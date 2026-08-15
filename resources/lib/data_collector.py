@@ -339,7 +339,7 @@ def _call_guessit_api(filename):
         log(__name__, f"🔍 Calling guessit API for: {filename}")
         
         # Make the request
-        with urllib.request.urlopen(req) as response:
+        with urllib.request.urlopen(req, timeout=10) as response:
             if response.getcode() == 200:
                 data = json.loads(response.read().decode('utf-8'))
                 log(__name__, f"✅ Guessit API response: {data}")

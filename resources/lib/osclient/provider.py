@@ -77,10 +77,11 @@ class OpenSubtitlesProvider:
         self.password = password
 
         if not self.username or not self.password:
-            logging(f"Username: {self.username}, Password: {self.password}")
+            logging(f"Credentials incomplete: username set: {bool(self.username)}, password set: {bool(self.password)}")
 
-
-        self.request_headers = {"Api-Key": self.api_key, "User-Agent": "Opensubtitles.com Kodi plugin v1.0.13" ,"Content-Type": CONTENT_TYPE, "Accept": CONTENT_TYPE}
+        self.request_headers = {"Api-Key": self.api_key,
+                                "User-Agent": f"Opensubtitles.com Kodi plugin v{__addon__.getAddonInfo('version')}",
+                                "Content-Type": CONTENT_TYPE, "Accept": CONTENT_TYPE}
 
         self.session = Session()
         self.session.headers = self.request_headers
@@ -96,20 +97,11 @@ class OpenSubtitlesProvider:
         login_body = {"username": self.username, "password": self.password}
 
         logging(f"Login attempt to: {login_url}")
-        logging(f"Login body: {{'username': '{self.username}', 'password': '***'}}")
 
         try:
             r = self.session.post(login_url, json=login_body, allow_redirects=False, timeout=REQUEST_TIMEOUT)
-            logging(f"Login response URL: {r.url}")
+            # Never log the login response headers or body: the body carries the JWT token.
             logging(f"Login response status: {r.status_code}")
-            logging(f"Login response headers: {dict(r.headers)}")
-
-            # Log response body for debugging
-            try:
-                response_text = r.text
-                logging(f"Login response body: {response_text}")
-            except:
-                logging("Failed to get response text")
 
             r.raise_for_status()
         except (ConnectionError, Timeout, ReadTimeout) as e:
@@ -122,12 +114,6 @@ class OpenSubtitlesProvider:
             status_code = e.response.status_code
             logging(f"HTTP error during login: {status_code}")
 
-            # Log the error response body for debugging
-            try:
-                error_response = e.response.text
-                logging(f"Login error response body: {error_response}")
-            except:
-                logging("Failed to get error response text")
 
             if status_code == 401:
                 raise AuthenticationError(f"Login failed: {e}")
@@ -142,11 +128,10 @@ class OpenSubtitlesProvider:
         else:
             try:
                 response_json = r.json()
-                logging(f"Login successful response JSON: {response_json}")
                 self.user_token = response_json["token"]
-                logging(f"Token extracted successfully")
-            except ValueError as e:
-                logging(f"Failed to parse login response JSON: {e}")
+                logging("Login successful, token received")
+            except (ValueError, KeyError) as e:
+                logging(f"Failed to parse login response JSON: {e!r}")
                 raise ValueError("Invalid JSON returned by provider")
 
     def get_user_info(self):
@@ -228,7 +213,9 @@ class OpenSubtitlesProvider:
 
     @user_token.setter
     def user_token(self, value):
-        self.cache.set(key="user_token", value=value)
+        # The API's JWT is valid for ~24h server-side; cache it for less than that so a
+        # long-running device re-logins instead of presenting an expired token.
+        self.cache.set(key="user_token", value=value, expires=60 * 60 * 20)
 
     def search_subtitles(self, query: Union[dict, OpenSubtitlesSubtitlesRequest]):
 
@@ -272,28 +259,17 @@ class OpenSubtitlesProvider:
                 logging(f"Cache check failed: {e}")
         # --- [END] Cache Check ---
 
-        # Check if we have a user token for authentication
-        current_token = self.user_token
-        logging(f"Current user token: {current_token[:20] if current_token else None}...")
+        logging(f"User token cached: {bool(self.user_token)}")
 
         try:
             # build query request
             subtitles_url = API_URL + API_SUBTITLES
-            logging(f"Search request URL: {subtitles_url}")
             logging(f"Search request params: {params}")
 
-            r = self.session.get(subtitles_url, params=params, timeout=30)
-            logging(f"Search response URL: {r.url}")
-            logging(f"Search response status: {r.status_code}")
-            logging(f"Search request headers sent: {dict(r.request.headers)}")
-            logging(f"Search response headers: {dict(r.headers)}")
-
-            # Log response body for debugging
-            try:
-                response_text = r.text
-                logging(f"Search response body: {response_text}")
-            except:
-                logging("Failed to get search response text")
+            # Never log request or response headers: they carry the Api-Key (and would
+            # carry the Authorization token) - users paste debug logs to public forums.
+            r = self.session.get(subtitles_url, params=params, timeout=REQUEST_TIMEOUT)
+            logging(f"Search response: {r.url} -> {r.status_code}")
 
             r.raise_for_status()
         except (ConnectionError, Timeout, ReadTimeout) as e:
@@ -303,11 +279,10 @@ class OpenSubtitlesProvider:
             status_code = e.response.status_code
             logging(f"HTTP error during subtitle search: {e}")
 
-            # Log the error response body for debugging
+            # Log the error response body for debugging (no secrets on this endpoint)
             try:
-                error_response = e.response.text
-                logging(f"Search error response body: {error_response}")
-            except:
+                logging(f"Search error response body: {e.response.text}")
+            except Exception:
                 logging("Failed to get search error response text")
 
             if status_code == 401:
@@ -378,9 +353,6 @@ class OpenSubtitlesProvider:
             logging("No cached token, but username or password is missing. Proceeding with free downloads.")
         if self.user_token == "":
             logging("Unable to obtain an authentication token.")
-            #raise ProviderError("Unable to obtain an authentication token")            
-            
-            logging(f"user token is {self.user_token}")
 
         params = query_to_params(query, "OpenSubtitlesDownloadRequest")
 
@@ -388,16 +360,31 @@ class OpenSubtitlesProvider:
 
         # build download request
         download_url = API_URL + API_DOWNLOAD
-        download_headers= {}
-        if not self.user_token==None:
-            download_headers = {"Authorization": "Bearer " + self.user_token}
-
         download_params = {"file_id": params["file_id"], "sub_format": "srt"}
 
+        def _post_download():
+            headers = {}
+            if self.user_token:
+                headers = {"Authorization": "Bearer " + self.user_token}
+            resp = self.session.post(download_url, headers=headers, json=download_params,
+                                     timeout=REQUEST_TIMEOUT)
+            logging(f"Download response: {resp.url} -> {resp.status_code}")
+            resp.raise_for_status()
+            return resp
+
         try:
-            r = self.session.post(download_url, headers=download_headers, json=download_params, timeout=REQUEST_TIMEOUT)
-            logging(r.url)
-            r.raise_for_status()
+            try:
+                r = _post_download()
+            except HTTPError as e:
+                # A cached token outlives its server-side validity (the JWT expires long
+                # before the cache entry does). On 401 with credentials available, refresh
+                # the token once and retry instead of surfacing "login failed".
+                if e.response is not None and e.response.status_code == 401 and self.username and self.password:
+                    logging("Cached token rejected (401), re-logging in and retrying download")
+                    self.login()
+                    r = _post_download()
+                else:
+                    raise
         except (ConnectionError, Timeout, ReadTimeout) as e:
             logging(f"Connection error during download: {e}")
             raise ServiceUnavailable(f"Connection error: {e!r}")
@@ -417,14 +404,24 @@ class OpenSubtitlesProvider:
         try:
             subtitle = r.json()
             download_link = subtitle["link"]
-        except ValueError:
+        except (ValueError, KeyError):
             raise ProviderError("Invalid JSON returned by provider")
         else:
-            res = self.session.get(download_link, timeout=REQUEST_TIMEOUT)
+            try:
+                res = self.session.get(download_link, timeout=REQUEST_TIMEOUT)
+                res.raise_for_status()
+            except HTTPError as e:
+                # exception reprs embed the URL; the download link is one-time and
+                # quota-bearing, so report only the status
+                raise ServiceUnavailable(
+                    f"Could not fetch subtitle file: HTTP {e.response.status_code if e.response is not None else 'error'}")
+            except (ConnectionError, Timeout, ReadTimeout):
+                raise ServiceUnavailable("Could not fetch subtitle file: connection error")
 
             subtitle["content"] = res.content
 
             if not subtitle["content"]:
-                logging(f"Could not download subtitle from {subtitle.download_link}")
+                # do not log the download link itself - it is a one-time quota-bearing URL
+                logging(f"Empty subtitle content for file_id {params['file_id']!r}")
 
         return subtitle
