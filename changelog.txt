@@ -1,4 +1,13 @@
 
+v1.0.14 (2026-08-14)
+- security: stopped writing credentials, session tokens and API keys to the Kodi debug log. The log previously included the password when only one credential was filled in, the full login response (which contains the session token), and the request headers (which contain the API key) - and debug logs are exactly what users share on forums when asking for help
+- expired login sessions now refresh automatically: the cached session token outlives its server-side validity, so downloads on long-running devices failed with "login failed" until the cache expired. A rejected token is now refreshed once and the download retried
+- fixed subtitle list failing to build when a subtitle has no rating
+- failed downloads no longer hand Kodi a path to a subtitle file that was never written
+- added a timeout to the filename-analysis (guessit) request so playback can no longer hang on it
+- User-Agent now reports the real add-on version instead of a hardcoded string
+- fixed addon.xml source link (wrong GitHub organisation name) and the settings section id
+
 v1.0.13 (2026-08-10)
 - TV episode searches now ask OpenSubtitles.com what the id supplied by the video add-on actually refers to, instead of assuming. One cached /features lookup says whether it is a show or an episode, and for an episode it also returns the show's id and the real season/episode numbers, so the search is built correctly whatever the add-on reported
 - fixed TV episode searches for video add-ons that report the show's IMDb/TMDb id rather than the episode's (Umbrella, POV), which 1.0.11 broke by always treating the player's id as an episode id. Add-ons disagree about what they put in that field and nothing local tells the two apart, so the add-on no longer guesses: it tries the show reading first (id + season/episode), then the episode reading (id on its own), and only falls back to a title search if neither matches. That also stops the title fallback from surfacing subtitles for a different show with a similar name (thanks peno64)

@@ -1,6 +1,6 @@
 <?xml version="1.0" ?>
 <settings version="1">
-    <section id="service.subtitles.opensubtitles">
+    <section id="service.subtitles.opensubtitles-com">
         <category id="user" label="32101">
             <group id="1">
                 <setting id="OSuser" type="string" label="32201">

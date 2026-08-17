@@ -188,7 +188,6 @@ class SubtitleDownloader:
         try:
             self.file = self.open_subtitles.download_subtitle(
                 {"file_id": self.params["id"], "sub_format": self.sub_format})
-            log(__name__, "XYXYXX download '%s' " % self.file)
         except AuthenticationError as e:
             error(__name__, 32003, e)
             valid = 0
@@ -196,7 +195,7 @@ class SubtitleDownloader:
             error(__name__, 32214, e)
             valid = 0
         except DownloadLimitExceeded as e:
-            log(__name__, f"XYXYXX limit excedded, username: {self.username}  {e}")
+            log(__name__, f"Download limit exceeded: {e}")
             if self.username=="":
                 error(__name__, 32006, e)
             else:
@@ -233,19 +232,18 @@ class SubtitleDownloader:
         if not xbmcvfs.exists(dir_path):  # lets create custom OSS sub directory if not exists
             xbmcvfs.mkdir(dir_path)
 
-        subtitle_path = os.path.join(dir_path, "{0}.{1}.{2}".format('TempSubtitle', self.params["language"], self.sub_format))   
-        
-        log(__name__, "XYXYXX download subtitle_path: {}".format(subtitle_path))
+        subtitle_path = os.path.join(dir_path, "{0}.{1}.{2}".format('TempSubtitle', self.params["language"], self.sub_format))
 
+        log(__name__, "download subtitle_path: {}".format(subtitle_path))
 
-        if (valid==1):
-            tmp_file = open(subtitle_path, "w" + "b")
-            tmp_file.write(self.file["content"])
-            tmp_file.close()
-        
+        # Only hand Kodi a subtitle entry when the download actually succeeded; the
+        # directory was wiped above, so on failure the path points at nothing.
+        if valid == 1 and self.file.get("content"):
+            with open(subtitle_path, "wb") as tmp_file:
+                tmp_file.write(self.file["content"])
 
-        list_item = xbmcgui.ListItem(label=subtitle_path)
-        xbmcplugin.addDirectoryItem(handle=self.handle, url=subtitle_path, listitem=list_item, isFolder=False)
+            list_item = xbmcgui.ListItem(label=subtitle_path)
+            xbmcplugin.addDirectoryItem(handle=self.handle, url=subtitle_path, listitem=list_item, isFolder=False)
 
         return
 
@@ -271,21 +269,13 @@ class SubtitleDownloader:
                 list_item = xbmcgui.ListItem(label=language,
                                              label2=clean_name)
                 list_item.setArt({
-                    "icon": str(int(round(float(attributes["ratings"]) / 2))),
+                    "icon": str(int(round(float(attributes.get("ratings") or 0) / 2))),
                     "thumb": get_flag(attributes["language"])})
-               # list_item.setArt({
-               #     "icon": str(int(round(float(attributes["ratings"]) / 2))),
-               #     "thumb": get_flag(language)})
-               
-                log(__name__, "XYXYXX download get_flag: language in url {}".format(get_flag(attributes["language"])))
 
-                
                 list_item.setProperty("sync", "true" if ("moviehash_match" in attributes and attributes["moviehash_match"]) else "false")
                 list_item.setProperty("hearing_imp", "true" if attributes["hearing_impaired"] else "false")
                 """TODO take care of multiple cds id&id or something"""
-                #url = f"plugin://{__scriptid__}/?action=download&id={attributes['files'][0]['file_id']}"
-                url = f"plugin://{__scriptid__}/?action=download&id={attributes['files'][0]['file_id']}&language={language}"    
-                log(__name__, "XYXYXX download list_subtitles: language in url {url}")
+                url = f"plugin://{__scriptid__}/?action=download&id={attributes['files'][0]['file_id']}&language={language}"
 
                 xbmcplugin.addDirectoryItem(handle=self.handle, url=url, listitem=list_item, isFolder=False)
         xbmcplugin.endOfDirectory(self.handle)
