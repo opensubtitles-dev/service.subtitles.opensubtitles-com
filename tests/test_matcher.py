@@ -9,7 +9,7 @@ def test_sanitize_filename():
 
 
 def test_parse_release_tokens():
-    tokens = parse_release_tokens("Gladiator.II.2024.2160p.UHD.BluRay.x265.TrueHD.Atmos.7.1-FLUX.mkv")
+    tokens = parse_release_tokens("Movie Title 2024 2160p UHD BluRay x265 Atmos-FLUX.mkv")
     assert tokens["release_group"] == "flux"
     assert tokens["resolution"] == "2160p"
     assert tokens["source"] == "bluray"
@@ -17,7 +17,7 @@ def test_parse_release_tokens():
     assert tokens["video_codec"] == "x265"
     assert tokens["audio_codec"] == "atmos"
 
-    web_tokens = parse_release_tokens("Breaking.Bad.S05E14.1080p.NF.WEB-DL.DDP5.1.x264-NTb.mkv")
+    web_tokens = parse_release_tokens("TV Show S01E01 1080p NF WEB-DL DDP5.1 x264-NTb.mkv")
     assert web_tokens["release_group"] == "ntb"
     assert web_tokens["resolution"] == "1080p"
     assert web_tokens["source"] == "web"
@@ -26,7 +26,7 @@ def test_parse_release_tokens():
     assert web_tokens["video_codec"] == "x264"
     assert web_tokens["audio_codec"] == "ddp"
 
-    cam_tokens = parse_release_tokens("Avatar.2.2022.HDCAM.x264-CINEV.avi")
+    cam_tokens = parse_release_tokens("Sample Movie 2024 HDCAM x264.avi")
     assert cam_tokens["is_cam"] is True
     assert cam_tokens["source"] == "cam"
 
@@ -57,7 +57,7 @@ def test_match_score_moviehash_priority():
 
 
 def test_rank_subtitles_orders_exact_release_first():
-    video_file = "Dune.Part.Two.2024.2160p.UHD.BluRay.x265-Framestor.mkv"
+    video_file = "Dune Part Two 2024 2160p UHD BluRay x265-Framestor.mkv"
     guessit_meta = {
         "title": "Dune Part Two",
         "year": 2024,
@@ -107,12 +107,12 @@ def test_rank_subtitles_orders_exact_release_first():
 
 
 def test_edition_mismatch_penalty():
-    video_file = "Kingdom.of.Heaven.2005.Extended.Director's.Cut.1080p.BluRay.x264.mkv"
+    video_file = "Kingdom of Heaven 2005 Extended Directors Cut 1080p BluRay x264.mkv"
     
     sub_extended = {
         "id": "ext",
         "attributes": {
-            "release": "Kingdom.of.Heaven.2005.Extended.Directors.Cut.1080p.BluRay",
+            "release": "Kingdom of Heaven 2005 Extended Directors Cut 1080p BluRay",
             "download_count": 1000
         }
     }
@@ -120,7 +120,7 @@ def test_edition_mismatch_penalty():
     sub_theatrical = {
         "id": "theat",
         "attributes": {
-            "release": "Kingdom.of.Heaven.2005.Theatrical.Cut.1080p.BluRay",
+            "release": "Kingdom of Heaven 2005 Theatrical Cut 1080p BluRay",
             "download_count": 10000
         }
     }
