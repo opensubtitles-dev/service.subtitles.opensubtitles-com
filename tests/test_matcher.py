@@ -135,3 +135,22 @@ def test_legacy_ranking_fallback_when_disabled():
 
     ranked = rank_subtitles([sub_low, sub_high], "Some.Movie.2024.mkv", smart_ranking=False)
     assert ranked[0]["id"] == "high"
+
+
+def test_get_match_display_tag():
+    from resources.lib.matcher import get_match_display_tag
+
+    sub_hash = {"attributes": {"moviehash_match": True}}
+    assert get_match_display_tag(sub_hash) == "[COLOR yellow](Hash)[/COLOR]"
+
+    sub_high = {"_match_score": 6000.0, "attributes": {}}
+    assert get_match_display_tag(sub_high) == "[COLOR yellow](+99)[/COLOR]"
+
+    sub_med = {"_match_score": 1200.0, "attributes": {}}
+    assert get_match_display_tag(sub_med) == "[COLOR yellow](+64)[/COLOR]"
+
+    sub_low = {"_match_score": 50.0, "attributes": {}}
+    assert get_match_display_tag(sub_low) == "[COLOR yellow](+5)[/COLOR]"
+
+    sub_zero = {"_match_score": 0.0, "attributes": {}}
+    assert get_match_display_tag(sub_zero) == ""

@@ -268,6 +268,37 @@ def calculate_match_score(subtitle, video_filename, guessit_data=None):
     return score
 
 
+def get_match_display_tag(subtitle):
+    """
+    Returns a clean, colorized Kodi match badge string for display in the subtitle list (e.g. [COLOR yellow](+95)[/COLOR]).
+    """
+    attributes = subtitle.get("attributes", {})
+    if attributes.get("moviehash_match"):
+        return "[COLOR yellow](Hash)[/COLOR]"
+
+    score = subtitle.get("_match_score", 0.0)
+    
+    # Scale score into clean relative match rating (+1 to +99)
+    if score >= 5000:
+        val = 99
+    elif score >= 2000:
+        val = min(95, 80 + int((score - 2000) / 200))
+    elif score >= 1000:
+        val = min(79, 60 + int((score - 1000) / 50))
+    elif score >= 500:
+        val = min(59, 40 + int((score - 500) / 25))
+    elif score >= 100:
+        val = min(39, 15 + int((score - 100) / 20))
+    elif score > 0:
+        val = max(1, min(14, int(score / 10)))
+    else:
+        val = 0
+
+    if val > 0:
+        return f"[COLOR yellow](+{val})[/COLOR]"
+    return ""
+
+
 def rank_subtitles(subtitles, video_filename, guessit_data=None, smart_ranking=True):
     """
     Ranks subtitle list according to smart release token precision and sync confidence.

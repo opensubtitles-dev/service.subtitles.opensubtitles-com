@@ -16,7 +16,7 @@ from resources.lib.data_collector import get_language_data, get_media_data, get_
 from resources.lib.exceptions import AuthenticationError, ConfigurationError, DownloadLimitExceeded, ProviderError, \
     ServiceUnavailable, TooManyRequests, BadUsernameError
 from resources.lib.file_operations import get_file_data
-from resources.lib.matcher import rank_subtitles
+from resources.lib.matcher import rank_subtitles, get_match_display_tag
 from resources.lib.osclient.provider import OpenSubtitlesProvider
 from resources.lib.utilities import get_params, log, error
 
@@ -346,12 +346,22 @@ class SubtitleDownloader:
                 smart_ranking=smart_ranking
             )
 
+            show_match_setting = __addon__.getSetting("show_match_score")
+            show_match_score = show_match_setting.lower() in ("true", "1") if show_match_setting else True
+
             for subtitle in ranked_subtitles:
                 attributes = subtitle["attributes"]
                 language = convert_language(attributes["language"], True)
                 log(__name__, attributes)
                 clean_name = clean_feature_release_name(attributes["feature_details"]["title"], attributes["release"],
                                                         attributes["feature_details"]["movie_name"])
+                
+                # Append yellow match badge to label2 (e.g. (+95) or (Hash))
+                if show_match_score:
+                    match_tag = get_match_display_tag(subtitle)
+                    if match_tag:
+                        clean_name = f"{clean_name} {match_tag}".strip()
+
                 list_item = xbmcgui.ListItem(label=language,
                                              label2=clean_name)
                 list_item.setArt({

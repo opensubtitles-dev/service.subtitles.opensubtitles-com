@@ -135,3 +135,7 @@ msgstr ""
 msgctxt "#32221"
 msgid "Smart Release & Subtitle Matching"
 msgstr ""
+
+msgctxt "#32222"
+msgid "Show match rating in subtitle list"
+msgstr ""
