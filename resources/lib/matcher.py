@@ -257,13 +257,29 @@ def calculate_match_score(subtitle, video_filename, guessit_data=None):
     if downloads > 0:
         score += min(math.log10(downloads + 1) * 10.0, 50.0)
 
-    votes = int(attributes.get("votes") or 0)
-    if votes > 0:
-        score += min(votes * 2.0, 40.0)
+    # Strict Sync Confidence Condition:
+    # 1. Moviehash match (100% frame-exact hash), OR
+    # 2. Exact release string match, OR
+    # 3. Identical release group AND identical source medium AND identical edition
+    has_hash_match = bool(attributes.get("moviehash_match"))
+    has_exact_release = bool(sub_clean and video_clean and (
+        sub_clean.lower() == video_clean.lower() or
+        sub_clean.lower() in video_clean.lower() or
+        video_clean.lower() in sub_clean.lower()
+    ))
+    has_exact_tokens = bool(
+        video_tokens.get("release_group") and sub_tokens.get("release_group") and
+        video_tokens["release_group"] == sub_tokens["release_group"] and
+        video_tokens.get("source") and sub_tokens.get("source") and
+        video_tokens["source"] == sub_tokens["source"] and
+        video_tokens.get("edition") == sub_tokens.get("edition")
+    )
+
+    is_sync = has_hash_match or (has_exact_release and score >= 2000.0) or has_exact_tokens
 
     # Attach computed score to subtitle dict for inspection / debug
     subtitle["_match_score"] = score
-    subtitle["_is_sync"] = bool(score >= 1000.0 or attributes.get("moviehash_match"))
+    subtitle["_is_sync"] = is_sync
 
     return score
 
