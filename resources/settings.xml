@@ -108,6 +108,178 @@
                     </dependencies>
                     <control type="toggle" />
                 </setting>
+                <setting id="language_priority_mode" type="string" label="32224">
+                    <level>0</level>
+                    <default>kodi_default</default>
+                    <constraints>
+                        <options>
+                            <option label="32228">kodi_default</option>
+                            <option label="32229">custom</option>
+                        </options>
+                    </constraints>
+                    <dependencies>
+                        <dependency type="enable" setting="multi_language_top_picks" operator="is">true</dependency>
+                    </dependencies>
+                    <control type="list" format="string">
+                        <heading>32224</heading>
+                    </control>
+                </setting>
+                <setting id="custom_lang_priority_1" type="string" label="32225">
+                    <level>0</level>
+                    <default>none</default>
+                    <constraints>
+                        <options>
+                            <option label="None / Auto">none</option>
+                            <option label="English">en</option>
+                            <option label="Czech">cs</option>
+                            <option label="Slovak">sk</option>
+                            <option label="Spanish">es</option>
+                            <option label="Portuguese (Brazil)">pt-br</option>
+                            <option label="Portuguese (Portugal)">pt-pt</option>
+                            <option label="French">fr</option>
+                            <option label="German">de</option>
+                            <option label="Italian">it</option>
+                            <option label="Dutch">nl</option>
+                            <option label="Polish">pl</option>
+                            <option label="Russian">ru</option>
+                            <option label="Ukrainian">uk</option>
+                            <option label="Turkish">tr</option>
+                            <option label="Arabic">ar</option>
+                            <option label="Hebrew">he</option>
+                            <option label="Greek">el</option>
+                            <option label="Romanian">ro</option>
+                            <option label="Hungarian">hu</option>
+                            <option label="Bulgarian">bg</option>
+                            <option label="Serbian">sr</option>
+                            <option label="Croatian">hr</option>
+                            <option label="Slovenian">sl</option>
+                            <option label="Swedish">sv</option>
+                            <option label="Danish">da</option>
+                            <option label="Norwegian">no</option>
+                            <option label="Finnish">fi</option>
+                            <option label="Chinese (Simplified)">zh-cn</option>
+                            <option label="Chinese (Traditional)">zh-tw</option>
+                            <option label="Japanese">ja</option>
+                            <option label="Korean">ko</option>
+                            <option label="Vietnamese">vi</option>
+                            <option label="Thai">th</option>
+                            <option label="Indonesian">id</option>
+                            <option label="Malay">ms</option>
+                            <option label="Hindi">hi</option>
+                            <option label="Persian">fa</option>
+                        </options>
+                    </constraints>
+                    <dependencies>
+                        <dependency type="enable" setting="language_priority_mode" operator="is">custom</dependency>
+                    </dependencies>
+                    <control type="list" format="string">
+                        <heading>32225</heading>
+                    </control>
+                </setting>
+                <setting id="custom_lang_priority_2" type="string" label="32226">
+                    <level>0</level>
+                    <default>none</default>
+                    <constraints>
+                        <options>
+                            <option label="None / Auto">none</option>
+                            <option label="English">en</option>
+                            <option label="Czech">cs</option>
+                            <option label="Slovak">sk</option>
+                            <option label="Spanish">es</option>
+                            <option label="Portuguese (Brazil)">pt-br</option>
+                            <option label="Portuguese (Portugal)">pt-pt</option>
+                            <option label="French">fr</option>
+                            <option label="German">de</option>
+                            <option label="Italian">it</option>
+                            <option label="Dutch">nl</option>
+                            <option label="Polish">pl</option>
+                            <option label="Russian">ru</option>
+                            <option label="Ukrainian">uk</option>
+                            <option label="Turkish">tr</option>
+                            <option label="Arabic">ar</option>
+                            <option label="Hebrew">he</option>
+                            <option label="Greek">el</option>
+                            <option label="Romanian">ro</option>
+                            <option label="Hungarian">hu</option>
+                            <option label="Bulgarian">bg</option>
+                            <option label="Serbian">sr</option>
+                            <option label="Croatian">hr</option>
+                            <option label="Slovenian">sl</option>
+                            <option label="Swedish">sv</option>
+                            <option label="Danish">da</option>
+                            <option label="Norwegian">no</option>
+                            <option label="Finnish">fi</option>
+                            <option label="Chinese (Simplified)">zh-cn</option>
+                            <option label="Chinese (Traditional)">zh-tw</option>
+                            <option label="Japanese">ja</option>
+                            <option label="Korean">ko</option>
+                            <option label="Vietnamese">vi</option>
+                            <option label="Thai">th</option>
+                            <option label="Indonesian">id</option>
+                            <option label="Malay">ms</option>
+                            <option label="Hindi">hi</option>
+                            <option label="Persian">fa</option>
+                        </options>
+                    </constraints>
+                    <dependencies>
+                        <dependency type="enable" setting="language_priority_mode" operator="is">custom</dependency>
+                    </dependencies>
+                    <control type="list" format="string">
+                        <heading>32226</heading>
+                    </control>
+                </setting>
+                <setting id="custom_lang_priority_3" type="string" label="32227">
+                    <level>0</level>
+                    <default>none</default>
+                    <constraints>
+                        <options>
+                            <option label="None / Auto">none</option>
+                            <option label="English">en</option>
+                            <option label="Czech">cs</option>
+                            <option label="Slovak">sk</option>
+                            <option label="Spanish">es</option>
+                            <option label="Portuguese (Brazil)">pt-br</option>
+                            <option label="Portuguese (Portugal)">pt-pt</option>
+                            <option label="French">fr</option>
+                            <option label="German">de</option>
+                            <option label="Italian">it</option>
+                            <option label="Dutch">nl</option>
+                            <option label="Polish">pl</option>
+                            <option label="Russian">ru</option>
+                            <option label="Ukrainian">uk</option>
+                            <option label="Turkish">tr</option>
+                            <option label="Arabic">ar</option>
+                            <option label="Hebrew">he</option>
+                            <option label="Greek">el</option>
+                            <option label="Romanian">ro</option>
+                            <option label="Hungarian">hu</option>
+                            <option label="Bulgarian">bg</option>
+                            <option label="Serbian">sr</option>
+                            <option label="Croatian">hr</option>
+                            <option label="Slovenian">sl</option>
+                            <option label="Swedish">sv</option>
+                            <option label="Danish">da</option>
+                            <option label="Norwegian">no</option>
+                            <option label="Finnish">fi</option>
+                            <option label="Chinese (Simplified)">zh-cn</option>
+                            <option label="Chinese (Traditional)">zh-tw</option>
+                            <option label="Japanese">ja</option>
+                            <option label="Korean">ko</option>
+                            <option label="Vietnamese">vi</option>
+                            <option label="Thai">th</option>
+                            <option label="Indonesian">id</option>
+                            <option label="Malay">ms</option>
+                            <option label="Hindi">hi</option>
+                            <option label="Persian">fa</option>
+                        </options>
+                    </constraints>
+                    <dependencies>
+                        <dependency type="enable" setting="language_priority_mode" operator="is">custom</dependency>
+                    </dependencies>
+                    <control type="list" format="string">
+                        <heading>32227</heading>
+                    </control>
+                </setting>
                 <setting id="hearing_impaired" type="string" label="32211">
                     <level>0</level>
                     <default>exclude</default>

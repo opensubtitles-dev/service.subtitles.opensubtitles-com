@@ -166,3 +166,27 @@ def test_test_connection_500_503_server_error():
         assert addon.getSetting("account_status") == "Error (Server/Network issue)"
         assert addon.getSetting("account_details") == "OpenSubtitles.com is currently unreachable"
         assert addon.getSetting("account_verified_at") == "0"
+
+
+def test_custom_language_priority_ordering():
+    from resources.lib.subtitle_downloader import SubtitleDownloader
+
+    addon = xbmcaddon.Addon()
+    addon.setSetting("smart_ranking", "true")
+    addon.setSetting("multi_language_top_picks", "true")
+    addon.setSetting("language_priority_mode", "custom")
+    addon.setSetting("custom_lang_priority_1", "en")
+    addon.setSetting("custom_lang_priority_2", "cs")
+
+    test_argv = ["plugin://service.subtitles.opensubtitles-com/", "1", "?action=search&languages=Czech%2cEnglish&preferredlanguage=Czech"]
+    with patch("sys.argv", test_argv), \
+         patch("resources.lib.subtitle_downloader.get_file_path", return_value="/movies/Test.Movie.2024.1080p.mkv"), \
+         patch("resources.lib.subtitle_downloader.get_file_data", return_value={"filename": "Test.Movie.2024.1080p.mkv", "basename": "Test.Movie.2024.1080p.mkv"}), \
+         patch("resources.lib.subtitle_downloader.get_media_data", return_value={"query": "Test Movie"}), \
+         patch("resources.lib.subtitle_downloader._call_guessit_api", return_value=None), \
+         patch("resources.lib.subtitle_downloader.xbmcgui.DialogProgressBG"):
+        sd = SubtitleDownloader()
+        sd.search()
+
+    # Even though Kodi sent preferredlanguage=Czech, custom settings prioritizes English first!
+    assert sd.preferred_languages == ["en", "cs"]

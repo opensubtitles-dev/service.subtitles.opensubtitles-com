@@ -123,19 +123,38 @@ class SubtitleDownloader:
         from urllib.parse import unquote
         preferred_lang = self.params.get("preferredlanguage")
         raw_langs = unquote(self.params.get("languages", "")).split(",")
-        self.preferred_languages = []
+        kodi_langs = []
 
         if preferred_lang and preferred_lang not in ("Unknown", "Undetermined"):
             p_code = convert_language(preferred_lang)
             if p_code:
-                self.preferred_languages.append(p_code.lower())
+                kodi_langs.append(p_code.lower())
 
         for l in raw_langs:
             l_str = l.strip()
             if l_str:
                 l_code = convert_language(l_str)
-                if l_code and l_code.lower() not in self.preferred_languages:
-                    self.preferred_languages.append(l_code.lower())
+                if l_code and l_code.lower() not in kodi_langs:
+                    kodi_langs.append(l_code.lower())
+
+        # Check if custom language priority is configured
+        lang_mode = __addon__.getSetting("language_priority_mode")
+        if lang_mode == "custom":
+            p1 = __addon__.getSetting("custom_lang_priority_1")
+            p2 = __addon__.getSetting("custom_lang_priority_2")
+            p3 = __addon__.getSetting("custom_lang_priority_3")
+            custom_priorities = [p.lower().strip() for p in (p1, p2, p3) if p and p.strip() not in ("none", "")]
+
+            ordered_langs = []
+            for clang in custom_priorities:
+                if clang in kodi_langs and clang not in ordered_langs:
+                    ordered_langs.append(clang)
+            for klang in kodi_langs:
+                if klang not in ordered_langs:
+                    ordered_langs.append(klang)
+            self.preferred_languages = ordered_langs
+        else:
+            self.preferred_languages = kodi_langs
 
         # Build informative on-screen search notification
         addon_name = __addon__.getAddonInfo("name")

@@ -857,11 +857,45 @@ def get_language_data(params):
 def convert_language(language, reverse=False):
     language_list = {
         "English": "en",
+        "Czech": "cs",
+        "Slovak": "sk",
+        "Spanish": "es",
         "Portuguese (Brazil)": "pt-br",
+        "Portuguese (Portugal)": "pt-pt",
         "Portuguese": "pt-pt",
+        "French": "fr",
+        "German": "de",
+        "Italian": "it",
+        "Dutch": "nl",
+        "Polish": "pl",
+        "Russian": "ru",
+        "Ukrainian": "uk",
+        "Turkish": "tr",
+        "Arabic": "ar",
+        "Hebrew": "he",
+        "Greek": "el",
+        "Romanian": "ro",
+        "Hungarian": "hu",
+        "Bulgarian": "bg",
+        "Serbian": "sr",
+        "Croatian": "hr",
+        "Slovenian": "sl",
+        "Swedish": "sv",
+        "Danish": "da",
+        "Norwegian": "no",
+        "Finnish": "fi",
         "Chinese": "zh-cn",
         "Chinese (simplified)": "zh-cn",
-        "Chinese (traditional)": "zh-tw"}
+        "Chinese (traditional)": "zh-tw",
+        "Japanese": "ja",
+        "Korean": "ko",
+        "Vietnamese": "vi",
+        "Thai": "th",
+        "Indonesian": "id",
+        "Malay": "ms",
+        "Hindi": "hi",
+        "Persian": "fa"
+    }
 
     reverse_language_list = {v: k for k, v in list(language_list.items())}
 
