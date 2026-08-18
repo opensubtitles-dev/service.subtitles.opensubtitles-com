@@ -20,9 +20,11 @@ API_SUBTITLES = "subtitles"
 API_DOWNLOAD = "download"
 API_USER_INFO = "infos/user"
 API_FEATURES = "features"
+API_GUESSIT = "utilities/guessit"
 
 # A feature's type, parent and episode numbers never change, so this can be cached hard.
 FEATURE_CACHE_TTL = 60 * 60 * 24 * 30
+GUESSIT_CACHE_TTL = 60 * 60 * 24 * 30
 
 
 CONTENT_TYPE = "application/json"
@@ -206,6 +208,41 @@ class OpenSubtitlesProvider:
         self.cache.set(cache_key, attributes or {}, expires=FEATURE_CACHE_TTL)
         logging(f"Feature lookup {params} -> {attributes.get('feature_type') if attributes else 'unknown'}")
         return attributes
+
+    def guessit(self, filename: str) -> dict:
+        """Parse video filename using the /api/v1/utilities/guessit endpoint with caching."""
+        if not filename:
+            return None
+
+        clean_filename = filename.strip()
+        cache_key = f"guessit_{hashlib.sha256(clean_filename.encode('utf-8')).hexdigest()}"
+
+        cached = self.cache.get(cache_key)
+        if cached is not None:
+            logging(f"CACHE HIT: guessit for {clean_filename}")
+            return cached or None
+
+        params = {"filename": clean_filename}
+        try:
+            r = self.session.get(API_URL + API_GUESSIT, params=params, timeout=REQUEST_TIMEOUT)
+            logging(f"Guessit lookup URL: {r.url} -> {r.status_code}")
+            r.raise_for_status()
+        except (ConnectionError, Timeout, ReadTimeout) as e:
+            logging(f"Guessit connection error: {e}")
+            return None
+        except HTTPError as e:
+            logging(f"Guessit HTTP error: {e.response.status_code}")
+            return None
+
+        try:
+            data = r.json()
+        except ValueError:
+            logging("Invalid JSON returned by guessit endpoint")
+            return None
+
+        self.cache.set(cache_key, data or {}, expires=GUESSIT_CACHE_TTL)
+        logging(f"Guessit parsed: {data.get('title')} ({data.get('year')}) type={data.get('type')}")
+        return data or None
 
     @property
     def user_token(self):

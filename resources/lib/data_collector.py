@@ -314,41 +314,56 @@ def _extract_show_ids(tvshow):
     return parent_imdb, parent_tmdb, tvshow_id
 
 def _call_guessit_api(filename):
-    """Call OpenSubtitles guessit API to parse filename"""
+    """Call OpenSubtitles guessit API to parse filename with caching"""
+    if not filename:
+        return None
+
     try:
-        import urllib.request
-        import urllib.parse
+        import hashlib
         import json
-        
+        import urllib.parse
+        import urllib.request
+        from resources.lib.cache import Cache
+
+        clean_filename = filename.strip()
+        cache_key = f"guessit_{hashlib.sha256(clean_filename.encode('utf-8')).hexdigest()}"
+        cache = Cache(key_prefix="os_com")
+
+        cached = cache.get(cache_key)
+        if cached is not None:
+            log(__name__, f"📋 Cache hit for guessit: {clean_filename}")
+            return cached or None
+
         # Get API key from addon settings
         api_key = __addon__.getSetting("APIKey")
         if not api_key:
             log(__name__, "No API key found for guessit call")
             return None
-        
+
         # Prepare the request
         base_url = "https://api.opensubtitles.com/api/v1/utilities/guessit"
-        params = {"filename": filename}
+        params = {"filename": clean_filename}
         url = f"{base_url}?{urllib.parse.urlencode(params)}"
-        
+
         # Create request with headers
         req = urllib.request.Request(url)
         req.add_header("Api-Key", api_key)
-        req.add_header("User-Agent", f"Kodi OpenSubtitles.com v{__addon__.getAddonInfo('version')}")
+        req.add_header("User-Agent", f"service.subtitles.opensubtitles-com v{__addon__.getAddonInfo('version')}")
         req.add_header("Accept", "application/json")
-        
-        log(__name__, f"🔍 Calling guessit API for: {filename}")
-        
-        # Make the request
+
+        log(__name__, f"🔍 Calling guessit API for: {clean_filename}")
+
+        # Make the request with a safe timeout
         with urllib.request.urlopen(req, timeout=10) as response:
             if response.getcode() == 200:
-                data = json.loads(response.read().decode('utf-8'))
-                log(__name__, f"✅ Guessit API response: {data}")
+                data = json.loads(response.read().decode("utf-8"))
+                cache.set(cache_key, data or {}, expires=60 * 60 * 24 * 30)
+                log(__name__, f"✅ Guessit API response (cached): {data}")
                 return data
             else:
                 log(__name__, f"❌ Guessit API error: HTTP {response.getcode()}")
                 return None
-                
+
     except Exception as e:
         log(__name__, f"❌ Failed to call guessit API: {e}")
         return None

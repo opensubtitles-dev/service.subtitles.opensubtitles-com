@@ -30,3 +30,25 @@ def test_cache_key_generation():
     key3 = _get_cache_key("test_method", {"param": 2})
     assert key1 == key2
     assert key1 != key3
+
+def test_call_guessit_api_caching():
+    from unittest.mock import patch, MagicMock
+    import json
+    from resources.lib.data_collector import _call_guessit_api
+
+    mock_resp = MagicMock()
+    mock_resp.getcode.return_value = 200
+    mock_resp.read.return_value = json.dumps({"title": "Parasite", "year": 2019, "type": "movie"}).encode("utf-8")
+    mock_resp.__enter__.return_value = mock_resp
+    mock_resp.__exit__.return_value = None
+
+    with patch("urllib.request.urlopen", return_value=mock_resp) as mock_urlopen:
+        # First call hits API
+        res1 = _call_guessit_api("Parasite.2019.1080p.BluRay.mkv")
+        assert res1["title"] == "Parasite"
+        assert mock_urlopen.call_count == 1
+
+        # Second call hits cache
+        res2 = _call_guessit_api("Parasite.2019.1080p.BluRay.mkv")
+        assert res2["title"] == "Parasite"
+        assert mock_urlopen.call_count == 1

@@ -53,3 +53,31 @@ def test_provider_login_failure(mock_session_cls):
     provider = OpenSubtitlesProvider(api_key="key", username="user", password="wrong_pwd")
     with pytest.raises(AuthenticationError):
         provider.login()
+
+@patch("resources.lib.osclient.provider.Session")
+def test_provider_guessit_success_and_caching(mock_session_cls):
+    mock_session = MagicMock()
+    mock_session_cls.return_value = mock_session
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "title": "Border",
+        "year": 2018,
+        "screen_size": "1080p",
+        "type": "movie"
+    }
+    mock_resp.raise_for_status.return_value = None
+    mock_session.get.return_value = mock_resp
+
+    provider = OpenSubtitlesProvider(api_key="key", username="user", password="pwd")
+    # First call: hits API and caches
+    result1 = provider.guessit("Border.2018.1080p.NF.WEB-DL.mkv")
+    assert result1["title"] == "Border"
+    assert result1["year"] == 2018
+    assert mock_session.get.call_count == 1
+
+    # Second call with same filename: should hit cache and NOT call API again
+    result2 = provider.guessit("Border.2018.1080p.NF.WEB-DL.mkv")
+    assert result2["title"] == "Border"
+    assert mock_session.get.call_count == 1
