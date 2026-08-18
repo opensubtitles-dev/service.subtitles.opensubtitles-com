@@ -309,8 +309,9 @@ class SubtitleDownloader:
                 now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
                 remaining = self.file.get("remaining")
                 vip_str = "VIP" if self.username else "Free User"
-                __addon__.setSetting("account_status", f"OK: {vip_str} | Checked: {now_str}")
+                __addon__.setSetting("account_status", f"OK ({vip_str})")
                 __addon__.setSetting("account_details", f"Quota: {remaining} downloads left today")
+                __addon__.setSetting("account_checked_at", now_str)
 
             list_item = xbmcgui.ListItem(label=subtitle_path)
             xbmcplugin.addDirectoryItem(handle=self.handle, url=subtitle_path, listitem=list_item, isFolder=False)

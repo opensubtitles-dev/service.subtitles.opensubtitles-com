@@ -58,6 +58,24 @@ kodi-addon-checker --branch nexus .
 kodi-addon-checker --branch matrix .
 ```
 
+---
+
+## 5. Settings XML (`resources/settings.xml`) Design Rules
+
+- **Root Section ID**: The root `<section id="...">` MUST match the add-on ID in `addon.xml` (`service.subtitles.opensubtitles-com`).
+- **Read-Only / Informational Display Fields**:
+  - In Kodi Add-on Settings Schema (`resources/settings.xml`), `<control type="label">` is **invalid** and causes Kodi to fail loading the setting (`error reading <control> tag`).
+  - To create clean, read-only / display-only informational rows, use `<control type="edit" format="string">` paired with a permanent disabled dependency:
+    ```xml
+    <dependencies>
+        <dependency type="enable" setting="<setting_id>" operator="is">__disabled__</dependency>
+    </dependencies>
+    <control type="edit" format="string">
+        <heading><string_id></heading>
+    </control>
+    ```
+  - This ensures Kodi renders the setting as a clean display label (title on left, value on right) and completely blocks user interaction so clicking never opens the on-screen keyboard.
+
 All checks should pass with **0 problems**.
 
 ---

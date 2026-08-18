@@ -33,6 +33,7 @@ def test_all_expected_setting_ids_exist():
         "OSpass",
         "account_status",
         "account_details",
+        "account_checked_at",
         "account_verified_at",
         "APIKey",
         "test_connection",
@@ -49,8 +50,8 @@ def test_all_expected_setting_ids_exist():
     for expected_id in expected_ids:
         assert expected_id in setting_ids, f"Setting '{expected_id}' is missing from settings.xml"
 
-    # Verify account_status, account_details, addon_version, and cache_stats have disabled dependencies
-    for readonly_id in ("account_status", "account_details", "addon_version", "cache_stats"):
+    # Verify account_status, account_details, account_checked_at, addon_version, and cache_stats have disabled dependencies
+    for readonly_id in ("account_status", "account_details", "account_checked_at", "addon_version", "cache_stats"):
         dep = setting_ids[readonly_id].find(".//dependencies/dependency[@type='enable']")
         assert dep is not None, f"Setting '{readonly_id}' must have an enable dependency"
         assert dep.attrib.get("operator") == "is" and dep.text == "__disabled__"

@@ -58,17 +58,17 @@ def check_and_get_account_status():
     status = __addon__.getSetting("account_status")
 
     if not status or not verified_at or verified_at == "0":
-        return "Not verified (Click Test Connection)"
+        return "Not Verified"
 
     try:
         import time
         age = time.time() - float(verified_at)
         if age > 86400:  # Older than 24 hours
-            expired_status = "Expired (>24h) - Click Test Connection"
+            expired_status = "Expired (>24h)"
             __addon__.setSetting("account_status", expired_status)
-            __addon__.setSetting("account_details", "")
+            __addon__.setSetting("account_details", "Click Test Connection to re-verify")
             return expired_status
         return status
     except (ValueError, TypeError):
-        return "Not verified (Click Test Connection)"
+        return "Not Verified"
 

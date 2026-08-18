@@ -103,9 +103,10 @@ def test_account_status_updated_on_test_connection():
         
         status = addon.getSetting("account_status")
         details = addon.getSetting("account_details")
-        assert status.startswith("OK: VIP")
-        assert "Checked:" in status
+        checked_at = addon.getSetting("account_checked_at")
+        assert status == "OK (VIP)"
         assert details == "Quota: 993/1000 left | Level: OpenSubtitles Legends"
+        assert len(checked_at) >= 10
 
 def test_test_connection_empty_credentials():
     addon = xbmcaddon.Addon()
@@ -114,8 +115,8 @@ def test_test_connection_empty_credentials():
     from test_connection import test_connection
     with patch("test_connection.xbmcgui.Dialog"):
         test_connection()
-        status = addon.getSetting("account_status")
-        assert status.startswith("Missing credentials")
+        assert addon.getSetting("account_status") == "Not Verified (Missing credentials)"
+        assert addon.getSetting("account_details") == "Please enter username and password"
         assert addon.getSetting("account_verified_at") == "0"
 
 def test_test_connection_401_invalid_credentials():
@@ -126,8 +127,8 @@ def test_test_connection_401_invalid_credentials():
     with patch("test_connection.OpenSubtitlesProvider.login", side_effect=AuthenticationError("401 Unauthorized")), \
          patch("test_connection.xbmcgui.Dialog"):
         test_connection()
-        status = addon.getSetting("account_status")
-        assert status.startswith("Error 401: Invalid credentials")
+        assert addon.getSetting("account_status") == "Error 401 (Invalid credentials)"
+        assert addon.getSetting("account_details") == "Check username and password"
         assert addon.getSetting("account_verified_at") == "0"
 
 def test_test_connection_400_bad_username():
@@ -138,8 +139,8 @@ def test_test_connection_400_bad_username():
     with patch("test_connection.OpenSubtitlesProvider.login", side_effect=BadUsernameError("400 Bad Request")), \
          patch("test_connection.xbmcgui.Dialog"):
         test_connection()
-        status = addon.getSetting("account_status")
-        assert status.startswith("Error 400: Use username, not email")
+        assert addon.getSetting("account_status") == "Error 400 (Bad username)"
+        assert addon.getSetting("account_details") == "Use username, not email address"
         assert addon.getSetting("account_verified_at") == "0"
 
 def test_test_connection_429_rate_limit():
@@ -150,8 +151,8 @@ def test_test_connection_429_rate_limit():
     with patch("test_connection.OpenSubtitlesProvider.login", side_effect=TooManyRequests("429 Too Many Requests")), \
          patch("test_connection.xbmcgui.Dialog"):
         test_connection()
-        status = addon.getSetting("account_status")
-        assert status.startswith("Error 429: Rate limit exceeded")
+        assert addon.getSetting("account_status") == "Error 429 (Rate limit exceeded)"
+        assert addon.getSetting("account_details") == "Please wait before trying again"
         assert addon.getSetting("account_verified_at") == "0"
 
 def test_test_connection_500_503_server_error():
@@ -162,6 +163,6 @@ def test_test_connection_500_503_server_error():
     with patch("test_connection.OpenSubtitlesProvider.login", side_effect=ServiceUnavailable("503 Service Unavailable")), \
          patch("test_connection.xbmcgui.Dialog"):
         test_connection()
-        status = addon.getSetting("account_status")
-        assert status.startswith("Error: Server/Network issue")
+        assert addon.getSetting("account_status") == "Error (Server/Network issue)"
+        assert addon.getSetting("account_details") == "OpenSubtitles.com is currently unreachable"
         assert addon.getSetting("account_verified_at") == "0"

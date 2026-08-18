@@ -38,7 +38,7 @@
                 </setting>
                 <setting id="account_status" type="string" label="32204">
                     <level>0</level>
-                    <default>Not verified (Click Test Connection)</default>
+                    <default>Not Verified</default>
                     <constraints>
                         <allowempty>true</allowempty>
                     </constraints>
@@ -51,7 +51,7 @@
                 </setting>
                 <setting id="account_details" type="string" label="32205">
                     <level>0</level>
-                    <default/>
+                    <default>Click Test Connection to verify</default>
                     <constraints>
                         <allowempty>true</allowempty>
                     </constraints>
@@ -60,6 +60,19 @@
                     </dependencies>
                     <control type="edit" format="string">
                         <heading>32205</heading>
+                    </control>
+                </setting>
+                <setting id="account_checked_at" type="string" label="32206">
+                    <level>0</level>
+                    <default>Not yet checked</default>
+                    <constraints>
+                        <allowempty>true</allowempty>
+                    </constraints>
+                    <dependencies>
+                        <dependency type="enable" setting="account_checked_at" operator="is">__disabled__</dependency>
+                    </dependencies>
+                    <control type="edit" format="string">
+                        <heading>32206</heading>
                     </control>
                 </setting>
                 <setting id="account_verified_at" type="string">
