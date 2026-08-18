@@ -39,12 +39,28 @@
                 <setting id="account_status" type="string" label="32204">
                     <level>0</level>
                     <default>Not verified (Click Test Connection)</default>
-                    <control type="label" format="string" />
+                    <constraints>
+                        <allowempty>true</allowempty>
+                    </constraints>
+                    <dependencies>
+                        <dependency type="enable" setting="account_status" operator="is">__disabled__</dependency>
+                    </dependencies>
+                    <control type="edit" format="string">
+                        <heading>32204</heading>
+                    </control>
                 </setting>
                 <setting id="account_details" type="string" label="32205">
                     <level>0</level>
                     <default/>
-                    <control type="label" format="string" />
+                    <constraints>
+                        <allowempty>true</allowempty>
+                    </constraints>
+                    <dependencies>
+                        <dependency type="enable" setting="account_details" operator="is">__disabled__</dependency>
+                    </dependencies>
+                    <control type="edit" format="string">
+                        <heading>32205</heading>
+                    </control>
                 </setting>
                 <setting id="account_verified_at" type="string">
                     <level>4</level>
@@ -121,7 +137,15 @@
                 <setting id="addon_version" type="string" label="32219">
                     <level>3</level>
                     <default>1.0.15</default>
-                    <control type="label" format="string" />
+                    <constraints>
+                        <allowempty>true</allowempty>
+                    </constraints>
+                    <dependencies>
+                        <dependency type="enable" setting="addon_version" operator="is">__disabled__</dependency>
+                    </dependencies>
+                    <control type="edit" format="string">
+                        <heading>32219</heading>
+                    </control>
                 </setting>
                 <setting id="search_cache_duration" type="integer" label="32216">
                     <level>3</level>
@@ -136,7 +160,15 @@
                 <setting id="cache_stats" type="string" label="32220">
                     <level>3</level>
                     <default>0 items (0.0 KB)</default>
-                    <control type="label" format="string" />
+                    <constraints>
+                        <allowempty>true</allowempty>
+                    </constraints>
+                    <dependencies>
+                        <dependency type="enable" setting="cache_stats" operator="is">__disabled__</dependency>
+                    </dependencies>
+                    <control type="edit" format="string">
+                        <heading>32220</heading>
+                    </control>
                 </setting>
                 <setting id="clear_cache" type="action" label="32217">
                     <level>3</level>
