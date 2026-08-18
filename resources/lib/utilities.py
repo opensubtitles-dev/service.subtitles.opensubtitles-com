@@ -66,6 +66,7 @@ def check_and_get_account_status():
         if age > 86400:  # Older than 24 hours
             expired_status = "Expired (>24h) - Click Test Connection"
             __addon__.setSetting("account_status", expired_status)
+            __addon__.setSetting("account_details", "")
             return expired_status
         return status
     except (ValueError, TypeError):

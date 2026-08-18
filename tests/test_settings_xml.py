@@ -32,6 +32,7 @@ def test_all_expected_setting_ids_exist():
         "OSuser",
         "OSpass",
         "account_status",
+        "account_details",
         "account_verified_at",
         "APIKey",
         "test_connection",
@@ -46,6 +47,11 @@ def test_all_expected_setting_ids_exist():
     
     for expected_id in expected_ids:
         assert expected_id in setting_ids, f"Setting '{expected_id}' is missing from settings.xml"
+
+    # Verify account_status and account_details are non-editable
+    for readonly_id in ("account_status", "account_details"):
+        dep = setting_ids[readonly_id].find(".//dependencies/dependency[@type='enable']")
+        assert dep is not None and dep.text == "false", f"Setting '{readonly_id}' must have enable=false dependency"
 
 def test_debug_settings_are_expert_level():
     tree = ET.parse(SETTINGS_XML_PATH)

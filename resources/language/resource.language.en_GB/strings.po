@@ -76,6 +76,10 @@ msgctxt "#32204"
 msgid "Account Status"
 msgstr ""
 
+msgctxt "#32205"
+msgid "Quota & Details"
+msgstr ""
+
 msgctxt "#32102"
 msgid "Subtitle Options"
 msgstr ""

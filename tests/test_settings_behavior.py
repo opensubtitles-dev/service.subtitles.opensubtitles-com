@@ -102,8 +102,10 @@ def test_account_status_updated_on_test_connection():
         test_connection()
         
         status = addon.getSetting("account_status")
-        assert status.startswith("OK: VIP | 993/1000 left")
+        details = addon.getSetting("account_details")
+        assert status.startswith("OK: VIP")
         assert "Checked:" in status
+        assert details == "Quota: 993/1000 left | Level: OpenSubtitles Legends"
 
 def test_test_connection_empty_credentials():
     addon = xbmcaddon.Addon()

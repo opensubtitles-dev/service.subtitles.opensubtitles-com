@@ -42,9 +42,24 @@
                     <constraints>
                         <allowempty>true</allowempty>
                     </constraints>
+                    <dependencies>
+                        <dependency type="enable">false</dependency>
+                    </dependencies>
                     <control type="edit" format="string">
                         <heading>32204</heading>
-                        <readonly>true</readonly>
+                    </control>
+                </setting>
+                <setting id="account_details" type="string" label="32205">
+                    <level>0</level>
+                    <default/>
+                    <constraints>
+                        <allowempty>true</allowempty>
+                    </constraints>
+                    <dependencies>
+                        <dependency type="enable">false</dependency>
+                    </dependencies>
+                    <control type="edit" format="string">
+                        <heading>32205</heading>
                     </control>
                 </setting>
                 <setting id="account_verified_at" type="string">
