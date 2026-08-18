@@ -82,3 +82,30 @@ class Cache(object):
         except Exception:
             pass
         return count, total_bytes
+
+
+def get_total_cache_stats():
+    """Returns (total_count, total_bytes, formatted_str) across all cache prefixes."""
+    total_count = 0
+    total_bytes = 0
+    for prefix in ("os_com", "OpenSubtitles", "os_library", ""):
+        c = Cache(prefix)
+        cnt, b = c.get_stats()
+        total_count += cnt
+        total_bytes += b
+
+    kb = round(total_bytes / 1024, 1)
+    formatted = f"{total_count} items ({kb} KB)"
+    return total_count, total_bytes, formatted
+
+
+def sync_cache_stats_setting():
+    """Updates the cache_stats setting in add-on configuration."""
+    try:
+        import xbmcaddon
+        addon = xbmcaddon.Addon("service.subtitles.opensubtitles-com")
+        _, _, formatted = get_total_cache_stats()
+        addon.setSetting("cache_stats", formatted)
+        return formatted
+    except Exception:
+        return None

@@ -11,7 +11,7 @@ from resources.lib.osclient.model.request.download import OpenSubtitlesDownloadR
 '''local kodi module imports. replace by any other exception, cache, log provider'''
 from resources.lib.exceptions import AuthenticationError, ConfigurationError, DownloadLimitExceeded, ProviderError, \
     ServiceUnavailable, TooManyRequests, BadUsernameError
-from resources.lib.cache import Cache
+from resources.lib.cache import Cache, sync_cache_stats_setting
 from resources.lib.utilities import log, __addon__
 
 API_URL = "https://api.opensubtitles.com/api/v1/"
@@ -241,6 +241,7 @@ class OpenSubtitlesProvider:
             return None
 
         self.cache.set(cache_key, data or {}, expires=GUESSIT_CACHE_TTL)
+        sync_cache_stats_setting()
         logging(f"Guessit parsed: {data.get('title')} ({data.get('year')}) type={data.get('type')}")
         return data or None
 
@@ -349,6 +350,7 @@ class OpenSubtitlesProvider:
                 try:
                     logging(f"CACHE SAVE: Storing results for {cache_key} (expires in {cache_ttl}s)")
                     self.cache.set(cache_key, result["data"], expires=cache_ttl)
+                    sync_cache_stats_setting()
                 except Exception as e:
                     logging(f"Cache save failed: {e}")
             # --- [END] Cache Save ---

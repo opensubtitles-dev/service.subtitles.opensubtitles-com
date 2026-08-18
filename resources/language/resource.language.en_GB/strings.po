@@ -125,5 +125,5 @@ msgid "Add-on version"
 msgstr ""
 
 msgctxt "#32220"
-msgid "Check cache size"
+msgid "Current Cache Size"
 msgstr ""

@@ -37,6 +37,7 @@ def clear_cache():
                     pass
 
     kb_cleared = round(total_bytes / 1024, 2)
+    __addon__.setSetting("cache_stats", "0 items (0.0 KB)")
     msg = f"Cache cleared: {total_items} items ({kb_cleared} KB freed)"
     if files_deleted:
         msg += f" | {files_deleted} temp files deleted"
