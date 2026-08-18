@@ -11,7 +11,7 @@
     <a href="LICENSE.txt"><img src="https://img.shields.io/badge/License-GPL--2.0-green.svg" alt="License" /></a>
   </p>
 
-  <p>Search and download subtitles for movies and TV shows from <a href="https://www.opensubtitles.com">OpenSubtitles.com</a>. Access over <strong>8,000,000+ subtitles</strong> across <strong>75+ languages</strong> with daily updates.</p>
+  <p>Search and download subtitles for movies and TV shows from <a href="https://www.opensubtitles.com">OpenSubtitles.com</a>. Access over <strong>10,000,000+ subtitles</strong> across <strong>100+ languages</strong> with daily updates.</p>
 </div>
 
 ---
