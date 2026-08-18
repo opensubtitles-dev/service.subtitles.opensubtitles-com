@@ -159,6 +159,47 @@ def build_index_html(addons_info):
             font-size: 0.9em;
             color: #38bdf8;
         }}
+        .url-box {{
+            background: #0b1329;
+            border: 1px solid #0284c7;
+            padding: 0.85rem 1rem;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 1.05rem;
+            color: #38bdf8;
+            word-break: break-all;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin: 0.75rem 0 1.25rem 0;
+        }}
+        .copy-btn {{
+            background: #0284c7;
+            color: #ffffff;
+            border: none;
+            border-radius: 6px;
+            padding: 0.4rem 0.8rem;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-left: 0.5rem;
+            white-space: nowrap;
+        }}
+        .copy-btn:hover {{
+            background: #0369a1;
+        }}
+        .method-tag {{
+            display: inline-block;
+            background: #15803d;
+            color: #ffffff;
+            font-size: 0.75rem;
+            font-weight: 700;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.5rem;
+        }}
         .addon-item {{
             display: flex;
             align-items: center;
@@ -186,20 +227,49 @@ def build_index_html(addons_info):
             <p class="subtitle">Official Fast-Track Update Repository for Kodi</p>
         </div>
 
-        <div class="card" style="text-align: center;">
-            <h2>Download & Install</h2>
-            <p style="color: var(--text-muted);">Install the repository add-on to automatically receive the latest updates directly from OpenSubtitles developers.</p>
-            <a class="btn" href="repository.opensubtitles-com.zip">⬇️ Download repository.opensubtitles-com.zip</a>
+        <div class="card">
+            <span class="method-tag">Recommended for Smart TVs, FireStick, Android TV & PC</span>
+            <h2 style="margin-top: 0.25rem;">📱 Method 1: Install Directly in Kodi (File Manager)</h2>
+            <p style="color: var(--text-muted); margin-bottom: 0.5rem;">No web browser or USB drive needed. Type or paste this URL into Kodi:</p>
+            
+            <div class="url-box">
+                <span id="repoUrl">https://opensubtitles.github.io/service.subtitles.opensubtitles-com/</span>
+                <button class="copy-btn" onclick="navigator.clipboard.writeText(document.getElementById('repoUrl').innerText); this.innerText='Copied!'; setTimeout(()=>this.innerText='Copy', 2000)">Copy</button>
+            </div>
+
+            <ol>
+                <li>In Kodi, enable <strong>Unknown sources</strong> under <strong>Settings (⚙️) ➔ System ➔ Add-ons</strong>.</li>
+                <li>Go to <strong>Settings (⚙️) ➔ File manager ➔ Add source</strong>.</li>
+                <li>Click <code>&lt;None&gt;</code> and enter the URL above: <code>https://opensubtitles.github.io/service.subtitles.opensubtitles-com/</code></li>
+                <li>Set the media source name to: <strong><code>OpenSubtitles-repo</code></strong> and click <strong>OK</strong>.</li>
+                <li>Go to <strong>Add-ons ➔ Install from zip file ➔ OpenSubtitles-repo</strong>.</li>
+                <li>Select <strong><code>repository.opensubtitles-com.zip</code></strong> and wait for installation confirmation.</li>
+                <li>Go to <strong>Install from repository ➔ OpenSubtitles.com Official Repository ➔ Subtitles ➔ OpenSubtitles.com</strong> and click <strong>Install</strong>.</li>
+            </ol>
         </div>
 
         <div class="card">
-            <h3>📖 How to Install in Kodi</h3>
+            <h2 style="margin-top: 0.25rem;">💻 Method 2: Direct Zip Download</h2>
+            <p style="color: var(--text-muted);">For manual installation on PC or transferring via USB flash drive:</p>
+            <div style="text-align: center;">
+                <a class="btn" href="repository.opensubtitles-com.zip">⬇️ Download repository.opensubtitles-com.zip</a>
+            </div>
             <ol>
-                <li>Download <code>repository.opensubtitles-com.zip</code> above to your device.</li>
-                <li>In Kodi, open <strong>Settings (⚙️) ➔ System ➔ Add-ons</strong> and ensure <em>Unknown sources</em> is enabled.</li>
-                <li>Go to <strong>Add-ons ➔ Add-on browser (open box icon)</strong>.</li>
-                <li>Select <strong>Install from zip file</strong> and choose the downloaded file.</li>
-                <li>Once installed, choose <strong>Install from repository ➔ OpenSubtitles.com Official Repository ➔ Subtitles ➔ OpenSubtitles.com</strong>.</li>
+                <li>In Kodi, go to <strong>Add-ons ➔ Install from zip file</strong> and select the downloaded file.</li>
+                <li>Then choose <strong>Install from repository ➔ OpenSubtitles.com Official Repository ➔ Subtitles ➔ OpenSubtitles.com</strong>.</li>
+            </ol>
+        </div>
+
+        <div class="card">
+            <h3>⚙️ Configuration</h3>
+            <ol>
+                <li>Open add-on <strong>Settings</strong>:
+                    <ul>
+                        <li>Enter your OpenSubtitles.com <strong>Username</strong> and <strong>Password</strong>.</li>
+                        <li>Click <strong>Test Connection</strong> to verify your account and daily quota.</li>
+                    </ul>
+                </li>
+                <li>In Kodi <strong>Settings ➔ Player ➔ Language ➔ Subtitle Services</strong>, set both <em>Default movie service</em> and <em>Default TV show service</em> to <strong>OpenSubtitles.com</strong>.</li>
             </ol>
         </div>
 
