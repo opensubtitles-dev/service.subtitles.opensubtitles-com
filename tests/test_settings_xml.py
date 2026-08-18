@@ -94,7 +94,7 @@ def test_settings_labels_exist_in_strings_po():
     tree = ET.parse(SETTINGS_XML_PATH)
     root = tree.getroot()
     
-    # Collect all label and heading IDs from settings.xml
+    # Collect all label, heading, and help IDs from settings.xml
     label_ids = set()
     for elem in root.iter():
         if "label" in elem.attrib and elem.attrib["label"].isdigit():
@@ -102,6 +102,9 @@ def test_settings_labels_exist_in_strings_po():
         heading = elem.find("heading")
         if heading is not None and heading.text and heading.text.isdigit():
             label_ids.add(int(heading.text))
+        help_elem = elem.find("help")
+        if help_elem is not None and help_elem.text and help_elem.text.isdigit():
+            label_ids.add(int(help_elem.text))
             
     assert len(label_ids) > 0, "No numeric string label IDs found in settings.xml"
     

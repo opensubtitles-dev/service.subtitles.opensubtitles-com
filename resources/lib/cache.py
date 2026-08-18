@@ -1,3 +1,5 @@
+import base64
+import gzip
 import json
 from time import time
 import xbmcgui
@@ -5,7 +7,7 @@ from resources.lib.utilities import log
 
 
 class Cache(object):
-    """Caches Python values as JSON in Kodi window properties."""
+    """Caches Python values as gzip-compressed JSON in Kodi window properties."""
 
     def __init__(self, key_prefix=""):
         self.key_prefix = key_prefix
@@ -26,8 +28,10 @@ class Cache(object):
         full_key = f"{self.key_prefix}:{key}" if self.key_prefix else key
         expires_at = expires + time()
 
-        cache_data_str = json.dumps(dict(value=value, expires=expires_at))
-        self._win.setProperty(full_key, cache_data_str)
+        raw_json = json.dumps(dict(value=value, expires=expires_at)).encode("utf-8")
+        compressed = gzip.compress(raw_json)
+        b64_str = base64.b64encode(compressed).decode("ascii")
+        self._win.setProperty(full_key, f"gz:{b64_str}")
         self._add_to_index(full_key)
 
     def get(self, key, default=None):
@@ -35,20 +39,27 @@ class Cache(object):
         result = default
         full_key = f"{self.key_prefix}:{key}" if self.key_prefix else key
 
-        cache_data_str = self._win.getProperty(full_key)
-        if cache_data_str:
+        prop_val = self._win.getProperty(full_key)
+        if prop_val:
             try:
-                cache_data = json.loads(cache_data_str)
+                if prop_val.startswith("gz:"):
+                    compressed = base64.b64decode(prop_val[3:])
+                    raw_json = gzip.decompress(compressed).decode("utf-8")
+                    cache_data = json.loads(raw_json)
+                else:
+                    # Discard legacy uncompressed cache or attempt fallback
+                    cache_data = json.loads(prop_val)
+
                 if cache_data.get("expires", 0) > time():
                     result = cache_data["value"]
                     log(__name__, f"got {key} from cache")
-            except (ValueError, KeyError, TypeError):
+            except Exception:
                 pass
 
         return result
 
     def get_stats(self):
-        """Returns (active_item_count, total_bytes) of valid cached items."""
+        """Returns (active_item_count, total_compressed_bytes) of valid cached items."""
         count = 0
         total_bytes = 0
         try:
@@ -59,10 +70,16 @@ class Cache(object):
                     val = self._win.getProperty(k)
                     if val:
                         try:
-                            data = json.loads(val)
+                            if val.startswith("gz:"):
+                                compressed = base64.b64decode(val[3:])
+                                raw_json = gzip.decompress(compressed).decode("utf-8")
+                                data = json.loads(raw_json)
+                            else:
+                                data = json.loads(val)
+
                             if data.get("expires", 0) > time():
                                 count += 1
-                                total_bytes += len(val.encode("utf-8"))
+                                total_bytes += len(val.encode("ascii"))
                         except Exception:
                             pass
         except Exception:

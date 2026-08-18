@@ -135,3 +135,63 @@ msgstr ""
 msgctxt "#32221"
 msgid "Smart Release & Subtitle Matching"
 msgstr ""
+
+msgctxt "#32301"
+msgid "Enter your registered OpenSubtitles.com username (do not use email address)."
+msgstr ""
+
+msgctxt "#32302"
+msgid "Enter your OpenSubtitles.com account password."
+msgstr ""
+
+msgctxt "#32303"
+msgid "Verify your OpenSubtitles.com username and password credentials."
+msgstr ""
+
+msgctxt "#32304"
+msgid "Shows current account authentication status and membership tier."
+msgstr ""
+
+msgctxt "#32305"
+msgid "Displays remaining daily download quota for your account."
+msgstr ""
+
+msgctxt "#32306"
+msgid "Timestamp of the last successful account credential check."
+msgstr ""
+
+msgctxt "#32307"
+msgid "Intelligently ranks subtitles by video release group, source cut, and quality with yellow match ratings and automatic preferred language priority."
+msgstr ""
+
+msgctxt "#32308"
+msgid "Filter subtitles for the deaf and hard of hearing (SDH / Closed Captions)."
+msgstr ""
+
+msgctxt "#32309"
+msgid "Filter forced subtitles that only translate foreign dialogue."
+msgstr ""
+
+msgctxt "#32310"
+msgid "Include or exclude automated machine translations."
+msgstr ""
+
+msgctxt "#32311"
+msgid "Include or exclude AI-generated subtitle translations."
+msgstr ""
+
+msgctxt "#32312"
+msgid "Currently installed version of the OpenSubtitles.com add-on."
+msgstr ""
+
+msgctxt "#32313"
+msgid "Duration in minutes to cache search results and Guessit metadata in memory (0 = disabled)."
+msgstr ""
+
+msgctxt "#32314"
+msgid "Current number of cached search queries and compressed memory footprint."
+msgstr ""
+
+msgctxt "#32315"
+msgid "Immediately clear all cached search results, Guessit tokens, and temporary files."
+msgstr ""

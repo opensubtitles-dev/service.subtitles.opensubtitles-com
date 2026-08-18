@@ -12,6 +12,7 @@
                     <control type="edit" format="string">
                         <heading>32201</heading>
                     </control>
+                    <help>32301</help>
                 </setting>
                 <setting id="OSpass" type="string" label="32202">
                     <level>0</level>
@@ -23,6 +24,7 @@
                         <heading>32202</heading>
                         <hidden>true</hidden>
                     </control>
+                    <help>32302</help>
                 </setting>
                 <setting id="test_connection" type="action" label="32010">
                     <level>0</level>
@@ -35,6 +37,7 @@
                         <close>true</close>
                         <data>RunScript(special://home/addons/service.subtitles.opensubtitles-com/test_connection.py)</data>
                     </control>
+                    <help>32303</help>
                 </setting>
                 <setting id="account_status" type="string" label="32204">
                     <level>0</level>
@@ -48,6 +51,7 @@
                     <control type="edit" format="string">
                         <heading>32204</heading>
                     </control>
+                    <help>32304</help>
                 </setting>
                 <setting id="account_details" type="string" label="32205">
                     <level>0</level>
@@ -61,6 +65,7 @@
                     <control type="edit" format="string">
                         <heading>32205</heading>
                     </control>
+                    <help>32305</help>
                 </setting>
                 <setting id="account_checked_at" type="string" label="32206">
                     <level>0</level>
@@ -74,6 +79,7 @@
                     <control type="edit" format="string">
                         <heading>32206</heading>
                     </control>
+                    <help>32306</help>
                 </setting>
                 <setting id="account_verified_at" type="string">
                     <level>4</level>
@@ -91,6 +97,7 @@
                     <level>0</level>
                     <default>true</default>
                     <control type="toggle" />
+                    <help>32307</help>
                 </setting>
                 <setting id="hearing_impaired" type="string" label="32211">
                     <level>0</level>
@@ -105,6 +112,7 @@
                     <control type="list" format="string">
                         <heading>32211</heading>
                     </control>
+                    <help>32308</help>
                 </setting>
                 <setting id="foreign_parts_only" type="string" label="32212">
                     <level>0</level>
@@ -119,6 +127,7 @@
                     <control type="list" format="string">
                         <heading>32212</heading>
                     </control>
+                    <help>32309</help>
                 </setting>
                 <setting id="machine_translated" type="string" label="32213">
                     <level>0</level>
@@ -133,6 +142,7 @@
                     <control type="list" format="string">
                         <heading>32213</heading>
                     </control>
+                    <help>32310</help>
                 </setting>
                 <setting id="ai_translated" type="string" label="32214">
                     <level>0</level>
@@ -147,6 +157,7 @@
                     <control type="list" format="string">
                         <heading>32214</heading>
                     </control>
+                    <help>32311</help>
                 </setting>
             </group>
         </category>
@@ -164,6 +175,7 @@
                     <control type="edit" format="string">
                         <heading>32219</heading>
                     </control>
+                    <help>32312</help>
                 </setting>
                 <setting id="search_cache_duration" type="integer" label="32216">
                     <level>3</level>
@@ -174,6 +186,7 @@
                         <maximum>1440</maximum>
                     </constraints>
                     <control type="spinner" format="string" />
+                    <help>32313</help>
                 </setting>
                 <setting id="cache_stats" type="string" label="32220">
                     <level>3</level>
@@ -187,6 +200,7 @@
                     <control type="edit" format="string">
                         <heading>32220</heading>
                     </control>
+                    <help>32314</help>
                 </setting>
                 <setting id="clear_cache" type="action" label="32217">
                     <level>3</level>
@@ -195,6 +209,7 @@
                         <close>true</close>
                         <data>RunScript(special://home/addons/service.subtitles.opensubtitles-com/clear_cache.py)</data>
                     </control>
+                    <help>32315</help>
                 </setting>
             </group>
         </category>

@@ -38,3 +38,17 @@ def test_cache_stats_and_clear():
     count_after, bytes_after = cache.get_stats()
     assert count_after == 0
     assert bytes_after == 0
+
+
+def test_cache_uses_gzip_compression():
+    cache = Cache(key_prefix="gz_test")
+    large_data = {"subtitles": [{"release": f"Release.Name.2024.1080p-{i}", "downloads": i * 100} for i in range(50)]}
+    cache.set("large_item", large_data, expires=300)
+
+    # Check underlying window property directly to confirm 'gz:' prefix
+    raw_prop = cache._win.getProperty("gz_test:large_item")
+    assert raw_prop.startswith("gz:")
+
+    # Decompressed result matches original data structure exactly
+    retrieved = cache.get("large_item")
+    assert retrieved == large_data
