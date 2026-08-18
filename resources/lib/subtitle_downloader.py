@@ -137,6 +137,15 @@ class SubtitleDownloader:
                 if l_code and l_code.lower() not in self.preferred_languages:
                     self.preferred_languages.append(l_code.lower())
 
+        # Adaptive Language Memory: promote last downloaded language to top priority
+        try:
+            last_dl_lang = xbmcgui.Window(10000).getProperty("os_com:last_downloaded_lang")
+            if last_dl_lang and last_dl_lang.lower() in self.preferred_languages:
+                self.preferred_languages.remove(last_dl_lang.lower())
+                self.preferred_languages.insert(0, last_dl_lang.lower())
+        except Exception:
+            pass
+
         # Build informative on-screen search notification
         addon_name = __addon__.getAddonInfo("name")
         version = __addon__.getAddonInfo("version")
@@ -341,6 +350,15 @@ class SubtitleDownloader:
                 __addon__.setSetting("account_details", f"Quota: {remaining} downloads left today")
                 __addon__.setSetting("account_checked_at", now_str)
 
+            # Save downloaded language to adaptive memory
+            dl_lang = self.params.get("language")
+            if dl_lang:
+                try:
+                    norm_lang = convert_language(dl_lang) or dl_lang
+                    xbmcgui.Window(10000).setProperty("os_com:last_downloaded_lang", str(norm_lang).lower())
+                except Exception:
+                    pass
+
             list_item = xbmcgui.ListItem(label=subtitle_path)
             xbmcplugin.addDirectoryItem(handle=self.handle, url=subtitle_path, listitem=list_item, isFolder=False)
 
@@ -357,12 +375,17 @@ class SubtitleDownloader:
             smart_ranking_setting = __addon__.getSetting("smart_ranking")
             smart_ranking = smart_ranking_setting.lower() in ("true", "1") if smart_ranking_setting else True
 
+            from resources.lib.data_collector import is_kodi_hearing_impaired_preferred
+            hi_setting = __addon__.getSetting("hearing_impaired")
+            prefer_hi = (hi_setting == "only") or (hi_setting == "include" and is_kodi_hearing_impaired_preferred()) or (not hi_setting and is_kodi_hearing_impaired_preferred())
+
             ranked_subtitles = rank_subtitles(
                 self.subtitles,
                 getattr(self, "video_filename", ""),
                 getattr(self, "video_guessit", None),
                 smart_ranking=smart_ranking,
-                preferred_languages=getattr(self, "preferred_languages", None) if smart_ranking else None
+                preferred_languages=getattr(self, "preferred_languages", None) if smart_ranking else None,
+                prefer_hearing_impaired=prefer_hi
             )
 
             for subtitle in ranked_subtitles:

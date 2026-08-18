@@ -155,7 +155,7 @@ def parse_release_tokens(text):
     return tokens
 
 
-def calculate_match_score(subtitle, video_filename, guessit_data=None):
+def calculate_match_score(subtitle, video_filename, guessit_data=None, prefer_hearing_impaired=False):
     """
     Calculates a precision match score (0 - 15000+) between a subtitle item and the playing video.
     Higher score indicates higher sync confidence and release match accuracy.
@@ -246,7 +246,15 @@ def calculate_match_score(subtitle, video_filename, guessit_data=None):
         sim = SequenceMatcher(None, sub_clean.lower(), video_clean.lower()).ratio()
         score += sim * 500.0
 
-    # 5. Reputation & Community Quality Bonuses (Tie Breakers)
+    # 5. Hearing Impaired (Accessibility alignment)
+    is_hi = bool(attributes.get("hearing_impaired"))
+    if prefer_hearing_impaired:
+        if is_hi:
+            score += 350.0  # Boost hearing impaired subtitles when preferred
+        else:
+            score -= 150.0  # De-prioritize non-HI when user prefers HI
+
+    # 6. Reputation & Community Quality Bonuses (Tie Breakers)
     if attributes.get("from_trusted"):
         score += 100.0
 
@@ -298,7 +306,7 @@ def get_match_display_tag(subtitle):
     return ""
 
 
-def rank_subtitles(subtitles, video_filename, guessit_data=None, smart_ranking=True, preferred_languages=None):
+def rank_subtitles(subtitles, video_filename, guessit_data=None, smart_ranking=True, preferred_languages=None, prefer_hearing_impaired=False):
     """
     Ranks subtitle list according to smart release token precision, sync confidence,
     and multi-language user preference hierarchy:
@@ -312,7 +320,7 @@ def rank_subtitles(subtitles, video_filename, guessit_data=None, smart_ranking=T
     # 1. Compute match scores for all subtitles if smart ranking enabled
     if smart_ranking and video_filename:
         for sub in subtitles:
-            calculate_match_score(sub, video_filename, guessit_data)
+            calculate_match_score(sub, video_filename, guessit_data, prefer_hearing_impaired=prefer_hearing_impaired)
         sort_key = lambda s: s.get("_match_score", 0.0)
     else:
         sort_key = lambda s: (

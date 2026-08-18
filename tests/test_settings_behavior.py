@@ -187,3 +187,49 @@ def test_kodi_preferred_language_priority_ordering():
 
     # Preferred language (English) must be placed #1, followed by Czech and Spanish
     assert sd.preferred_languages == ["en", "cs", "es"]
+
+
+def test_adaptive_language_memory():
+    import xbmcgui
+    from resources.lib.subtitle_downloader import SubtitleDownloader
+
+    win = xbmcgui.Window(10000)
+    win.setProperty("os_com:last_downloaded_lang", "sk")  # User previously downloaded Slovak
+
+    # Kodi requests Czech, English, Slovak (with preferredlanguage=Czech)
+    test_argv = ["plugin://service.subtitles.opensubtitles-com/", "1", "?action=search&languages=Czech%2cEnglish%2cSlovak&preferredlanguage=Czech"]
+    with patch("sys.argv", test_argv), \
+         patch("resources.lib.subtitle_downloader.get_file_path", return_value="/movies/Test.Movie.2024.1080p.mkv"), \
+         patch("resources.lib.subtitle_downloader.get_file_data", return_value={"filename": "Test.Movie.2024.1080p.mkv", "basename": "Test.Movie.2024.1080p.mkv"}), \
+         patch("resources.lib.subtitle_downloader.get_media_data", return_value={"query": "Test Movie"}), \
+         patch("resources.lib.subtitle_downloader._call_guessit_api", return_value=None), \
+         patch("resources.lib.subtitle_downloader.xbmcgui.DialogProgressBG"):
+        sd = SubtitleDownloader()
+        sd.search()
+
+    # Adaptive Language Memory promotes Slovak (sk) to #1 ahead of Czech and English!
+    assert sd.preferred_languages == ["sk", "cs", "en"]
+
+
+def test_hearing_impaired_kodi_setting_reflection():
+    from resources.lib.data_collector import get_language_data, is_kodi_hearing_impaired_preferred
+    from resources.lib.matcher import rank_subtitles
+
+    addon = xbmcaddon.Addon()
+    addon.setSetting("hearing_impaired", "exclude")
+
+    # When Kodi system setting for hearing impaired is enabled
+    mock_jsonrpc = '{"id": 1, "jsonrpc": "2.0", "result": {"value": true}}'
+    with patch("xbmc.executeJSONRPC", return_value=mock_jsonrpc):
+        assert is_kodi_hearing_impaired_preferred() is True
+        
+        lang_data = get_language_data({"languages": "English", "preferredlanguage": "English"})
+        # Should automatically switch from default exclude to include
+        assert lang_data["hearing_impaired"] == "include"
+
+    # Ranking test: HI subtitle gets boosted when prefer_hearing_impaired=True
+    sub_regular = {"id": "1", "attributes": {"release": "Movie.1080p.BluRay-FLUX", "hearing_impaired": False}}
+    sub_hi = {"id": "2", "attributes": {"release": "Movie.1080p.BluRay-FLUX", "hearing_impaired": True}}
+
+    ranked = rank_subtitles([sub_regular, sub_hi], "Movie.1080p.BluRay-FLUX.mkv", prefer_hearing_impaired=True)
+    assert ranked[0]["id"] == "2", "Hearing impaired subtitle should rank #1 when user prefers HI"

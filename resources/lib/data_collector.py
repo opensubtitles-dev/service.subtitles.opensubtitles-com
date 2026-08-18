@@ -823,6 +823,21 @@ def get_media_data():
     return item
 
 
+def is_kodi_hearing_impaired_preferred():
+    """Checks if Kodi has 'prefer subtitles for hearing impaired' enabled in system settings."""
+    try:
+        query = json.dumps({
+            "jsonrpc": "2.0",
+            "method": "Settings.GetSettingValue",
+            "params": {"setting": "subtitles.hearingimpaired"},
+            "id": 1
+        })
+        response = json.loads(xbmc.executeJSONRPC(query))
+        return bool(response.get("result", {}).get("value", False))
+    except Exception:
+        return False
+
+
 def get_language_data(params):
     search_languages = unquote(params.get("languages")).split(",")
     search_languages_str = ""
@@ -843,8 +858,13 @@ def get_language_data(params):
         else:
             log(__name__, f"Language code not found: '{language}'")
 
+    hi_setting = __addon__.getSetting("hearing_impaired")
+    # If add-on setting is default "exclude", but Kodi system has prefer hearing impaired ON, reflect Kodi
+    if (not hi_setting or hi_setting == "exclude") and is_kodi_hearing_impaired_preferred():
+        hi_setting = "include"
+
     item = {
-        "hearing_impaired": __addon__.getSetting("hearing_impaired"),
+        "hearing_impaired": hi_setting or "exclude",
         "foreign_parts_only": __addon__.getSetting("foreign_parts_only"),
         "machine_translated": __addon__.getSetting("machine_translated"),
         "ai_translated": __addon__.getSetting("ai_translated"),
