@@ -134,7 +134,7 @@
                         <heading>32213</heading>
                     </control>
                 </setting>
-                <setting id="ai_translated" type="string" label="32214">
+                <setting id="ai_translated" type="string" label="32215">
                     <level>0</level>
                     <default>include</default>
                     <constraints>
@@ -145,7 +145,7 @@
                         </options>
                     </constraints>
                     <control type="list" format="string">
-                        <heading>32214</heading>
+                        <heading>32215</heading>
                     </control>
                 </setting>
             </group>
