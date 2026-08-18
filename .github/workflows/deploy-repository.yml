@@ -1,0 +1,62 @@
+name: Deploy OpenSubtitles Repository
+
+on:
+  push:
+    tags:
+      - "v*"
+    branches:
+      - master
+      - v1.0.15
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Generate Repository Archives & Portal
+        run: |
+          python scripts/generate_repo.py
+
+      - name: Deploy to gh-pages Branch
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./repo_output
+          publish_branch: gh-pages
+          force_orphan: true
+
+      - name: Create / Update GitHub Release (Tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            repo_output/repository.opensubtitles-com.zip
+            repo_output/zips/service.subtitles.opensubtitles-com/*.zip
+            repo_output/addons.xml
+            repo_output/addons.xml.md5
+            repo_output/addons.xml.sha256
+          draft: false
+          prerelease: false
+          generate_release_notes: true

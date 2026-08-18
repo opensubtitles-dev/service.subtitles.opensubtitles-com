@@ -6,6 +6,7 @@ __pycache__/
 .vscode/
 *.zip
 dist/
+repo_output/
 *.log
 
 .pytest_cache/
