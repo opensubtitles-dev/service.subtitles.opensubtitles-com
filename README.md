@@ -8,6 +8,47 @@ REST API implementation based on tomburke25 [python-opensubtitles-rest-api](http
 * [Developer Workflow & Fast Testing Guide](DEV_WORKFLOW.md)
 * [Kodi Standards & Repo Submission Rules](KODI_STANDARDS.md)
 * [AI Agent Architecture & Guidelines](AGENT_INSTRUCTIONS.md)
+* [Project Roadmap & Feature TODO](TODO.md)
+
+---
+
+## 📥 Installation & Updates
+
+You can install the **OpenSubtitles.com** add-on through the **Official OpenSubtitles Repository** (for instant updates) or via the built-in Kodi repository.
+
+### Option A: Install via OpenSubtitles Repository (Recommended for Fast Updates)
+
+Installing via our repository ensures you receive automatic updates, hotfixes, and new features immediately without waiting for official mirror review cycles.
+
+#### Step 1: Enable Unknown Sources in Kodi
+1. In Kodi, open **Settings (⚙️) ➔ System ➔ Add-ons**.
+2. Toggle **Unknown sources** to **ON** (enabled).
+3. Confirm the security prompt by clicking **Yes**.
+
+#### Step 2: Install the Repository
+1. Download **[`repository.opensubtitles-com.zip`](https://github.com/opensubtitles/service.subtitles.opensubtitles-com/releases/latest/download/repository.opensubtitles-com.zip)** to your device.
+2. In Kodi, go to **Add-ons ➔ Add-on browser** (open package icon in top left).
+3. Select **Install from zip file** and choose the downloaded `repository.opensubtitles-com.zip`.
+4. Wait for the notification: *"OpenSubtitles.com Official Repository Add-on installed"*.
+
+#### Step 3: Install & Configure the Subtitles Add-on
+1. Select **Install from repository ➔ OpenSubtitles.com Official Repository ➔ Subtitles ➔ OpenSubtitles.com**.
+2. Click **Install**.
+3. Open add-on **Settings**:
+   * Enter your OpenSubtitles.com **Username** and **Password**.
+   * Click **Test Connection** to verify your VIP status and daily download quota.
+4. In Kodi **Settings ➔ Player ➔ Language ➔ Subtitle Services**, set both *Default movie service* and *Default TV show service* to **OpenSubtitles.com**.
+
+---
+
+### Option B: Install via Official Kodi Repository
+1. In Kodi, navigate to **Add-ons ➔ Add-on browser ➔ Install from repository**.
+2. Select **Kodi Add-on repository ➔ Subtitles ➔ OpenSubtitles.com**.
+3. Click **Install** and configure your login credentials in Settings.
+
+---
+
+## 📜 Changelog
 
 v1.0.15 (2026-08-18)
 - added Smart Account Status display in Settings with 24-hour verification expiration policy
