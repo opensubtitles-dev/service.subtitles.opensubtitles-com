@@ -25,11 +25,17 @@ Installing via our repository ensures you receive automatic updates, hotfixes, a
 2. Toggle **Unknown sources** to **ON** (enabled).
 3. Confirm the security prompt by clicking **Yes**.
 
-#### Step 2: Install the Repository
-1. Download **[`repository.opensubtitles-com.zip`](https://github.com/opensubtitles/service.subtitles.opensubtitles-com/releases/latest/download/repository.opensubtitles-com.zip)** to your device.
-2. In Kodi, go to **Add-ons ➔ Add-on browser** (open package icon in top left).
-3. Select **Install from zip file** and choose the downloaded `repository.opensubtitles-com.zip`.
-4. Wait for the notification: *"OpenSubtitles.com Official Repository Add-on installed"*.
+#### Step 2: Install the Repository (Choose One Method)
+
+* **Method 1: Via Kodi File Manager (Recommended — no USB/browser required)**:
+  1. In Kodi, go to **Settings (⚙️) ➔ File manager ➔ Add source**.
+  2. Click `<None>` and enter: `https://opensubtitles.github.io/service.subtitles.opensubtitles-com/`
+  3. Set the media source name to: `OpenSubtitles` and click **OK**.
+  4. Go to **Add-ons ➔ Add-on browser** (open box icon) ➔ **Install from zip file** ➔ **OpenSubtitles** ➔ select **`repository.opensubtitles-com.zip`**.
+
+* **Method 2: Direct Download**:
+  1. Download: **[`repository.opensubtitles-com.zip`](https://opensubtitles.github.io/service.subtitles.opensubtitles-com/repository.opensubtitles-com.zip)**
+  2. In Kodi, go to **Add-ons ➔ Add-on browser ➔ Install from zip file** and select the downloaded file.
 
 #### Step 3: Install & Configure the Subtitles Add-on
 1. Select **Install from repository ➔ OpenSubtitles.com Official Repository ➔ Subtitles ➔ OpenSubtitles.com**.

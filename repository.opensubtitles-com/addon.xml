@@ -5,9 +5,9 @@
        provider-name="OpenSubtitles">
 	<extension point="xbmc.addon.repository" name="OpenSubtitles.com Official Repository">
 		<dir>
-			<info compressed="false">https://raw.githubusercontent.com/opensubtitles/service.subtitles.opensubtitles-com/gh-pages/addons.xml</info>
-			<checksum>https://raw.githubusercontent.com/opensubtitles/service.subtitles.opensubtitles-com/gh-pages/addons.xml.md5</checksum>
-			<datadir zip="true">https://raw.githubusercontent.com/opensubtitles/service.subtitles.opensubtitles-com/gh-pages/zips/</datadir>
+			<info compressed="false">https://opensubtitles.github.io/service.subtitles.opensubtitles-com/addons.xml</info>
+			<checksum>https://opensubtitles.github.io/service.subtitles.opensubtitles-com/addons.xml.md5</checksum>
+			<datadir zip="true">https://opensubtitles.github.io/service.subtitles.opensubtitles-com/zips/</datadir>
 			<hashes>false</hashes>
 		</dir>
 	</extension>
