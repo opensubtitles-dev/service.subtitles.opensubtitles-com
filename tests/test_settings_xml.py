@@ -49,10 +49,12 @@ def test_all_expected_setting_ids_exist():
     for expected_id in expected_ids:
         assert expected_id in setting_ids, f"Setting '{expected_id}' is missing from settings.xml"
 
-    # Verify account_status, account_details, and cache_stats are non-editable
-    for readonly_id in ("account_status", "account_details", "cache_stats"):
-        dep = setting_ids[readonly_id].find(".//dependencies/dependency[@type='enable']")
-        assert dep is not None and dep.text == "false", f"Setting '{readonly_id}' must have enable=false dependency"
+    # Verify account_status, account_details, addon_version, and cache_stats are non-interactive label controls
+    for label_id in ("account_status", "account_details", "addon_version", "cache_stats"):
+        ctrl = setting_ids[label_id].find("control")
+        assert ctrl is not None, f"Setting '{label_id}' must have a control element"
+        assert ctrl.attrib.get("type") == "label", f"Setting '{label_id}' must use control type='label'"
+        assert ctrl.attrib.get("format") == "string", f"Setting '{label_id}' must use format='string'"
 
 def test_debug_settings_are_expert_level():
     tree = ET.parse(SETTINGS_XML_PATH)

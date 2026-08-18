@@ -39,28 +39,12 @@
                 <setting id="account_status" type="string" label="32204">
                     <level>0</level>
                     <default>Not verified (Click Test Connection)</default>
-                    <constraints>
-                        <allowempty>true</allowempty>
-                    </constraints>
-                    <dependencies>
-                        <dependency type="enable">false</dependency>
-                    </dependencies>
-                    <control type="edit" format="string">
-                        <heading>32204</heading>
-                    </control>
+                    <control type="label" format="string" />
                 </setting>
                 <setting id="account_details" type="string" label="32205">
                     <level>0</level>
                     <default/>
-                    <constraints>
-                        <allowempty>true</allowempty>
-                    </constraints>
-                    <dependencies>
-                        <dependency type="enable">false</dependency>
-                    </dependencies>
-                    <control type="edit" format="string">
-                        <heading>32205</heading>
-                    </control>
+                    <control type="label" format="string" />
                 </setting>
                 <setting id="account_verified_at" type="string">
                     <level>4</level>
@@ -137,13 +121,7 @@
                 <setting id="addon_version" type="string" label="32219">
                     <level>3</level>
                     <default>1.0.15</default>
-                    <constraints>
-                        <allowempty>true</allowempty>
-                    </constraints>
-                    <control type="edit" format="string">
-                        <heading>32219</heading>
-                        <readonly>true</readonly>
-                    </control>
+                    <control type="label" format="string" />
                 </setting>
                 <setting id="search_cache_duration" type="integer" label="32216">
                     <level>3</level>
@@ -158,15 +136,7 @@
                 <setting id="cache_stats" type="string" label="32220">
                     <level>3</level>
                     <default>0 items (0.0 KB)</default>
-                    <constraints>
-                        <allowempty>true</allowempty>
-                    </constraints>
-                    <dependencies>
-                        <dependency type="enable">false</dependency>
-                    </dependencies>
-                    <control type="edit" format="string">
-                        <heading>32220</heading>
-                    </control>
+                    <control type="label" format="string" />
                 </setting>
                 <setting id="clear_cache" type="action" label="32217">
                     <level>3</level>
