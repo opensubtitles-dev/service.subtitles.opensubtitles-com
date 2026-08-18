@@ -100,6 +100,14 @@
                     </dependencies>
                     <control type="toggle" />
                 </setting>
+                <setting id="multi_language_top_picks" type="boolean" label="32223">
+                    <level>0</level>
+                    <default>true</default>
+                    <dependencies>
+                        <dependency type="enable" setting="smart_ranking" operator="is">true</dependency>
+                    </dependencies>
+                    <control type="toggle" />
+                </setting>
                 <setting id="hearing_impaired" type="string" label="32211">
                     <level>0</level>
                     <default>exclude</default>

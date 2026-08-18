@@ -139,3 +139,7 @@ msgstr ""
 msgctxt "#32222"
 msgid "Show match rating in subtitle list"
 msgstr ""
+
+msgctxt "#32223"
+msgid "Prioritize best match per language & group results"
+msgstr ""

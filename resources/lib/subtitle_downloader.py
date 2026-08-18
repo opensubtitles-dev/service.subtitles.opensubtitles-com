@@ -357,12 +357,17 @@ class SubtitleDownloader:
             smart_ranking_setting = __addon__.getSetting("smart_ranking")
             smart_ranking = smart_ranking_setting.lower() in ("true", "1") if smart_ranking_setting else True
 
+            multi_lang_setting = __addon__.getSetting("multi_language_top_picks")
+            multi_lang_top_picks = multi_lang_setting.lower() in ("true", "1") if multi_lang_setting else True
+
+            preferred_langs = getattr(self, "preferred_languages", None) if multi_lang_top_picks else None
+
             ranked_subtitles = rank_subtitles(
                 self.subtitles,
                 getattr(self, "video_filename", ""),
                 getattr(self, "video_guessit", None),
                 smart_ranking=smart_ranking,
-                preferred_languages=getattr(self, "preferred_languages", None)
+                preferred_languages=preferred_langs
             )
 
             show_match_setting = __addon__.getSetting("show_match_score")
