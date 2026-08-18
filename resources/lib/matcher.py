@@ -298,27 +298,72 @@ def get_match_display_tag(subtitle):
     return ""
 
 
-def rank_subtitles(subtitles, video_filename, guessit_data=None, smart_ranking=True):
+def rank_subtitles(subtitles, video_filename, guessit_data=None, smart_ranking=True, preferred_languages=None):
     """
-    Ranks subtitle list according to smart release token precision and sync confidence.
-    Returns a newly sorted list of subtitle dictionaries.
+    Ranks subtitle list according to smart release token precision, sync confidence,
+    and multi-language user preference hierarchy:
+      1. Top #1 best match for 1st preferred language
+      2. Top #1 best match for 2nd preferred language (etc.)
+      3. Remaining subtitles grouped by language in preferred order, sorted from best to worst.
     """
     if not subtitles:
         return []
 
-    if not smart_ranking or not video_filename:
-        # Fallback to legacy sorting (trusted, votes, rating, downloads)
-        return list(reversed(sorted(subtitles, key=lambda x: (
-            bool(x.get("attributes", {}).get("from_trusted", False)),
-            x.get("attributes", {}).get("votes", 0) or 0,
-            x.get("attributes", {}).get("ratings", 0) or 0,
-            x.get("attributes", {}).get("download_count", 0) or 0
-        ))))
+    # 1. Compute match scores for all subtitles if smart ranking enabled
+    if smart_ranking and video_filename:
+        for sub in subtitles:
+            calculate_match_score(sub, video_filename, guessit_data)
+        sort_key = lambda s: s.get("_match_score", 0.0)
+    else:
+        sort_key = lambda s: (
+            bool(s.get("attributes", {}).get("from_trusted", False)),
+            s.get("attributes", {}).get("votes", 0) or 0,
+            s.get("attributes", {}).get("ratings", 0) or 0,
+            s.get("attributes", {}).get("download_count", 0) or 0
+        )
 
-    # Compute match scores for all subtitles
+    # 2. If no preferred languages list provided, sort everything globally
+    if not preferred_languages:
+        return sorted(subtitles, key=sort_key, reverse=True)
+
+    # 3. Group and sort subtitles by language
+    lang_map = {}
     for sub in subtitles:
-        calculate_match_score(sub, video_filename, guessit_data)
+        lang = str(sub.get("attributes", {}).get("language", "")).lower()
+        if lang not in lang_map:
+            lang_map[lang] = []
+        lang_map[lang].append(sub)
 
-    # Sort descending by match score
-    ranked = sorted(subtitles, key=lambda s: s.get("_match_score", 0.0), reverse=True)
-    return ranked
+    # Sort each language group best to worst
+    for lang in lang_map:
+        lang_map[lang] = sorted(lang_map[lang], key=sort_key, reverse=True)
+
+    # Determine ordered list of languages (preferred first, then any remaining)
+    ordered_langs = []
+    for plang in preferred_languages:
+        plang_clean = str(plang).lower().strip()
+        if plang_clean in lang_map and plang_clean not in ordered_langs:
+            ordered_langs.append(plang_clean)
+
+    for lang in lang_map:
+        if lang not in ordered_langs:
+            ordered_langs.append(lang)
+
+    # 4. Multi-language interleaving:
+    # Phase A: Pick #1 Top match for each preferred language
+    top_picks = []
+    remaining_groups = {}
+
+    for lang in ordered_langs:
+        subs_for_lang = list(lang_map.get(lang, []))
+        if subs_for_lang:
+            top_picks.append(subs_for_lang.pop(0))
+            remaining_groups[lang] = subs_for_lang
+
+    # Phase B: Group remaining subtitles by language in order, best to worst
+    remaining_ordered = []
+    for lang in ordered_langs:
+        if lang in remaining_groups and remaining_groups[lang]:
+            remaining_ordered.extend(remaining_groups[lang])
+
+    return top_picks + remaining_ordered

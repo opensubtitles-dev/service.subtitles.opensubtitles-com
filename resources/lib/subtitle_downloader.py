@@ -119,6 +119,24 @@ class SubtitleDownloader:
             except Exception as e:
                 log(__name__, f"Failed to retrieve Guessit metadata for ranking: {e}")
 
+        # Extract ordered preferred languages for multi-language display
+        from urllib.parse import unquote
+        preferred_lang = self.params.get("preferredlanguage")
+        raw_langs = unquote(self.params.get("languages", "")).split(",")
+        self.preferred_languages = []
+
+        if preferred_lang and preferred_lang not in ("Unknown", "Undetermined"):
+            p_code = convert_language(preferred_lang)
+            if p_code:
+                self.preferred_languages.append(p_code.lower())
+
+        for l in raw_langs:
+            l_str = l.strip()
+            if l_str:
+                l_code = convert_language(l_str)
+                if l_code and l_code.lower() not in self.preferred_languages:
+                    self.preferred_languages.append(l_code.lower())
+
         # Build informative on-screen search notification
         addon_name = __addon__.getAddonInfo("name")
         version = __addon__.getAddonInfo("version")
@@ -343,7 +361,8 @@ class SubtitleDownloader:
                 self.subtitles,
                 getattr(self, "video_filename", ""),
                 getattr(self, "video_guessit", None),
-                smart_ranking=smart_ranking
+                smart_ranking=smart_ranking,
+                preferred_languages=getattr(self, "preferred_languages", None)
             )
 
             show_match_setting = __addon__.getSetting("show_match_score")

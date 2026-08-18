@@ -154,3 +154,34 @@ def test_get_match_display_tag():
 
     sub_zero = {"_match_score": 0.0, "attributes": {}}
     assert get_match_display_tag(sub_zero) == ""
+
+
+def test_multi_language_top_picks_and_grouping():
+    video_file = "Movie 2024 1080p BluRay x264-FLUX.mkv"
+
+    # Czech subtitles
+    cs_top = {"id": "cs_top", "attributes": {"language": "cs", "release": "Movie 2024 1080p BluRay x264-FLUX"}}
+    cs_mid = {"id": "cs_mid", "attributes": {"language": "cs", "release": "Movie 2024 1080p WEB-DL x264"}}
+    cs_low = {"id": "cs_low", "attributes": {"language": "cs", "release": "Movie 2024 CAMRip x264"}}
+
+    # English subtitles
+    en_top = {"id": "en_top", "attributes": {"language": "en", "release": "Movie 2024 1080p BluRay x264-FLUX"}}
+    en_mid = {"id": "en_mid", "attributes": {"language": "en", "release": "Movie 2024 1080p WEB-DL x264"}}
+    en_low = {"id": "en_low", "attributes": {"language": "en", "release": "Movie 2024 CAMRip x264"}}
+
+    all_subs = [en_low, cs_low, en_mid, cs_top, cs_mid, en_top]
+
+    # User preferred languages: 1st Czech, 2nd English
+    ranked = rank_subtitles(all_subs, video_file, smart_ranking=True, preferred_languages=["cs", "en"])
+
+    # Expected order:
+    # 1. cs_top (#1 match for Czech)
+    # 2. en_top (#1 match for English)
+    # 3. cs_mid (remaining Czech best)
+    # 4. cs_low (remaining Czech worst)
+    # 5. en_mid (remaining English best)
+    # 6. en_low (remaining English worst)
+    expected_ids = ["cs_top", "en_top", "cs_mid", "cs_low", "en_mid", "en_low"]
+    actual_ids = [s["id"] for s in ranked]
+
+    assert actual_ids == expected_ids
