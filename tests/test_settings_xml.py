@@ -43,6 +43,7 @@ def test_all_expected_setting_ids_exist():
         "machine_translated",
         "ai_translated",
         "addon_version",
+        "check_updates",
         "search_cache_duration",
         "cache_stats",
         "clear_cache"

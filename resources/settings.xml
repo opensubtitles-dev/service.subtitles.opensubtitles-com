@@ -165,6 +165,14 @@
                         <heading>32219</heading>
                     </control>
                 </setting>
+                <setting id="check_updates" type="action" label="32230">
+                    <level>3</level>
+                    <default/>
+                    <control type="button" format="action">
+                        <close>true</close>
+                        <data>RunScript(special://home/addons/service.subtitles.opensubtitles-com/check_updates.py)</data>
+                    </control>
+                </setting>
                 <setting id="search_cache_duration" type="integer" label="32216">
                     <level>3</level>
                     <default>180</default>

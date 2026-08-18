@@ -1,0 +1,87 @@
+import pytest
+from unittest.mock import patch, MagicMock
+import xbmcaddon
+import xbmcgui
+
+from check_updates import (
+    parse_version_tuple,
+    extract_remote_version,
+    fetch_latest_remote_version,
+    check_updates
+)
+
+def test_parse_version_tuple():
+    assert parse_version_tuple("1.0.15") == (1, 0, 15)
+    assert parse_version_tuple("1.0.16.2") == (1, 0, 16, 2)
+    assert parse_version_tuple("v2.0.0") == (2, 0, 0)
+    assert parse_version_tuple("") == (0, 0, 0)
+    assert parse_version_tuple("1.0.16") > parse_version_tuple("1.0.15")
+
+
+def test_extract_remote_version_single_addon():
+    xml_content = """<?xml version="1.0" encoding="UTF-8"?>
+    <addon id="service.subtitles.opensubtitles-com" version="1.0.16" name="OpenSubtitles.com">
+    </addon>"""
+    assert extract_remote_version(xml_content) == "1.0.16"
+
+
+def test_extract_remote_version_repository_addons_xml():
+    xml_content = """<?xml version="1.0" encoding="UTF-8"?>
+    <addons>
+        <addon id="repository.opensubtitles-com" version="1.0.0" name="Repository">
+        </addon>
+        <addon id="service.subtitles.opensubtitles-com" version="1.0.16" name="OpenSubtitles.com">
+        </addon>
+    </addons>"""
+    assert extract_remote_version(xml_content) == "1.0.16"
+
+
+def test_check_updates_up_to_date():
+    addon = xbmcaddon.Addon()
+
+    with patch("check_updates.fetch_latest_remote_version", return_value="1.0.15"), \
+         patch.object(addon, "getAddonInfo", return_value="1.0.15"), \
+         patch("check_updates.__addon__.getAddonInfo", return_value="1.0.15"), \
+         patch("check_updates.xbmcgui.Dialog") as mock_dialog:
+        dialog_inst = MagicMock()
+        mock_dialog.return_value = dialog_inst
+
+        check_updates()
+
+        assert addon.getSetting("addon_version") == "1.0.15 (Latest)"
+        dialog_inst.ok.assert_called_once()
+        assert "up to date" in dialog_inst.ok.call_args[0][1]
+
+
+def test_check_updates_newer_version_available():
+    addon = xbmcaddon.Addon()
+
+    with patch("check_updates.fetch_latest_remote_version", return_value="1.0.16"), \
+         patch.object(addon, "getAddonInfo", return_value="1.0.15"), \
+         patch("check_updates.__addon__.getAddonInfo", return_value="1.0.15"), \
+         patch("check_updates.xbmcgui.Dialog") as mock_dialog, \
+         patch("check_updates.xbmc.executebuiltin") as mock_exec:
+        dialog_inst = MagicMock()
+        dialog_inst.yesno.return_value = True
+        mock_dialog.return_value = dialog_inst
+
+        check_updates()
+
+        assert "Update: v1.0.16" in addon.getSetting("addon_version")
+        dialog_inst.yesno.assert_called_once()
+        mock_exec.assert_called_with("UpdateAddonRepos")
+
+
+def test_check_updates_network_failure():
+    addon = xbmcaddon.Addon()
+    addon.setSetting("addon_version", "1.0.15")
+
+    with patch("check_updates.fetch_latest_remote_version", return_value=None), \
+         patch("check_updates.xbmcgui.Dialog") as mock_dialog:
+        dialog_inst = MagicMock()
+        mock_dialog.return_value = dialog_inst
+
+        check_updates()
+
+        dialog_inst.ok.assert_called_once()
+        assert "Could not connect" in dialog_inst.ok.call_args[0][1]
