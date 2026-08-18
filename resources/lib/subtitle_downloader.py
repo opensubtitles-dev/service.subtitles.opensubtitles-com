@@ -12,10 +12,11 @@ import xbmcplugin
 import xbmcvfs
 
 from resources.lib.data_collector import get_language_data, get_media_data, get_file_path, convert_language, \
-    clean_feature_release_name, get_flag
+    clean_feature_release_name, get_flag, _call_guessit_api
 from resources.lib.exceptions import AuthenticationError, ConfigurationError, DownloadLimitExceeded, ProviderError, \
     ServiceUnavailable, TooManyRequests, BadUsernameError
 from resources.lib.file_operations import get_file_data
+from resources.lib.matcher import rank_subtitles
 from resources.lib.osclient.provider import OpenSubtitlesProvider
 from resources.lib.utilities import get_params, log, error
 
@@ -108,6 +109,15 @@ class SubtitleDownloader:
             log(__name__, "media_data '%s' " % media_data)
 
         self.query = {**media_data, **file_data, **language_data}
+
+        # Store video filename and Guessit metadata for smart subtitle ranking
+        self.video_filename = file_data.get("filename") or file_data.get("basename") or ""
+        self.video_guessit = None
+        if self.video_filename:
+            try:
+                self.video_guessit = _call_guessit_api(self.video_filename)
+            except Exception as e:
+                log(__name__, f"Failed to retrieve Guessit metadata for ranking: {e}")
 
         # Build informative on-screen search notification
         addon_name = __addon__.getAddonInfo("name")
@@ -325,13 +335,18 @@ class SubtitleDownloader:
         #    xbmcplugin.addDirectoryItem(handle=int(sys.argv[1]), url=sub, listitem=listitem, isFolder=False)
 
     def list_subtitles(self):
-        """TODO rewrite using new data. do not forget Series/Episodes"""
         if self.subtitles:
-            for subtitle in reversed(sorted(self.subtitles, key=lambda x: (
-                    bool(x["attributes"].get("from_trusted", False)),
-                    x["attributes"].get("votes", 0) or 0,
-                    x["attributes"].get("ratings", 0) or 0,
-                    x["attributes"].get("download_count", 0) or 0))):
+            smart_ranking_setting = __addon__.getSetting("smart_ranking")
+            smart_ranking = smart_ranking_setting.lower() in ("true", "1") if smart_ranking_setting else True
+
+            ranked_subtitles = rank_subtitles(
+                self.subtitles,
+                getattr(self, "video_filename", ""),
+                getattr(self, "video_guessit", None),
+                smart_ranking=smart_ranking
+            )
+
+            for subtitle in ranked_subtitles:
                 attributes = subtitle["attributes"]
                 language = convert_language(attributes["language"], True)
                 log(__name__, attributes)
@@ -343,10 +358,11 @@ class SubtitleDownloader:
                     "icon": str(int(round(float(attributes.get("ratings") or 0) / 2))),
                     "thumb": get_flag(attributes["language"])})
 
-                list_item.setProperty("sync", "true" if ("moviehash_match" in attributes and attributes["moviehash_match"]) else "false")
-                list_item.setProperty("hearing_imp", "true" if attributes["hearing_impaired"] else "false")
-                """TODO take care of multiple cds id&id or something"""
+                is_sync = subtitle.get("_is_sync") or ("moviehash_match" in attributes and attributes["moviehash_match"])
+                list_item.setProperty("sync", "true" if is_sync else "false")
+                list_item.setProperty("hearing_imp", "true" if attributes.get("hearing_impaired") else "false")
+                
                 url = f"plugin://{__scriptid__}/?action=download&id={attributes['files'][0]['file_id']}&language={language}"
-
                 xbmcplugin.addDirectoryItem(handle=self.handle, url=url, listitem=list_item, isFolder=False)
+
         xbmcplugin.endOfDirectory(self.handle)

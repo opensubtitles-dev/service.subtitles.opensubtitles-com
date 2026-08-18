@@ -131,3 +131,7 @@ msgstr ""
 msgctxt "#32220"
 msgid "Current Cache Size"
 msgstr ""
+
+msgctxt "#32221"
+msgid "Smart Release & Subtitle Matching"
+msgstr ""

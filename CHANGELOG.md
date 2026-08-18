@@ -10,6 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [v1.0.15] - 2026-08-18
 
 ### Added
+- **Smart Release & Subtitle Matcher**: Added multi-factor precision ranking engine comparing video filename and Guessit metadata against subtitle releases:
+  - Exact moviehash match (+10,000 pts)
+  - Release Group matching (FLUX, Framestor, SPARKS, NTb, etc. +1,500 pts)
+  - Quality & Source alignment (BluRay vs WEB-DL vs CAM penalties)
+  - Edition matching (Extended / Director's Cut vs Theatrical cut timing shift prevention)
+  - Automated `sync="true"` property highlighting in Kodi for high-confidence matches.
 - **Smart Account Status**: Split account verification details into 3 dedicated display lines in Settings:
   - Account Status (`OK (VIP)` / `OK (Free User)` / `Error 401`)
   - Quota & Details (Remaining daily downloads quota and VIP badge)
@@ -17,7 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Guessit Filename Analysis**: Added `/api/v1/utilities/guessit` integration with 30-day client-side caching to accurately parse raw video filenames.
 - **Search Cache Statistics**: Added live cache metrics counter (`cache_stats`) and configurable cache duration (default 180 min, up to 24h).
 - **Official OpenSubtitles Repository**: Added automated build and deployment of `repository.opensubtitles-com` to GitHub Pages for instant add-on updates.
-- **Test Suite**: Added 39 pytest tests covering units, caching, XML schema, settings behavior, and live REST API endpoints.
+- **Test Suite**: Added 45 pytest tests covering units, caching, XML schema, settings behavior, smart matcher, and live REST API endpoints.
 
 ### Changed
 - **Settings UI**: Switched informational status rows to pure read-only edit controls with permanent disabled dependencies, preventing accidental keyboard popups.
