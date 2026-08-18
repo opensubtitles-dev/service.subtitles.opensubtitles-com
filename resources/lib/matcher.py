@@ -357,21 +357,28 @@ def rank_subtitles(subtitles, video_filename, guessit_data=None, smart_ranking=T
         if lang not in ordered_langs:
             ordered_langs.append(lang)
 
-    # 4. Multi-language interleaving:
-    # Phase A: Pick #1 Top match for each preferred language
-    top_picks = []
-    remaining_groups = {}
+    # 4. Multi-language grouping / interleaving:
+    if smart_ranking:
+        # Phase A: Pick #1 Top match for each preferred language
+        top_picks = []
+        remaining_groups = {}
 
-    for lang in ordered_langs:
-        subs_for_lang = list(lang_map.get(lang, []))
-        if subs_for_lang:
-            top_picks.append(subs_for_lang.pop(0))
-            remaining_groups[lang] = subs_for_lang
+        for lang in ordered_langs:
+            subs_for_lang = list(lang_map.get(lang, []))
+            if subs_for_lang:
+                top_picks.append(subs_for_lang.pop(0))
+                remaining_groups[lang] = subs_for_lang
 
-    # Phase B: Group remaining subtitles by language in order, best to worst
-    remaining_ordered = []
-    for lang in ordered_langs:
-        if lang in remaining_groups and remaining_groups[lang]:
-            remaining_ordered.extend(remaining_groups[lang])
+        # Phase B: Group remaining subtitles by language in order, best to worst
+        remaining_ordered = []
+        for lang in ordered_langs:
+            if lang in remaining_groups and remaining_groups[lang]:
+                remaining_ordered.extend(remaining_groups[lang])
 
-    return top_picks + remaining_ordered
+        return top_picks + remaining_ordered
+    else:
+        # When smart ranking is off, cleanly group all subtitles by language in preferred order
+        result = []
+        for lang in ordered_langs:
+            result.extend(lang_map.get(lang, []))
+        return result

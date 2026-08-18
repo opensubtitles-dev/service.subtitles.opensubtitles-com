@@ -384,7 +384,7 @@ class SubtitleDownloader:
                 getattr(self, "video_filename", ""),
                 getattr(self, "video_guessit", None),
                 smart_ranking=smart_ranking,
-                preferred_languages=getattr(self, "preferred_languages", None) if smart_ranking else None,
+                preferred_languages=getattr(self, "preferred_languages", None),
                 prefer_hearing_impaired=prefer_hi
             )
 

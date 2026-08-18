@@ -137,6 +137,20 @@ def test_legacy_ranking_fallback_when_disabled():
     assert ranked[0]["id"] == "high"
 
 
+def test_legacy_ranking_with_preferred_languages_grouping():
+    # Subtitles across English and Czech
+    en_low = {"id": "en_low", "attributes": {"language": "en", "download_count": 10}}
+    en_high = {"id": "en_high", "attributes": {"language": "en", "download_count": 500}}
+    cs_low = {"id": "cs_low", "attributes": {"language": "cs", "download_count": 5}}
+    cs_high = {"id": "cs_high", "attributes": {"language": "cs", "download_count": 300}}
+
+    all_subs = [en_low, cs_high, en_high, cs_low]
+
+    # When smart_ranking is False, should group Czech first (cs_high, cs_low), then English (en_high, en_low)
+    ranked = rank_subtitles(all_subs, "Some.Movie.2024.mkv", smart_ranking=False, preferred_languages=["cs", "en"])
+    assert [s["id"] for s in ranked] == ["cs_high", "cs_low", "en_high", "en_low"]
+
+
 def test_get_match_display_tag():
     from resources.lib.matcher import get_match_display_tag
 
