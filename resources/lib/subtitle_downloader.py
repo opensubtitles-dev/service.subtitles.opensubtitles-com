@@ -19,15 +19,34 @@ from resources.lib.file_operations import get_file_data
 from resources.lib.osclient.provider import OpenSubtitlesProvider
 from resources.lib.utilities import get_params, log, error
 
-__addon__ = xbmcaddon.Addon()
+__addon__ = xbmcaddon.Addon("service.subtitles.opensubtitles-com")
 __scriptid__ = __addon__.getAddonInfo("id")
 
 __profile__ = xbmcvfs.translatePath(__addon__.getAddonInfo("profile"))
 __temp__ = xbmcvfs.translatePath(os.path.join(__profile__, "temp", ""))
 
-if xbmcvfs.exists(__temp__):
-    shutil.rmtree(__temp__)
-xbmcvfs.mkdirs(__temp__)
+
+def clean_temp_directory():
+    """Safely cleans stale temp files and ensures the add-on temp directory exists."""
+    try:
+        if os.path.exists(__temp__):
+            for entry in os.listdir(__temp__):
+                entry_path = os.path.join(__temp__, entry)
+                try:
+                    if os.path.isfile(entry_path) or os.path.islink(entry_path):
+                        os.unlink(entry_path)
+                    elif os.path.isdir(entry_path):
+                        shutil.rmtree(entry_path, ignore_errors=True)
+                except Exception as err:
+                    log(__name__, f"Failed to clean temp file {entry_path}: {err}")
+        else:
+            os.makedirs(__temp__, exist_ok=True)
+    except Exception as e:
+        log(__name__, f"Temp directory initialization error: {e}")
+
+
+# Run initial cleanup on load
+clean_temp_directory()
 
 
 class SubtitleDownloader:
@@ -54,11 +73,16 @@ class SubtitleDownloader:
 
     def handle_action(self):
         log(__name__, "action '%s' called" % self.params["action"])
+        version = __addon__.getAddonInfo("version")
+        addon_name = __addon__.getAddonInfo("name")
+        icon_path = xbmcvfs.translatePath(os.path.join(__addon__.getAddonInfo("path"), "resources", "media", "os_logo_512x512.png"))
+
         if self.params["action"] == "manualsearch":
             self.search(self.params['searchstring'])
         elif self.params["action"] == "search":
             self.search()
         elif self.params["action"] == "download":
+            xbmcgui.Dialog().notification(f"{addon_name} v{version}", "Downloading subtitle...", icon_path, 2000, False)
             self.download()
 
     def search(self, query=""):
@@ -73,8 +97,10 @@ class SubtitleDownloader:
             media_data = {"query": query}
         else:
             media_data = get_media_data()
-            # Only use basename as fallback if no query was set by media data collection
-            if "basename" in file_data and not media_data.get("query"):
+            has_id = bool(media_data.get("imdb_id") or media_data.get("tmdb_id") or
+                          media_data.get("parent_imdb_id") or media_data.get("parent_tmdb_id"))
+            # Only use basename as fallback if no ID and no query was set by media data collection
+            if not has_id and "basename" in file_data and not media_data.get("query"):
                 media_data["query"] = file_data["basename"]
                 log(__name__, f"Using basename as query fallback: {file_data['basename']}")
             elif media_data.get("query"):
@@ -82,6 +108,34 @@ class SubtitleDownloader:
             log(__name__, "media_data '%s' " % media_data)
 
         self.query = {**media_data, **file_data, **language_data}
+
+        # Build informative on-screen search notification
+        addon_name = __addon__.getAddonInfo("name")
+        version = __addon__.getAddonInfo("version")
+        icon_path = xbmcvfs.translatePath(os.path.join(__addon__.getAddonInfo("path"), "resources", "media", "os_logo_512x512.png"))
+
+        search_desc = []
+        if self.query.get("imdb_id"):
+            search_desc.append(f"IMDb: tt{self.query['imdb_id']}")
+        elif self.query.get("parent_imdb_id"):
+            s = self.query.get("season_number", "")
+            e = self.query.get("episode_number", "")
+            search_desc.append(f"IMDb: tt{self.query['parent_imdb_id']} S{s}E{e}")
+        elif self.query.get("tmdb_id"):
+            search_desc.append(f"TMDb: {self.query['tmdb_id']}")
+        elif self.query.get("parent_tmdb_id"):
+            s = self.query.get("season_number", "")
+            e = self.query.get("episode_number", "")
+            search_desc.append(f"TMDb: {self.query['parent_tmdb_id']} S{s}E{e}")
+        elif self.query.get("query"):
+            search_desc.append(f"'{self.query['query']}'")
+
+        langs = self.query.get("languages", "")
+        if langs:
+            search_desc.append(f"[{langs}]")
+
+        notify_msg = "Searching " + " ".join(search_desc) if search_desc else "Searching subtitles..."
+        xbmcgui.Dialog().notification(f"{addon_name} v{version}", notify_msg, icon_path, 2500, False)
 
         # get_media_data may hand us an ordered plan: when it cannot tell whether the id the
         # player gave us belongs to the show or to the episode, each reading is a separate
@@ -214,33 +268,48 @@ class SubtitleDownloader:
             error(__name__, 32001, e, detail=str(e))
             valid = 0
 
-        #subtitle_path = os.path.join(__temp__, f"{str(uuid.uuid4())}.{self.sub_format}")
-        try:    # kodi > k19
-            dir_path = xbmcvfs.translatePath('special://temp/oss/')       
-        except AttributeError: # kodi < k19
-            dir_path = xbmc.translatePath('special://temp/oss/')
+        clean_temp_directory()
+        dir_path = __temp__
 
         # Kodi lang-code difference vs OS.com API langcodes return
-        if self.params["language"].lower() == 'pt-pt': self.params["language"] = 'pt'
-        elif self.params["language"].lower() == 'pt-pb': self.params["language"] = 'pb'
+        if self.params["language"].lower() == 'pt-pt':
+            self.params["language"] = 'pt'
+        elif self.params["language"].lower() == 'pt-pb':
+            self.params["language"] = 'pb'
 
-        if xbmcvfs.exists(dir_path):    # lets clean files from last usage
-            dirs, files = xbmcvfs.listdir(dir_path)
-            for file in files:
-                xbmcvfs.delete(os.path.join(dir_path, file))
-        
-        if not xbmcvfs.exists(dir_path):  # lets create custom OSS sub directory if not exists
-            xbmcvfs.mkdir(dir_path)
-
-        subtitle_path = os.path.join(dir_path, "{0}.{1}.{2}".format('TempSubtitle', self.params["language"], self.sub_format))
-
-        log(__name__, "download subtitle_path: {}".format(subtitle_path))
+        subtitle_path = os.path.join(dir_path, f"TempSubtitle.{self.params['language']}.{self.sub_format}")
+        tmp_path = subtitle_path + ".tmp"
+        log(__name__, f"download subtitle_path: {subtitle_path}")
 
         # Only hand Kodi a subtitle entry when the download actually succeeded; the
         # directory was wiped above, so on failure the path points at nothing.
         if valid == 1 and self.file.get("content"):
-            with open(subtitle_path, "wb") as tmp_file:
-                tmp_file.write(self.file["content"])
+            try:
+                with open(tmp_path, "wb") as tmp_file:
+                    tmp_file.write(self.file["content"])
+
+                if os.path.exists(subtitle_path):
+                    try:
+                        os.unlink(subtitle_path)
+                    except Exception:
+                        pass
+
+                os.rename(tmp_path, subtitle_path)
+            except Exception as e:
+                log(__name__, f"Failed to save subtitle file: {e}")
+                if os.path.exists(tmp_path):
+                    try:
+                        os.unlink(tmp_path)
+                    except Exception:
+                        pass
+                return
+
+            if self.file.get("remaining") is not None:
+                from datetime import datetime
+                now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+                remaining = self.file.get("remaining")
+                vip_str = "VIP" if self.username else "Free"
+                __addon__.setSetting("account_status", f"OK: {vip_str} ({remaining} left) - Updated: {now_str}")
 
             list_item = xbmcgui.ListItem(label=subtitle_path)
             xbmcplugin.addDirectoryItem(handle=self.handle, url=subtitle_path, listitem=list_item, isFolder=False)

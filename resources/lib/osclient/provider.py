@@ -49,7 +49,7 @@ def query_to_params(query, _type):
             request = class_lookup[_type](**query)
         except ValueError as e:
             raise ValueError(f"Invalid request data provided: {e}")
-    elif type(query) is _type:
+    elif isinstance(query, class_lookup.get(_type, tuple(class_lookup.values()))):
         request = query
     else:
         raise ValueError("Invalid request data provided. Invalid query type")
@@ -116,15 +116,15 @@ class OpenSubtitlesProvider:
 
 
             if status_code == 401:
-                raise AuthenticationError(f"Login failed: {e}")
+                raise AuthenticationError(f"Login failed (401 Unauthorized): Invalid username or password.")
             elif status_code == 400:
-                raise BadUsernameError(f"Login failed: {e}")
+                raise BadUsernameError(f"Login failed (400 Bad Request): Make sure to enter your username and not your email.")
             elif status_code == 429:
-                raise TooManyRequests()
-            elif status_code == 503:
-                raise ProviderError(e)
+                raise TooManyRequests("Rate limit reached (429 Too Many Requests). Please wait a moment.")
+            elif 500 <= status_code <= 599:
+                raise ServiceUnavailable(f"Server error ({status_code}): OpenSubtitles.com is currently experiencing issues.")
             else:
-                raise ProviderError(f"Bad status code on login: {status_code}")
+                raise ProviderError(f"HTTP Error {status_code} during login.")
         else:
             try:
                 response_json = r.json()
@@ -148,13 +148,13 @@ class OpenSubtitlesProvider:
         except HTTPError as e:
             status_code = e.response.status_code
             if status_code == 401:
-                raise AuthenticationError(f"Authentication failed: {e}")
+                raise AuthenticationError(f"Authentication failed (401 Unauthorized).")
             elif status_code == 429:
-                raise TooManyRequests()
-            elif status_code == 503:
-                raise ServiceUnavailable("OpenSubtitles.com is currently unavailable.")
+                raise TooManyRequests("Rate limit reached (429 Too Many Requests).")
+            elif 500 <= status_code <= 599:
+                raise ServiceUnavailable(f"Server error ({status_code}): OpenSubtitles.com is currently unavailable.")
             else:
-                raise ProviderError(f"Bad status code: {status_code}")
+                raise ProviderError(f"HTTP Error {status_code} fetching user info.")
 
         try:
             return r.json()["data"]
@@ -287,13 +287,13 @@ class OpenSubtitlesProvider:
 
             if status_code == 401:
                 logging("401 error - authentication required. Checking if login was attempted...")
-                raise ProviderError(f"Authentication failed during search: {status_code}")
+                raise ProviderError(f"Authentication failed during search (401 Unauthorized)")
             elif status_code == 429:
-                raise TooManyRequests()
-            elif status_code == 503:
-                raise ProviderError(e)
+                raise TooManyRequests("Rate limit reached (429 Too Many Requests).")
+            elif 500 <= status_code <= 599:
+                raise ServiceUnavailable(f"Server error ({status_code}): OpenSubtitles.com is currently experiencing issues.")
             else:
-                raise ProviderError(f"Bad status code on search: {status_code}")
+                raise ProviderError(f"HTTP Error {status_code} on subtitle search.")
 
         try:
             result = r.json()

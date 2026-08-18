@@ -72,6 +72,10 @@ msgctxt "#32203"
 msgid "API Key"
 msgstr ""
 
+msgctxt "#32204"
+msgid "Account Status"
+msgstr ""
+
 msgctxt "#32102"
 msgid "Subtitle Options"
 msgstr ""
@@ -98,4 +102,24 @@ msgstr ""
 
 msgctxt "#32216"
 msgid "Search cache duration [minutes]"
+msgstr ""
+
+msgctxt "#32103"
+msgid "Debug & Advanced"
+msgstr ""
+
+msgctxt "#32217"
+msgid "Clear search cache"
+msgstr ""
+
+msgctxt "#32218"
+msgid "Search cache cleared successfully."
+msgstr ""
+
+msgctxt "#32219"
+msgid "Add-on version"
+msgstr ""
+
+msgctxt "#32220"
+msgid "Check cache size"
 msgstr ""

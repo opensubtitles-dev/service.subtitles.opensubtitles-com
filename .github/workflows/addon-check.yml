@@ -1,0 +1,26 @@
+name: Kodi Addon Checker
+
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+    branches: [ "**" ]
+
+jobs:
+  kodi-addon-checker:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        kodi-version: [matrix, nexus, omega, piers]
+    name: Check for Kodi (${{ matrix.kodi-version }})
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate Add-on with kodi-addon-checker
+        id: kodi-addon-checker
+        uses: xbmc/action-kodi-addon-checker@v1
+        with:
+          kodi-version: ${{ matrix.kodi-version }}
+          addon-id: service.subtitles.opensubtitles-com

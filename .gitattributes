@@ -1,2 +1,13 @@
-.gitignore   export-ignore
-.gitattributes  export-ignore
+.gitignore              export-ignore
+.gitattributes          export-ignore
+.github                 export-ignore
+.pytest_cache           export-ignore
+tests                   export-ignore
+scripts                 export-ignore
+pytest.ini              export-ignore
+DEV_WORKFLOW.md         export-ignore
+KODI_STANDARDS.md       export-ignore
+AGENT_INSTRUCTIONS.md   export-ignore
+ANALYSIS.md             export-ignore
+three-brain-out         export-ignore
+

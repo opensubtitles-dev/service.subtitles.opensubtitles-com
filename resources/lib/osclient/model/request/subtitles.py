@@ -29,7 +29,8 @@ class OpenSubtitlesSubtitlesRequest(OpenSubtitlesRequest):
         self._imdb_id = imdb_id
         self._tmdb_id = tmdb_id
         self._type = type_
-        self._query = query
+        import unicodedata
+        self._query = unicodedata.normalize("NFC", query) if query and isinstance(query, str) else query
         self._languages = languages
         self._moviehash = moviehash
         self._user_id = user_id
@@ -105,7 +106,11 @@ class OpenSubtitlesSubtitlesRequest(OpenSubtitlesRequest):
 
     @query.setter
     def query(self, value):
-        self._query = value
+        if value and isinstance(value, str):
+            import unicodedata
+            self._query = unicodedata.normalize("NFC", value)
+        else:
+            self._query = value
 
     @property
     def languages(self):

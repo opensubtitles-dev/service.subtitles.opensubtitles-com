@@ -2,7 +2,22 @@ OpenSubtitles.com KODI add-on
 =============================
 Search and download subtitles for movies and TV-Series from OpenSubtitles.com. Search in 75 languages, 8.000.000+ subtitles, daily updates.
 
-REST API implementation based on tomburke25 [python-opensubtitles-rest-api](https://github.com/tomburke25/python-opensubtitles-rest-api)                            
+REST API implementation based on tomburke25 [python-opensubtitles-rest-api](https://github.com/tomburke25/python-opensubtitles-rest-api)
+
+### Documentation
+* [Developer Workflow & Fast Testing Guide](DEV_WORKFLOW.md)
+* [Kodi Standards & Repo Submission Rules](KODI_STANDARDS.md)
+* [AI Agent Architecture & Guidelines](AGENT_INSTRUCTIONS.md)
+
+v1.0.15 (2026-08-18)
+- added Smart Account Status display in Settings with 24-hour verification expiration policy
+- improved Test Connection dialog with comprehensive HTTP error handling (400, 401, 406, 429, 5xx)
+- fixed Unicode normalization (NFC) for search queries with diacritics and international titles
+- optimized ID search strategy: omits redundant query and year filters when unique IMDb/TMDb ID exists
+- added informative on-screen search toast displaying active search criteria and languages
+- implemented safe temp directory garbage collection and atomic subtitle download writes
+- added clear cache utility for clearing memory properties and orphaned subtitle files
+- added comprehensive pytest test suite (unit + live API tests) and GitHub Actions CI workflow
 
 v1.0.14 (2026-08-14)
 - security: stopped writing credentials, session tokens and API keys to the Kodi debug log
