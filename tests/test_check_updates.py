@@ -48,7 +48,6 @@ def test_check_updates_up_to_date():
 
         check_updates()
 
-        assert addon.getSetting("addon_version") == "1.0.15 (Latest)"
         dialog_inst.ok.assert_called_once()
         assert "up to date" in dialog_inst.ok.call_args[0][1]
 
@@ -67,8 +66,8 @@ def test_check_updates_newer_version_available():
 
         check_updates()
 
-        assert "Update: v1.0.16" in addon.getSetting("addon_version")
         dialog_inst.yesno.assert_called_once()
+        assert "v1.0.16" in dialog_inst.yesno.call_args[0][1]
         mock_exec.assert_called_with("UpdateAddonRepos")
 
 

@@ -152,20 +152,7 @@
         </category>
         <category id="debug" label="32103">
             <group id="1">
-                <setting id="addon_version" type="string" label="32219">
-                    <level>3</level>
-                    <default>1.0.15</default>
-                    <constraints>
-                        <allowempty>true</allowempty>
-                    </constraints>
-                    <dependencies>
-                        <dependency type="enable" setting="addon_version" operator="is">__disabled__</dependency>
-                    </dependencies>
-                    <control type="edit" format="string">
-                        <heading>32219</heading>
-                    </control>
-                </setting>
-                <setting id="check_updates" type="action" label="32230">
+                <setting id="addon_version" type="action" label="32219">
                     <level>3</level>
                     <default/>
                     <control type="button" format="action">

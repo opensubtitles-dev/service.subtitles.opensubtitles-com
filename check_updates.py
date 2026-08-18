@@ -73,7 +73,6 @@ def check_updates():
 
     if latest_tuple > curr_tuple:
         # Update available
-        __addon__.setSetting("addon_version", f"{current_version} (Update: v{latest_version})")
         msg = (
             f"A new version of OpenSubtitles.com is available!\n\n"
             f"• Installed Version: v{current_version}\n"
@@ -86,7 +85,6 @@ def check_updates():
             dialog.notification(__addon_name__, "Checking repository for updates...", icon_path, 4000)
     else:
         # Up to date
-        __addon__.setSetting("addon_version", f"{current_version} (Latest)")
         dialog.ok(__addon_name__, f"OpenSubtitles.com is up to date!\n\n• Installed Version: v{current_version} (Latest)")
 
 
