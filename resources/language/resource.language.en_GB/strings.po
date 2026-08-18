@@ -135,35 +135,3 @@ msgstr ""
 msgctxt "#32221"
 msgid "Smart Release & Subtitle Matching"
 msgstr ""
-
-msgctxt "#32222"
-msgid "Show match rating in subtitle list"
-msgstr ""
-
-msgctxt "#32223"
-msgid "Prioritize best match per language & group results"
-msgstr ""
-
-msgctxt "#32224"
-msgid "Language Priority Order"
-msgstr ""
-
-msgctxt "#32225"
-msgid "1st Priority Language"
-msgstr ""
-
-msgctxt "#32226"
-msgid "2nd Priority Language"
-msgstr ""
-
-msgctxt "#32227"
-msgid "3rd Priority Language"
-msgstr ""
-
-msgctxt "#32228"
-msgid "Kodi Default (Automatic)"
-msgstr ""
-
-msgctxt "#32229"
-msgid "Custom Priority"
-msgstr ""

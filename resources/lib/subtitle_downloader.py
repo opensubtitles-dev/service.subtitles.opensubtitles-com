@@ -123,38 +123,19 @@ class SubtitleDownloader:
         from urllib.parse import unquote
         preferred_lang = self.params.get("preferredlanguage")
         raw_langs = unquote(self.params.get("languages", "")).split(",")
-        kodi_langs = []
+        self.preferred_languages = []
 
         if preferred_lang and preferred_lang not in ("Unknown", "Undetermined"):
             p_code = convert_language(preferred_lang)
             if p_code:
-                kodi_langs.append(p_code.lower())
+                self.preferred_languages.append(p_code.lower())
 
         for l in raw_langs:
             l_str = l.strip()
             if l_str:
                 l_code = convert_language(l_str)
-                if l_code and l_code.lower() not in kodi_langs:
-                    kodi_langs.append(l_code.lower())
-
-        # Check if custom language priority is configured
-        lang_mode = __addon__.getSetting("language_priority_mode")
-        if lang_mode == "custom":
-            p1 = __addon__.getSetting("custom_lang_priority_1")
-            p2 = __addon__.getSetting("custom_lang_priority_2")
-            p3 = __addon__.getSetting("custom_lang_priority_3")
-            custom_priorities = [p.lower().strip() for p in (p1, p2, p3) if p and p.strip() not in ("none", "")]
-
-            ordered_langs = []
-            for clang in custom_priorities:
-                if clang in kodi_langs and clang not in ordered_langs:
-                    ordered_langs.append(clang)
-            for klang in kodi_langs:
-                if klang not in ordered_langs:
-                    ordered_langs.append(klang)
-            self.preferred_languages = ordered_langs
-        else:
-            self.preferred_languages = kodi_langs
+                if l_code and l_code.lower() not in self.preferred_languages:
+                    self.preferred_languages.append(l_code.lower())
 
         # Build informative on-screen search notification
         addon_name = __addon__.getAddonInfo("name")
@@ -376,21 +357,13 @@ class SubtitleDownloader:
             smart_ranking_setting = __addon__.getSetting("smart_ranking")
             smart_ranking = smart_ranking_setting.lower() in ("true", "1") if smart_ranking_setting else True
 
-            multi_lang_setting = __addon__.getSetting("multi_language_top_picks")
-            multi_lang_top_picks = multi_lang_setting.lower() in ("true", "1") if multi_lang_setting else True
-
-            preferred_langs = getattr(self, "preferred_languages", None) if multi_lang_top_picks else None
-
             ranked_subtitles = rank_subtitles(
                 self.subtitles,
                 getattr(self, "video_filename", ""),
                 getattr(self, "video_guessit", None),
                 smart_ranking=smart_ranking,
-                preferred_languages=preferred_langs
+                preferred_languages=getattr(self, "preferred_languages", None) if smart_ranking else None
             )
-
-            show_match_setting = __addon__.getSetting("show_match_score")
-            show_match_score = show_match_setting.lower() in ("true", "1") if show_match_setting else True
 
             for subtitle in ranked_subtitles:
                 attributes = subtitle["attributes"]
@@ -400,7 +373,7 @@ class SubtitleDownloader:
                                                         attributes["feature_details"]["movie_name"])
                 
                 # Append yellow match badge to label2 (e.g. (+95) or (Hash))
-                if show_match_score:
+                if smart_ranking:
                     match_tag = get_match_display_tag(subtitle)
                     if match_tag:
                         clean_name = f"{clean_name} {match_tag}".strip()
