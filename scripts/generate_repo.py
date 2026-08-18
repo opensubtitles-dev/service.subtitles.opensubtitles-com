@@ -323,10 +323,38 @@ def main():
         if os.path.exists(src):
             shutil.copy(src, os.path.join(sub_zip_dir, asset_file))
 
-    # 3. Package repository.opensubtitles-com
-    repo_dir = os.path.join(REPO_ROOT, "repository.opensubtitles-com")
-    repo_xml = os.path.join(repo_dir, "addon.xml")
-    repo_id, repo_ver, repo_root_xml = get_addon_metadata(repo_xml)
+    # 3. Package repository.opensubtitles-com dynamically
+    repo_id = "repository.opensubtitles-com"
+    repo_ver = "1.0.0"
+    repo_xml_content = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<addon id="repository.opensubtitles-com"
+       name="OpenSubtitles.com Official Repository"
+       version="1.0.0"
+       provider-name="OpenSubtitles">
+	<extension point="xbmc.addon.repository" name="OpenSubtitles.com Official Repository">
+		<dir>
+			<info compressed="false">https://opensubtitles.github.io/service.subtitles.opensubtitles-com/addons.xml</info>
+			<checksum>https://opensubtitles.github.io/service.subtitles.opensubtitles-com/addons.xml.md5</checksum>
+			<datadir zip="true">https://opensubtitles.github.io/service.subtitles.opensubtitles-com/zips/</datadir>
+			<hashes>false</hashes>
+		</dir>
+	</extension>
+	<extension point="xbmc.addon.metadata">
+		<summary lang="en_GB">Official repository for OpenSubtitles.com Kodi add-ons</summary>
+		<description lang="en_GB">Download and automatically receive instant updates for OpenSubtitles.com subtitle add-ons directly from the official developer source.</description>
+		<disclaimer lang="en_GB">Maintained by OpenSubtitles.com</disclaimer>
+		<platform>all</platform>
+		<license>GPL-2.0-only</license>
+		<website>https://www.opensubtitles.com</website>
+		<source>https://github.com/opensubtitles/service.subtitles.opensubtitles-com</source>
+		<assets>
+			<icon>icon.png</icon>
+			<fanart>fanart.jpg</fanart>
+		</assets>
+	</extension>
+</addon>
+"""
+    repo_root_xml = ET.fromstring(repo_xml_content)
     addons_info.append((repo_id, repo_ver))
     addons_root.append(repo_root_xml)
 
@@ -335,12 +363,24 @@ def main():
     repo_zip_file = os.path.join(repo_zip_dir, f"{repo_id}-{repo_ver}.zip")
     
     print(f"📦 Packaging {repo_id} v{repo_ver} -> {repo_zip_file}")
-    zip_directory(repo_dir, repo_zip_file, prefix=repo_id)
+    
+    # Create temp staging dir for repository addon
+    temp_repo_stage = os.path.join(OUTPUT_DIR, "_temp_repo_stage")
+    os.makedirs(temp_repo_stage, exist_ok=True)
+    with open(os.path.join(temp_repo_stage, "addon.xml"), "w", encoding="utf-8") as f:
+        f.write(repo_xml_content)
+    shutil.copy(os.path.join(REPO_ROOT, "icon.png"), os.path.join(temp_repo_stage, "icon.png"))
+    shutil.copy(os.path.join(REPO_ROOT, "fanart.jpg"), os.path.join(temp_repo_stage, "fanart.jpg"))
+    
+    zip_directory(temp_repo_stage, repo_zip_file, prefix=repo_id)
 
-    for asset_file in ("addon.xml", "icon.png", "fanart.jpg"):
-        src = os.path.join(repo_dir, asset_file)
-        if os.path.exists(src):
-            shutil.copy(src, os.path.join(repo_zip_dir, asset_file))
+    # Copy files to repo_zip_dir for repository listing
+    shutil.copy(os.path.join(temp_repo_stage, "addon.xml"), os.path.join(repo_zip_dir, "addon.xml"))
+    shutil.copy(os.path.join(temp_repo_stage, "icon.png"), os.path.join(repo_zip_dir, "icon.png"))
+    shutil.copy(os.path.join(temp_repo_stage, "fanart.jpg"), os.path.join(repo_zip_dir, "fanart.jpg"))
+    
+    # Cleanup temp stage
+    shutil.rmtree(temp_repo_stage)
 
     # Also copy repository.opensubtitles-com.zip to root output for direct link
     shutil.copy(repo_zip_file, os.path.join(OUTPUT_DIR, "repository.opensubtitles-com.zip"))

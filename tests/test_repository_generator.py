@@ -9,8 +9,13 @@ REPO_ADDON_XML = os.path.join(REPO_ADDON_DIR, "addon.xml")
 GENERATE_SCRIPT = os.path.join(REPO_ROOT, "scripts", "generate_repo.py")
 
 def test_repository_addon_xml_validity():
-    assert os.path.isfile(REPO_ADDON_XML), "repository.opensubtitles-com/addon.xml must exist"
-    tree = ET.parse(REPO_ADDON_XML)
+    output_dir = os.path.join(REPO_ROOT, "repo_output")
+    repo_xml = os.path.join(output_dir, "zips", "repository.opensubtitles-com", "addon.xml")
+    if not os.path.isfile(repo_xml):
+        subprocess.run(["python3", GENERATE_SCRIPT], cwd=REPO_ROOT, check=True)
+    
+    assert os.path.isfile(repo_xml), "Generated repository addon.xml must exist"
+    tree = ET.parse(repo_xml)
     root = tree.getroot()
     assert root.tag == "addon"
     assert root.attrib.get("id") == "repository.opensubtitles-com"
