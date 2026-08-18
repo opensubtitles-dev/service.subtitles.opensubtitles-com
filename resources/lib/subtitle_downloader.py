@@ -368,7 +368,7 @@ class SubtitleDownloader:
                     "icon": str(int(round(float(attributes.get("ratings") or 0) / 2))),
                     "thumb": get_flag(attributes["language"])})
 
-                is_sync = subtitle.get("_is_sync") or ("moviehash_match" in attributes and attributes["moviehash_match"])
+                is_sync = bool(attributes.get("moviehash_match"))
                 list_item.setProperty("sync", "true" if is_sync else "false")
                 list_item.setProperty("hearing_imp", "true" if attributes.get("hearing_impaired") else "false")
                 

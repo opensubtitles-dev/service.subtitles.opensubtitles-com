@@ -101,7 +101,7 @@ def test_rank_subtitles_orders_exact_release_first():
 
     # Exact BluRay Framestor match must rank FIRST despite having fewer downloads than older WEB/CAM subs
     assert ranked[0]["id"] == "exact"
-    assert ranked[0]["_is_sync"] is True
+    assert ranked[0]["_match_score"] > ranked[1]["_match_score"]
     assert ranked[1]["id"] == "web"
     assert ranked[2]["id"] == "cam"
 
