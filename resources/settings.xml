@@ -162,11 +162,11 @@
                 </setting>
                 <setting id="search_cache_duration" type="integer" label="32216">
                     <level>3</level>
-                    <default>5</default>
+                    <default>180</default>
                     <constraints>
                         <minimum>0</minimum>
-                        <step>5</step>
-                        <maximum>120</maximum>
+                        <step>15</step>
+                        <maximum>1440</maximum>
                     </constraints>
                     <control type="spinner" format="string" />
                 </setting>

@@ -25,7 +25,7 @@ if "xbmcaddon" not in sys.modules:
             "foreign_parts_only": "include",
             "machine_translated": "exclude",
             "ai_translated": "include",
-            "search_cache_duration": "5"
+            "search_cache_duration": "180"
         }
 
         def __init__(self, addon_id="service.subtitles.opensubtitles-com"):
@@ -99,7 +99,7 @@ def reset_mock_state():
         "foreign_parts_only": "include",
         "machine_translated": "exclude",
         "ai_translated": "include",
-        "search_cache_duration": "5"
+        "search_cache_duration": "180"
     }
     sys.modules["xbmcgui"].Window._storage = {}
 
