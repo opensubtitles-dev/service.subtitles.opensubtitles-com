@@ -10,23 +10,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [v1.0.15] - 2026-08-18
 
 ### Added
-- **Smart Release & Subtitle Matcher**: Added multi-factor precision ranking engine comparing video filename and Guessit metadata against subtitle releases:
-  - Exact moviehash match (+10,000 pts)
-  - Release Group matching (FLUX, Framestor, SPARKS, NTb, etc. +1,500 pts)
-  - Quality & Source alignment (BluRay vs WEB-DL vs CAM penalties)
-  - Edition matching (Extended / Director's Cut vs Theatrical cut timing shift prevention)
-  - Automated `sync="true"` property highlighting in Kodi for high-confidence matches.
-- **Smart Account Status**: Split account verification details into 3 dedicated display lines in Settings:
-  - Account Status (`OK (VIP)` / `OK (Free User)` / `Error 401`)
-  - Quota & Details (Remaining daily downloads quota and VIP badge)
-  - Last Checked (Timestamp with 24-hour verification expiration policy)
+- **Smart Release & Subtitle Matcher Engine**: Multi-factor precision ranking engine comparing video filename and Guessit metadata against subtitle releases (exact hash, release group, source/cut alignment, resolution, codec).
+- **Multi-Language Top-Picks & Grouped Ranking**: Displays #1 best match for 1st preferred language, #1 best match for 2nd language, followed by remaining results grouped by language.
+- **Adaptive Language Memory**: Dynamically remembers the last downloaded subtitle language and automatically prioritizes it as #1 on subsequent searches.
+- **Kodi Hearing Impaired (SDH) System Reflection**: Automatically reflects Kodi's native accessibility setting (`subtitles.hearingimpaired`) and boosts matching SDH subtitles (+350 pts).
+- **Language Grouping (Smart Matching Off)**: When smart release matching is turned off, cleanly groups all results by language in user-preferred order and sorts by community popularity.
+- **Gzip Cache Compression**: Integrates Gzip + Base64 compression on all cached API responses, reducing cache memory footprint by 70%–85%.
+- **Selectable Version & Check for Updates**: Clickable version row in Settings to check against GitHub and official repository manifests for new releases.
+- **Smart Account Status**: Split account verification details into 3 dedicated display lines in Settings (Status, Quota & Details, Last Checked) with 24-hour verification expiration.
 - **Guessit Filename Analysis**: Added `/api/v1/utilities/guessit` integration with 30-day client-side caching to accurately parse raw video filenames.
 - **Search Cache Statistics**: Added live cache metrics counter (`cache_stats`) and configurable cache duration (default 180 min, up to 24h).
 - **Official OpenSubtitles Repository**: Added automated build and deployment of `repository.opensubtitles-com` to GitHub Pages for instant add-on updates.
-- **Test Suite**: Added 45 pytest tests covering units, caching, XML schema, settings behavior, smart matcher, and live REST API endpoints.
+- **Automated CI & Pytest Suite**: 62 unit, integration, and TV search tests running on GitHub Actions.
 
 ### Changed
-- **Settings UI**: Switched informational status rows to pure read-only edit controls with permanent disabled dependencies, preventing accidental keyboard popups.
+- **Settings UI**: Decluttered and consolidated settings into a clean, modern interface.
 - **Cache Clearing**: Extended `clear_cache.py` to purge all cache namespaces (`os_com`, `OpenSubtitles`, `os_library`) in memory and disk.
 
 ### Fixed

@@ -52,13 +52,13 @@
 		<description lang="zh_CN">多语种的电影及剧集字幕，每日更新千余条翻译好的字幕。免费下载，提供API接口，已拥有上百万的用户。</description>
 		<disclaimer lang="en_GB">Users need to provide OpenSubtitles.com username and password in add-on configuration. This is our new extension, old opensubtitles.org will not work on this, but the account can be easily imported on opensubtitles.com.</disclaimer>
 		<news>v1.0.15 (2026-08-18)
-- Smart Account Status in settings with 24-hour expiration policy
-- Enhanced Test Connection dialog with comprehensive HTTP error handling
-- Fixed Unicode normalization (NFC) for international title searches
-- Optimized ID search strategy (omits redundant query/year when ID exists)
-- Informative on-screen search toast displaying exact search criteria
-- Safe temp directory garbage collection and atomic subtitle downloads
-- Clear cache utility for clearing memory cache and temp files</news>
+- Smart Release &amp; Subtitle Matcher with precision ranking engine
+- Multi-language top-picks and grouped ranking by user priority
+- Adaptive language memory &amp; Kodi Hearing Impaired (SDH) sync
+- Gzip cache compression (70-85% memory footprint reduction)
+- Clickable version row in settings with one-click update check
+- Smart Account Status with 24-hour verification expiration policy
+- Enhanced Test Connection dialog with comprehensive HTTP error handling</news>
 		<platform>all</platform>
 		<license>GPL-2.0-only</license>
 		<forum>https://forum.opensubtitles.com/t/new-opensubtitles-com-kodi-subtitles-addon/1673</forum>
