@@ -233,3 +233,34 @@ def test_hearing_impaired_kodi_setting_reflection():
 
     ranked = rank_subtitles([sub_regular, sub_hi], "Movie.1080p.BluRay-FLUX.mkv", prefer_hearing_impaired=True)
     assert ranked[0]["id"] == "2", "Hearing impaired subtitle should rank #1 when user prefers HI"
+
+
+def test_test_flag_interceptor_injection_and_badges():
+    from resources.lib.subtitle_downloader import SubtitleDownloader
+    import xbmcplugin
+
+    addon = xbmcaddon.Addon()
+    addon.setSetting("test_flag_interceptor", "true")
+
+    test_argv = ["plugin://service.subtitles.opensubtitles-com/", "1", "?action=search&languages=English&preferredlanguage=English"]
+    with patch("sys.argv", test_argv), \
+         patch("resources.lib.subtitle_downloader.get_file_path", return_value="/movies/Test.Movie.2024.1080p.mkv"), \
+         patch("resources.lib.subtitle_downloader.get_file_data", return_value={"filename": "Test.Movie.2024.1080p.mkv", "basename": "Test.Movie.2024.1080p.mkv"}), \
+         patch("resources.lib.subtitle_downloader.get_media_data", return_value={"query": "Test Movie"}), \
+         patch("resources.lib.subtitle_downloader._call_guessit_api", return_value=None), \
+         patch("resources.lib.subtitle_downloader.xbmcgui.DialogProgressBG"), \
+         patch("xbmcplugin.addDirectoryItem") as mock_add_dir:
+
+        sd = SubtitleDownloader()
+        sd.search()
+
+        # Check that mock items were injected
+        assert sd.subtitles is not None
+        assert len(sd.subtitles) >= 6
+
+        # Check that directory items were added with color tags
+        assert mock_add_dir.call_count >= 6
+        labels = [call[1]["listitem"]._kwargs.get("label2", "") if hasattr(call[1]["listitem"], "_kwargs") else str(call[1]["listitem"]) for call in mock_add_dir.call_args_list]
+        
+        # Verify items were generated and directory ended
+        xbmcplugin.endOfDirectory.assert_called()

@@ -163,3 +163,7 @@ msgstr ""
 msgctxt "#32246"
 msgid "Thank you for your rating!"
 msgstr ""
+
+msgctxt "#32250"
+msgid "Test Interceptor: Inject sample flag subtitles in searches"
+msgstr ""

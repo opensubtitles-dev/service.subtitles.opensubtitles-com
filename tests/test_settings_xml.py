@@ -46,6 +46,7 @@ def test_all_expected_setting_ids_exist():
         "auto_download",
         "auto_download_notify",
         "prompt_rating",
+        "test_flag_interceptor",
         "addon_version",
         "search_cache_duration",
         "cache_stats",

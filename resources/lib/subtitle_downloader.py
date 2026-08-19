@@ -196,12 +196,148 @@ class SubtitleDownloader:
             log(__name__, f"No results, retrying with: {({k: v for k, v in attempt.items() if v})}")
             self.subtitles, searched_ok = self._search_subtitles(retry)
 
+        # If test flag interceptor is ON, inject sample subtitles with flags for testing
+        test_interceptor = __addon__.getSetting("test_flag_interceptor")
+        if test_interceptor and test_interceptor.lower() in ("true", "1"):
+            log(__name__, "🧪 Test Flag Interceptor is ON: injecting mock flag subtitles")
+            mock_items = self._inject_test_flag_subtitles()
+            if self.subtitles:
+                self.subtitles = mock_items + self.subtitles
+            else:
+                self.subtitles = mock_items
+
         if self.subtitles and len(self.subtitles):
             log(__name__, len(self.subtitles))
             self.list_subtitles()
         else:
             # TODO retry using guessit???
             log(__name__, "No subtitle found")
+
+    def _inject_test_flag_subtitles(self):
+        """Injects test subtitles demonstrating all flag types for UI inspection."""
+        test_lang = (self.preferred_languages[0] if getattr(self, "preferred_languages", None) else "en")
+        return [
+            {
+                "id": "mock_trusted_hash",
+                "_match_score": 10500.0,
+                "attributes": {
+                    "language": test_lang,
+                    "release": "Example.Movie.2024.1080p.BluRay.x264-FLUX",
+                    "ratings": 9.5,
+                    "votes": 120,
+                    "download_count": 4500,
+                    "from_trusted": True,
+                    "moviehash_match": True,
+                    "hearing_impaired": False,
+                    "ai_translated": False,
+                    "machine_translated": False,
+                    "foreign_parts_only": False,
+                    "hd": True,
+                    "files": [{"file_id": 999001}],
+                    "feature_details": {"title": "Example Movie 2024", "movie_name": "Example Movie 2024"}
+                }
+            },
+            {
+                "id": "mock_ai",
+                "_match_score": 4500.0,
+                "attributes": {
+                    "language": test_lang,
+                    "release": "Example.Movie.2024.1080p.BluRay.x264-FLUX",
+                    "ratings": 8.0,
+                    "votes": 45,
+                    "download_count": 1200,
+                    "from_trusted": False,
+                    "moviehash_match": False,
+                    "hearing_impaired": False,
+                    "ai_translated": True,
+                    "machine_translated": False,
+                    "foreign_parts_only": False,
+                    "hd": False,
+                    "files": [{"file_id": 999002}],
+                    "feature_details": {"title": "Example Movie 2024", "movie_name": "Example Movie 2024"}
+                }
+            },
+            {
+                "id": "mock_sdh",
+                "_match_score": 4200.0,
+                "attributes": {
+                    "language": test_lang,
+                    "release": "Example.Movie.2024.1080p.WEB-DL.DDP5.1.H.264-FLUX",
+                    "ratings": 9.0,
+                    "votes": 80,
+                    "download_count": 2300,
+                    "from_trusted": True,
+                    "moviehash_match": False,
+                    "hearing_impaired": True,
+                    "ai_translated": False,
+                    "machine_translated": False,
+                    "foreign_parts_only": False,
+                    "hd": True,
+                    "files": [{"file_id": 999003}],
+                    "feature_details": {"title": "Example Movie 2024", "movie_name": "Example Movie 2024"}
+                }
+            },
+            {
+                "id": "mock_machine",
+                "_match_score": 3000.0,
+                "attributes": {
+                    "language": test_lang,
+                    "release": "Example.Movie.2024.720p.HDTV.x264-MT",
+                    "ratings": 5.0,
+                    "votes": 12,
+                    "download_count": 450,
+                    "from_trusted": False,
+                    "moviehash_match": False,
+                    "hearing_impaired": False,
+                    "ai_translated": False,
+                    "machine_translated": True,
+                    "foreign_parts_only": False,
+                    "hd": False,
+                    "files": [{"file_id": 999004}],
+                    "feature_details": {"title": "Example Movie 2024", "movie_name": "Example Movie 2024"}
+                }
+            },
+            {
+                "id": "mock_forced",
+                "_match_score": 3800.0,
+                "attributes": {
+                    "language": test_lang,
+                    "release": "Example.Movie.2024.1080p.BluRay.x264",
+                    "ratings": 8.5,
+                    "votes": 60,
+                    "download_count": 1800,
+                    "from_trusted": True,
+                    "moviehash_match": False,
+                    "hearing_impaired": False,
+                    "ai_translated": False,
+                    "machine_translated": False,
+                    "foreign_parts_only": True,
+                    "hd": True,
+                    "files": [{"file_id": 999005}],
+                    "feature_details": {"title": "Example Movie 2024", "movie_name": "Example Movie 2024"}
+                }
+            },
+            {
+                "id": "mock_combo",
+                "_match_score": 3500.0,
+                "attributes": {
+                    "language": test_lang,
+                    "release": "Example.Movie.2024.2160p.UHD.HDR",
+                    "ratings": 7.5,
+                    "votes": 25,
+                    "download_count": 900,
+                    "from_trusted": False,
+                    "moviehash_match": False,
+                    "hearing_impaired": True,
+                    "ai_translated": True,
+                    "machine_translated": False,
+                    "foreign_parts_only": False,
+                    "hd": True,
+                    "files": [{"file_id": 999006}],
+                    "feature_details": {"title": "Example Movie 2024", "movie_name": "Example Movie 2024"}
+                }
+            }
+        ]
 
     def _resolve_ambiguous_id(self, ambiguous):
         """Turn a player-supplied id of unknown role into a definite set of search params.
@@ -395,6 +531,24 @@ class SubtitleDownloader:
                 clean_name = clean_feature_release_name(attributes["feature_details"]["title"], attributes["release"],
                                                         attributes["feature_details"]["movie_name"])
                 
+                # Build visual attribute badges
+                flag_badges = []
+                if attributes.get("from_trusted"):
+                    flag_badges.append("[COLOR green][Trusted][/COLOR]")
+                if attributes.get("ai_translated"):
+                    flag_badges.append("[COLOR cyan][AI][/COLOR]")
+                elif attributes.get("machine_translated"):
+                    flag_badges.append("[COLOR orange][Machine][/COLOR]")
+                if attributes.get("foreign_parts_only"):
+                    flag_badges.append("[COLOR yellow][Forced][/COLOR]")
+                if attributes.get("hearing_impaired"):
+                    flag_badges.append("[COLOR yellow][SDH][/COLOR]")
+                if attributes.get("hd"):
+                    flag_badges.append("[COLOR lightblue][HD][/COLOR]")
+
+                if flag_badges:
+                    clean_name = f"{' '.join(flag_badges)} {clean_name}".strip()
+
                 # Append yellow match badge to label2 (e.g. (+95) or (Hash))
                 if smart_ranking:
                     match_tag = get_match_display_tag(subtitle)
