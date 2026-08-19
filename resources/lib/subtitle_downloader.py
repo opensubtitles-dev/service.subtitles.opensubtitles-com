@@ -196,15 +196,13 @@ class SubtitleDownloader:
             log(__name__, f"No results, retrying with: {({k: v for k, v in attempt.items() if v})}")
             self.subtitles, searched_ok = self._search_subtitles(retry)
 
-        # If test flag interceptor is ON, inject sample subtitles with flags for testing
+        # If test flag interceptor is ON, return ONLY sample mock subtitles with flags
         test_interceptor = __addon__.getSetting("test_flag_interceptor")
         if test_interceptor and test_interceptor.lower() in ("true", "1"):
-            log(__name__, "🧪 Test Flag Interceptor is ON: injecting mock flag subtitles")
-            mock_items = self._inject_test_flag_subtitles()
-            if self.subtitles:
-                self.subtitles = mock_items + self.subtitles
-            else:
-                self.subtitles = mock_items
+            log(__name__, "🧪 Test Flag Interceptor is ON: returning ONLY mock flag subtitles")
+            self.subtitles = self._inject_test_flag_subtitles()
+            self.list_subtitles()
+            return
 
         if self.subtitles and len(self.subtitles):
             log(__name__, len(self.subtitles))
@@ -531,29 +529,29 @@ class SubtitleDownloader:
                 clean_name = clean_feature_release_name(attributes["feature_details"]["title"], attributes["release"],
                                                         attributes["feature_details"]["movie_name"])
                 
-                # Build visual attribute badges
-                flag_badges = []
+                # Build visual attribute badges and append at the END of the line
+                badges = []
                 if attributes.get("from_trusted"):
-                    flag_badges.append("[COLOR green][Trusted][/COLOR]")
+                    badges.append("[COLOR green][Trusted][/COLOR]")
                 if attributes.get("ai_translated"):
-                    flag_badges.append("[COLOR cyan][AI][/COLOR]")
+                    badges.append("[COLOR cyan][AI][/COLOR]")
                 elif attributes.get("machine_translated"):
-                    flag_badges.append("[COLOR orange][Machine][/COLOR]")
+                    badges.append("[COLOR orange][Machine][/COLOR]")
                 if attributes.get("foreign_parts_only"):
-                    flag_badges.append("[COLOR yellow][Forced][/COLOR]")
+                    badges.append("[COLOR yellow][Forced][/COLOR]")
                 if attributes.get("hearing_impaired"):
-                    flag_badges.append("[COLOR yellow][SDH][/COLOR]")
+                    badges.append("[COLOR yellow][SDH][/COLOR]")
                 if attributes.get("hd"):
-                    flag_badges.append("[COLOR lightblue][HD][/COLOR]")
-
-                if flag_badges:
-                    clean_name = f"{' '.join(flag_badges)} {clean_name}".strip()
+                    badges.append("[COLOR lightblue][HD][/COLOR]")
 
                 # Append yellow match badge to label2 (e.g. (+95) or (Hash))
                 if smart_ranking:
                     match_tag = get_match_display_tag(subtitle)
                     if match_tag:
-                        clean_name = f"{clean_name} {match_tag}".strip()
+                        badges.append(match_tag)
+
+                if badges:
+                    clean_name = f"{clean_name} {' '.join(badges)}".strip()
 
                 list_item = xbmcgui.ListItem(label=language,
                                              label2=clean_name)
