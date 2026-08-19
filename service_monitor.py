@@ -41,12 +41,9 @@ def check_and_refresh_account_status(force=False):
     except (ValueError, TypeError):
         age = 9999999
 
-    # Only refresh if older than 12 hours (43,200s) or forced
-    if not force and age < 43200:
-        log(__name__, f"Account status is fresh (age: {int(age/3600)}h), skipping background refresh")
-        return
-
-    log(__name__, "🔄 Background Service: Refreshing account verification & quota...")
+    # DEV TESTING MODE: Always refresh on startup/call so user can verify immediately
+    # (Will restore 12h age check before production release)
+    log(__name__, "🔄 Background Service: Checking & refreshing account status (dev mode)...")
     try:
         from datetime import datetime
         provider = OpenSubtitlesProvider(api_key, username, password)

@@ -169,18 +169,14 @@ def test_check_and_refresh_account_status_success():
         assert addon.getSetting("account_verified_at") != "0"
 
 
-def test_check_and_refresh_account_status_fresh_skipped():
+def test_check_and_refresh_account_status_missing_credentials():
     from service_monitor import check_and_refresh_account_status
     addon = xbmcaddon.Addon()
-    addon.setSetting("OSuser", "testuser")
-    addon.setSetting("OSpass", "testpass")
+    addon.setSetting("OSuser", "")
+    addon.setSetting("OSpass", "")
     addon.setSetting("APIKey", "testkey")
-    # Freshly checked 1 hour ago
-    addon.setSetting("account_verified_at", str(time.time() - 3600))
-    addon.setSetting("account_status", "OK (VIP)")
 
     with patch("service_monitor.OpenSubtitlesProvider.login") as mock_login:
-        check_and_refresh_account_status(force=False)
-        # Should skip network request because status is fresh
+        check_and_refresh_account_status()
         mock_login.assert_not_called()
 
