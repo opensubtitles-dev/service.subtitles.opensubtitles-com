@@ -139,5 +139,48 @@ def test_player_playback_ended_rating_prompt():
 def test_service_shutdown_graceful():
     """Verify monitor loop shuts down immediately when abort is requested."""
     with patch("service_monitor.OpenSubtitlesMonitor.abortRequested", side_effect=[False, True]), \
-         patch("service_monitor.OpenSubtitlesMonitor.waitForAbort", return_value=True):
+         patch("service_monitor.OpenSubtitlesMonitor.waitForAbort", return_value=True), \
+         patch("threading.Thread"):
         run_service()
+
+
+def test_check_and_refresh_account_status_success():
+    from service_monitor import check_and_refresh_account_status
+    addon = xbmcaddon.Addon()
+    addon.setSetting("OSuser", "testuser")
+    addon.setSetting("OSpass", "testpass")
+    addon.setSetting("APIKey", "testkey")
+    addon.setSetting("account_verified_at", "0") # Stale
+
+    mock_user_info = {
+        "level": "VIP Member",
+        "vip": True,
+        "remaining_downloads": 995,
+        "allowed_downloads": 1000,
+        "downloads_count": 5
+    }
+
+    with patch("service_monitor.OpenSubtitlesProvider.login"), \
+         patch("service_monitor.OpenSubtitlesProvider.get_user_info", return_value=mock_user_info):
+        check_and_refresh_account_status(force=True)
+
+        assert addon.getSetting("account_status") == "OK (VIP)"
+        assert "995/1000" in addon.getSetting("account_details")
+        assert addon.getSetting("account_verified_at") != "0"
+
+
+def test_check_and_refresh_account_status_fresh_skipped():
+    from service_monitor import check_and_refresh_account_status
+    addon = xbmcaddon.Addon()
+    addon.setSetting("OSuser", "testuser")
+    addon.setSetting("OSpass", "testpass")
+    addon.setSetting("APIKey", "testkey")
+    # Freshly checked 1 hour ago
+    addon.setSetting("account_verified_at", str(time.time() - 3600))
+    addon.setSetting("account_status", "OK (VIP)")
+
+    with patch("service_monitor.OpenSubtitlesProvider.login") as mock_login:
+        check_and_refresh_account_status(force=False)
+        # Should skip network request because status is fresh
+        mock_login.assert_not_called()
+

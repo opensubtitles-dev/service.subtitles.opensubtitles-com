@@ -14,12 +14,71 @@ from resources.lib.data_collector import (
     get_file_path,
     is_kodi_hearing_impaired_preferred
 )
+from resources.lib.exceptions import AuthenticationError, BadUsernameError
 from resources.lib.matcher import rank_subtitles
 from resources.lib.osclient.provider import OpenSubtitlesProvider
 
 __addon__ = xbmcaddon.Addon("service.subtitles.opensubtitles-com")
 __addon_name__ = __addon__.getAddonInfo("name")
 __language__ = __addon__.getLocalizedString
+
+
+def check_and_refresh_account_status(force=False):
+    """
+    Silently checks and refreshes account status in background with a short timeout.
+    Updates quota and VIP info if stale (> 12 hours) or forced on settings change.
+    """
+    username = __addon__.getSetting("OSuser")
+    password = __addon__.getSetting("OSpass")
+    api_key = __addon__.getSetting("APIKey")
+
+    if not username or not password:
+        return
+
+    verified_at = __addon__.getSetting("account_verified_at")
+    try:
+        age = time.time() - float(verified_at) if verified_at and verified_at != "0" else 9999999
+    except (ValueError, TypeError):
+        age = 9999999
+
+    # Only refresh if older than 12 hours (43,200s) or forced
+    if not force and age < 43200:
+        log(__name__, f"Account status is fresh (age: {int(age/3600)}h), skipping background refresh")
+        return
+
+    log(__name__, "🔄 Background Service: Refreshing account verification & quota...")
+    try:
+        from datetime import datetime
+        provider = OpenSubtitlesProvider(api_key, username, password)
+        provider.login()
+        user_info = provider.get_user_info()
+
+        now = datetime.now()
+        now_str = now.strftime("%Y-%m-%d %H:%M")
+        now_epoch = int(now.timestamp())
+
+        level = user_info.get("level", "User")
+        remaining = user_info.get("remaining_downloads", "N/A")
+        allowed = user_info.get("allowed_downloads", "N/A")
+        vip_badge = "VIP" if user_info.get("vip") else "Free User"
+
+        __addon__.setSetting("account_status", f"OK ({vip_badge})")
+        __addon__.setSetting("account_details", f"Quota: {remaining}/{allowed} left | Level: {level}")
+        __addon__.setSetting("account_checked_at", now_str)
+        __addon__.setSetting("account_verified_at", str(now_epoch))
+        log(__name__, f"✅ Background account refresh complete: {vip_badge} ({remaining}/{allowed} left)")
+    except AuthenticationError:
+        __addon__.setSetting("account_status", "Error 401 (Invalid credentials)")
+        __addon__.setSetting("account_details", "Check username and password")
+    except BadUsernameError:
+        __addon__.setSetting("account_status", "Error 400 (Bad username)")
+        __addon__.setSetting("account_details", "Use username, not email address")
+    except Exception as e:
+        log(__name__, f"Background account refresh skipped/failed: {e}")
+        if age > 86400:
+            last_checked = __addon__.getSetting("account_checked_at")
+            if last_checked:
+                __addon__.setSetting("account_status", "Active (Offline / Cached)")
 
 
 class OpenSubtitlesMonitor(xbmc.Monitor):
@@ -32,6 +91,7 @@ class OpenSubtitlesMonitor(xbmc.Monitor):
         log(__name__, "Settings changed, reloading background service preferences")
         if self.player:
             self.player.reload_settings()
+        threading.Thread(target=check_and_refresh_account_status, kwargs={"force": True}, daemon=True).start()
 
 
 class OpenSubtitlesPlayer(xbmc.Player):
@@ -262,10 +322,21 @@ def run_service():
 
     log(__name__, "OpenSubtitles.com Background Monitor Service started")
 
+    # Launch non-blocking background account status check on startup
+    threading.Thread(target=check_and_refresh_account_status, daemon=True).start()
+
+    last_refresh_check = time.time()
+
     # Non-blocking main loop with zero shutdown delay
     while not monitor.abortRequested():
         if monitor.waitForAbort(1):
             break
+
+        # Check every 6 hours if account needs background refresh
+        now = time.time()
+        if now - last_refresh_check > 21600:
+            last_refresh_check = now
+            threading.Thread(target=check_and_refresh_account_status, daemon=True).start()
 
     log(__name__, "OpenSubtitles.com Background Monitor Service stopped gracefully")
 
