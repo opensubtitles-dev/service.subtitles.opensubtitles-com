@@ -125,7 +125,7 @@ msgid "Search cache cleared successfully."
 msgstr ""
 
 msgctxt "#32219"
-msgid "Version 1.0.15 (Click to check for updates)"
+msgid "Version 1.0.16 (Click to check for updates)"
 msgstr ""
 
 msgctxt "#32220"
@@ -134,4 +134,32 @@ msgstr ""
 
 msgctxt "#32221"
 msgid "Smart Release & Subtitle Matching"
+msgstr ""
+
+msgctxt "#32240"
+msgid "Automation & Service"
+msgstr ""
+
+msgctxt "#32241"
+msgid "Auto-download top subtitle on playback"
+msgstr ""
+
+msgctxt "#32242"
+msgid "Show notification when subtitle auto-loaded"
+msgstr ""
+
+msgctxt "#32243"
+msgid "Prompt to rate subtitle sync after playback"
+msgstr ""
+
+msgctxt "#32244"
+msgid "Auto-loaded subtitle"
+msgstr ""
+
+msgctxt "#32245"
+msgid "Did the subtitles sync well?"
+msgstr ""
+
+msgctxt "#32246"
+msgid "Thank you for your rating!"
 msgstr ""

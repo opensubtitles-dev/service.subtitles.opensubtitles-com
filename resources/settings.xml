@@ -150,6 +150,28 @@
                 </setting>
             </group>
         </category>
+        <category id="automation" label="32240">
+            <group id="1">
+                <setting id="auto_download" type="boolean" label="32241">
+                    <level>0</level>
+                    <default>false</default>
+                    <control type="toggle" />
+                </setting>
+                <setting id="auto_download_notify" type="boolean" label="32242">
+                    <level>0</level>
+                    <default>true</default>
+                    <dependencies>
+                        <dependency type="enable" setting="auto_download" operator="is">true</dependency>
+                    </dependencies>
+                    <control type="toggle" />
+                </setting>
+                <setting id="prompt_rating" type="boolean" label="32243">
+                    <level>0</level>
+                    <default>false</default>
+                    <control type="toggle" />
+                </setting>
+            </group>
+        </category>
         <category id="debug" label="32103">
             <group id="1">
                 <setting id="addon_version" type="action" label="32219">

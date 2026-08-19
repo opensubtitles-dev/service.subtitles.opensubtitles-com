@@ -14,11 +14,12 @@ def test_settings_xml_syntax_and_structure():
     assert root.attrib.get("version") == "1"
 
     categories = root.findall(".//category")
-    assert len(categories) >= 3, "settings.xml should contain 'user', 'filter', and 'debug' categories"
+    assert len(categories) >= 4, "settings.xml should contain 'user', 'filter', 'automation', and 'debug' categories"
     
     category_ids = [c.attrib.get("id") for c in categories]
     assert "user" in category_ids
     assert "filter" in category_ids
+    assert "automation" in category_ids
     assert "debug" in category_ids
 
 def test_all_expected_setting_ids_exist():
@@ -42,6 +43,9 @@ def test_all_expected_setting_ids_exist():
         "foreign_parts_only",
         "machine_translated",
         "ai_translated",
+        "auto_download",
+        "auto_download_notify",
+        "prompt_rating",
         "addon_version",
         "search_cache_duration",
         "cache_stats",

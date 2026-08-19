@@ -1,6 +1,51 @@
 import sys
-import types
 from unittest.mock import MagicMock
+
+class MockMonitor:
+    def __init__(self):
+        self._abort = False
+
+    def abortRequested(self):
+        return self._abort
+
+    def waitForAbort(self, timeout=0):
+        return self._abort
+
+    def onSettingsChanged(self):
+        pass
+
+    def onNotification(self, sender, method, data):
+        pass
+
+
+class MockPlayer:
+    def __init__(self):
+        self._playing = True
+
+    def isPlayingVideo(self):
+        return self._playing
+
+    def getAvailableSubtitleStreams(self):
+        return []
+
+    def setSubtitles(self, path):
+        pass
+
+    def getTotalTime(self):
+        return 7200.0
+
+    def getTime(self):
+        return 3600.0
+
+    def onAVStarted(self):
+        pass
+
+    def onPlayBackStopped(self):
+        pass
+
+    def onPlayBackEnded(self):
+        pass
+
 
 # Create mock objects for Kodi C-extension modules before any resources are imported
 if "xbmc" not in sys.modules:
@@ -13,6 +58,8 @@ if "xbmc" not in sys.modules:
     xbmc_mock.log = MagicMock()
     xbmc_mock.getInfoLabel = MagicMock(return_value="")
     xbmc_mock.executebuiltin = MagicMock()
+    xbmc_mock.Monitor = MockMonitor
+    xbmc_mock.Player = MockPlayer
     sys.modules["xbmc"] = xbmc_mock
 
 if "xbmcaddon" not in sys.modules:

@@ -464,3 +464,31 @@ class OpenSubtitlesProvider:
                 logging(f"Empty subtitle content for file_id {params['file_id']!r}")
 
         return subtitle
+
+    def vote_subtitle(self, file_id: int, score: int):
+        """
+        Submits rating / sync feedback for a subtitle file to OpenSubtitles.com API.
+        score: integer rating (e.g. 1 to 5, or 1 to 10).
+        """
+        if not self.logged_in:
+            try:
+                self.login()
+            except Exception as e:
+                logging(f"Login failed before submitting vote: {e}")
+                return False
+
+        url = self.base_url + "subtitles/vote"
+        headers = self.headers.copy()
+        payload = {"file_id": int(file_id), "score": int(score)}
+
+        try:
+            resp = self.session.post(url, json=payload, headers=headers, timeout=10)
+            if resp.status_code in (200, 201):
+                logging(f"Successfully submitted vote for file_id {file_id}: score {score}")
+                return True
+            else:
+                logging(f"Vote submission response code {resp.status_code}: {resp.text[:100]}")
+                return False
+        except Exception as e:
+            logging(f"Error submitting subtitle vote: {e}")
+            return False
