@@ -7,7 +7,7 @@
     <a href="https://kodi.tv"><img src="https://img.shields.io/badge/Kodi-19%20%7C%2020%20%7C%2021%20%7C%2022-blue.svg?logo=kodi&logoColor=white" alt="Kodi Versions" /></a>
     <a href="https://python.org"><img src="https://img.shields.io/badge/Python-3.x-3776AB.svg?logo=python&logoColor=white" alt="Python 3" /></a>
     <a href="https://github.com/opensubtitles/service.subtitles.opensubtitles-com/releases/latest"><img src="https://img.shields.io/badge/Release-v1.0.16-0284c7.svg" alt="Latest Release" /></a>
-    <a href="https://github.com/opensubtitles/service.subtitles.opensubtitles-com/actions/workflows/addon-check.yml"><img src="https://img.shields.io/github/actions/workflow/status/opensubtitles/service.subtitles.opensubtitles-com/addon-check.yml?branch=master&label=Kodi%20Validation" alt="Validation Status" /></a>
+    <a href="https://github.com/opensubtitles-dev/service.subtitles.opensubtitles-com/actions/workflows/addon-check.yml"><img src="https://img.shields.io/github/actions/workflow/status/opensubtitles-dev/service.subtitles.opensubtitles-com/addon-check.yml?branch=master&label=Kodi%20Validation" alt="Validation Status" /></a>
     <a href="LICENSE.txt"><img src="https://img.shields.io/badge/License-GPL--2.0-green.svg" alt="License" /></a>
   </p>
 
