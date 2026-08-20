@@ -40,7 +40,7 @@
 3. Click **Add source**.
 4. Set the path to:
    ```
-   https://opensubtitles.github.io/service.subtitles.opensubtitles-com/
+   https://kodi.opensubtitles.com
    ```
 5. Name the source **`OpenSubtitles-repo`** and click **OK**.
 6. Navigate to **Add-ons** (box icon at top left).
