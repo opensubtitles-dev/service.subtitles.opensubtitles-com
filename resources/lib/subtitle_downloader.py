@@ -379,39 +379,57 @@ class SubtitleDownloader:
             hi_setting = __addon__.getSetting("hearing_impaired")
             prefer_hi = (hi_setting == "only") or (hi_setting == "include" and is_kodi_hearing_impaired_preferred()) or (not hi_setting and is_kodi_hearing_impaired_preferred())
 
-            ranked_subtitles = rank_subtitles(
-                self.subtitles,
-                getattr(self, "video_filename", ""),
-                getattr(self, "video_guessit", None),
-                smart_ranking=smart_ranking,
-                preferred_languages=getattr(self, "preferred_languages", None),
-                prefer_hearing_impaired=prefer_hi
-            )
+            # Ranking is a nicety; showing the subtitles is not. If scoring trips over an
+            # unexpected field type, fall back to the API's own order rather than raising
+            # out of list_subtitles() - that would skip endOfDirectory() below and leave
+            # the subtitle dialog hanging with nothing in it.
+            try:
+                ranked_subtitles = rank_subtitles(
+                    self.subtitles,
+                    getattr(self, "video_filename", ""),
+                    getattr(self, "video_guessit", None),
+                    smart_ranking=smart_ranking,
+                    preferred_languages=getattr(self, "preferred_languages", None),
+                    prefer_hearing_impaired=prefer_hi
+                )
+            except Exception as e:
+                log(__name__, f"Subtitle ranking failed, falling back to unranked order: {e!r}")
+                ranked_subtitles = self.subtitles
+                smart_ranking = False
 
             for subtitle in ranked_subtitles:
-                attributes = subtitle["attributes"]
-                language = convert_language(attributes["language"], True)
-                log(__name__, attributes)
-                clean_name = clean_feature_release_name(attributes["feature_details"]["title"], attributes["release"],
-                                                        attributes["feature_details"]["movie_name"])
-                
-                # Append yellow match badge to label2 (e.g. (+95) or (Hash))
-                if smart_ranking:
-                    match_tag = get_match_display_tag(subtitle)
-                    if match_tag:
-                        clean_name = f"{clean_name} {match_tag}".strip()
+                # One odd entry must not cost the user every other result. Ranking is
+                # guarded above; this guards rendering, where a missing feature_details or
+                # files[0] would otherwise abort the loop and leave an empty list.
+                try:
+                    attributes = subtitle["attributes"]
+                    language = convert_language(attributes["language"], True)
+                    log(__name__, attributes)
+                    clean_name = clean_feature_release_name(attributes["feature_details"]["title"], attributes["release"],
+                                                            attributes["feature_details"]["movie_name"])
 
-                list_item = xbmcgui.ListItem(label=language,
-                                             label2=clean_name)
-                list_item.setArt({
-                    "icon": str(int(round(float(attributes.get("ratings") or 0) / 2))),
-                    "thumb": get_flag(attributes["language"])})
+                    # Append yellow match badge to label2 (e.g. (+95) or (Hash))
+                    if smart_ranking:
+                        match_tag = get_match_display_tag(subtitle)
+                        if match_tag:
+                            clean_name = f"{clean_name} {match_tag}".strip()
 
-                is_sync = bool(attributes.get("moviehash_match"))
-                list_item.setProperty("sync", "true" if is_sync else "false")
-                list_item.setProperty("hearing_imp", "true" if attributes.get("hearing_impaired") else "false")
-                
-                url = f"plugin://{__scriptid__}/?action=download&id={attributes['files'][0]['file_id']}&language={language}"
-                xbmcplugin.addDirectoryItem(handle=self.handle, url=url, listitem=list_item, isFolder=False)
+                    list_item = xbmcgui.ListItem(label=language,
+                                                 label2=clean_name)
+                    list_item.setArt({
+                        "icon": str(int(round(float(attributes.get("ratings") or 0) / 2))),
+                        "thumb": get_flag(attributes["language"])})
+
+                    is_sync = bool(attributes.get("moviehash_match"))
+                    list_item.setProperty("sync", "true" if is_sync else "false")
+                    list_item.setProperty("hearing_imp", "true" if attributes.get("hearing_impaired") else "false")
+
+                    url = f"plugin://{__scriptid__}/?action=download&id={attributes['files'][0]['file_id']}&language={language}"
+                    xbmcplugin.addDirectoryItem(handle=self.handle, url=url, listitem=list_item, isFolder=False)
+                except Exception as e:
+                    # log the id only - the attributes dict is large and noisy
+                    log(__name__, f"Skipping unusable subtitle entry "
+                                  f"{subtitle.get('id') if isinstance(subtitle, dict) else '?'}: {e!r}")
+                    continue
 
         xbmcplugin.endOfDirectory(self.handle)

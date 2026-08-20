@@ -16,8 +16,11 @@ REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 INCLUDE_ENTRIES = {
     "addon.xml",
     "service.py",
+    # every script settings.xml launches with RunScript() must be listed here, or the
+    # button is dead in the shipped zip (tests/test_runscript_entrypoints.py enforces it)
     "test_connection.py",
     "clear_cache.py",
+    "check_updates.py",
     "resources",
     "icon.png",
     "fanart.jpg",

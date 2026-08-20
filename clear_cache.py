@@ -1,8 +1,27 @@
 import os
+import sys
+
 import xbmc
 import xbmcgui
 import xbmcaddon
 import xbmcvfs
+
+# --- addon import path guard (keep this above any `resources.*` import) ------------
+# RunScript(<file path>) runs this "without an addon", so Kodi puts every installed
+# add-on's library directory on sys.path ahead of ours and a foreign top-level
+# `resources` package shadows ours. See test_connection.py for the full story
+# (issue #39). tests/test_runscript_entrypoints.py fails if this block goes missing.
+_addon_path = os.path.dirname(os.path.abspath(__file__))
+sys.path = [p for p in sys.path if os.path.normpath(p) != _addon_path]
+sys.path.insert(0, _addon_path)
+# Only evict a *foreign* `resources`; re-importing our own would duplicate its classes.
+_res = sys.modules.get("resources")
+if _res is not None and not any(os.path.normpath(p).startswith(_addon_path)
+                                for p in getattr(_res, "__path__", [])):
+    for _module in [m for m in list(sys.modules) if m == "resources" or m.startswith("resources.")]:
+        del sys.modules[_module]
+# -----------------------------------------------------------------------------------
+
 from resources.lib.cache import Cache
 
 __addon__ = xbmcaddon.Addon("service.subtitles.opensubtitles-com")

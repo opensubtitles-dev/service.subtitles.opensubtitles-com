@@ -42,7 +42,10 @@ def sanitize_filename(filename):
     """Strips extension, directory path, and special punctuation for comparison."""
     if not filename:
         return ""
-    base = os.path.basename(filename)
+    # Coerce: API fields are not guaranteed to be strings, and os.path.basename() raises
+    # TypeError on anything else - which used to abort ranking for the entire result list.
+    # (parse_release_tokens() below already does the same.)
+    base = os.path.basename(str(filename))
     # Strip common container extensions
     base = re.sub(r"\.(mkv|mp4|avi|m4v|ts|mov|wmv|iso)$", "", base, flags=re.IGNORECASE)
     return base.strip()
