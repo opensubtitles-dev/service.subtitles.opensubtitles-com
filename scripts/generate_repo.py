@@ -256,14 +256,14 @@ def build_index_html(addons_info):
             <p style="color: var(--text-muted); margin-bottom: 0.5rem;">No web browser or USB drive needed. Type or paste this URL into Kodi:</p>
             
             <div class="url-box">
-                <span id="repoUrl">https://kodi.opensubtitles.com/</span>
+                <span id="repoUrl">https://kodi.opensubtitles.com</span>
                 <button class="copy-btn" onclick="navigator.clipboard.writeText(document.getElementById('repoUrl').innerText); this.innerText='Copied!'; setTimeout(()=>this.innerText='Copy', 2000)">Copy</button>
             </div>
 
             <ol>
                 <li>In Kodi, enable <strong>Unknown sources</strong> under <strong>Settings (⚙️) ➔ System ➔ Add-ons</strong>.</li>
                 <li>Go to <strong>Settings (⚙️) ➔ File manager ➔ Add source</strong>.</li>
-                <li>Click <code>&lt;None&gt;</code> and enter the URL above: <code>https://kodi.opensubtitles.com/</code></li>
+                <li>Click <code>&lt;None&gt;</code> and enter the URL above: <code>https://kodi.opensubtitles.com</code></li>
                 <li>Set the media source name to: <strong><code>OpenSubtitles-repo</code></strong> and click <strong>OK</strong>.</li>
                 <li>Go to <strong>Add-ons ➔ Install from zip file ➔ OpenSubtitles-repo</strong>.</li>
                 <li>Select <strong><code>repository.opensubtitles-com.zip</code></strong> and wait for installation confirmation.</li>
@@ -273,7 +273,7 @@ def build_index_html(addons_info):
 
         <div class="card">
             <h2 style="margin-top: 0.25rem;">💻 Method 2: Direct Zip Download</h2>
-            <p style="color: var(--text-muted);">For manual installation on PC or transferring via USB flash drive:</p>
+            <p style="color: var(--text-muted);">For offline installation, or devices that cannot reach the repository directly:</p>
             <div style="text-align: center;">
                 <a class="btn" href="repository.opensubtitles-com.zip">⬇️ Download repository.opensubtitles-com.zip</a>
             </div>
@@ -293,6 +293,7 @@ def build_index_html(addons_info):
                     </ul>
                 </li>
                 <li>In Kodi <strong>Settings ➔ Player ➔ Language ➔ Subtitle Services</strong>, set both <em>Default movie service</em> and <em>Default TV show service</em> to <strong>OpenSubtitles.com</strong>.</li>
+                <li>Recommended: in the same <strong>Language</strong> screen, pick your <em>Languages to download subtitles for</em> - with nothing selected, searches return subtitles in <strong>all</strong> languages.</li>
             </ol>
         </div>
 
