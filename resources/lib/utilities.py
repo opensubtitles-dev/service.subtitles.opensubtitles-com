@@ -47,4 +47,28 @@ def get_params(string=""):
 
 
 def normalize_string(str_):
-    return unicodedata.normalize("NFKD", str_)
+    if not str_:
+        return ""
+    return unicodedata.normalize("NFC", str_)
+
+
+def check_and_get_account_status():
+    """Returns the current account status, checking 24-hour expiration."""
+    verified_at = __addon__.getSetting("account_verified_at")
+    status = __addon__.getSetting("account_status")
+
+    if not status or not verified_at or verified_at == "0":
+        return "Not Verified"
+
+    try:
+        import time
+        age = time.time() - float(verified_at)
+        if age > 86400:  # Older than 24 hours
+            expired_status = "Expired (>24h)"
+            __addon__.setSetting("account_status", expired_status)
+            __addon__.setSetting("account_details", "Click Test Connection to re-verify")
+            return expired_status
+        return status
+    except (ValueError, TypeError):
+        return "Not Verified"
+

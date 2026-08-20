@@ -11,7 +11,7 @@ from resources.lib.osclient.model.request.download import OpenSubtitlesDownloadR
 '''local kodi module imports. replace by any other exception, cache, log provider'''
 from resources.lib.exceptions import AuthenticationError, ConfigurationError, DownloadLimitExceeded, ProviderError, \
     ServiceUnavailable, TooManyRequests, BadUsernameError
-from resources.lib.cache import Cache
+from resources.lib.cache import Cache, sync_cache_stats_setting
 from resources.lib.utilities import log, __addon__
 
 API_URL = "https://api.opensubtitles.com/api/v1/"
@@ -20,9 +20,11 @@ API_SUBTITLES = "subtitles"
 API_DOWNLOAD = "download"
 API_USER_INFO = "infos/user"
 API_FEATURES = "features"
+API_GUESSIT = "utilities/guessit"
 
 # A feature's type, parent and episode numbers never change, so this can be cached hard.
 FEATURE_CACHE_TTL = 60 * 60 * 24 * 30
+GUESSIT_CACHE_TTL = 60 * 60 * 24 * 30
 
 
 CONTENT_TYPE = "application/json"
@@ -49,7 +51,7 @@ def query_to_params(query, _type):
             request = class_lookup[_type](**query)
         except ValueError as e:
             raise ValueError(f"Invalid request data provided: {e}")
-    elif type(query) is _type:
+    elif isinstance(query, class_lookup.get(_type, tuple(class_lookup.values()))):
         request = query
     else:
         raise ValueError("Invalid request data provided. Invalid query type")
@@ -116,15 +118,15 @@ class OpenSubtitlesProvider:
 
 
             if status_code == 401:
-                raise AuthenticationError(f"Login failed: {e}")
+                raise AuthenticationError(f"Login failed (401 Unauthorized): Invalid username or password.")
             elif status_code == 400:
-                raise BadUsernameError(f"Login failed: {e}")
+                raise BadUsernameError(f"Login failed (400 Bad Request): Make sure to enter your username and not your email.")
             elif status_code == 429:
-                raise TooManyRequests()
-            elif status_code == 503:
-                raise ProviderError(e)
+                raise TooManyRequests("Rate limit reached (429 Too Many Requests). Please wait a moment.")
+            elif 500 <= status_code <= 599:
+                raise ServiceUnavailable(f"Server error ({status_code}): OpenSubtitles.com is currently experiencing issues.")
             else:
-                raise ProviderError(f"Bad status code on login: {status_code}")
+                raise ProviderError(f"HTTP Error {status_code} during login.")
         else:
             try:
                 response_json = r.json()
@@ -148,13 +150,13 @@ class OpenSubtitlesProvider:
         except HTTPError as e:
             status_code = e.response.status_code
             if status_code == 401:
-                raise AuthenticationError(f"Authentication failed: {e}")
+                raise AuthenticationError(f"Authentication failed (401 Unauthorized).")
             elif status_code == 429:
-                raise TooManyRequests()
-            elif status_code == 503:
-                raise ServiceUnavailable("OpenSubtitles.com is currently unavailable.")
+                raise TooManyRequests("Rate limit reached (429 Too Many Requests).")
+            elif 500 <= status_code <= 599:
+                raise ServiceUnavailable(f"Server error ({status_code}): OpenSubtitles.com is currently unavailable.")
             else:
-                raise ProviderError(f"Bad status code: {status_code}")
+                raise ProviderError(f"HTTP Error {status_code} fetching user info.")
 
         try:
             return r.json()["data"]
@@ -206,6 +208,42 @@ class OpenSubtitlesProvider:
         self.cache.set(cache_key, attributes or {}, expires=FEATURE_CACHE_TTL)
         logging(f"Feature lookup {params} -> {attributes.get('feature_type') if attributes else 'unknown'}")
         return attributes
+
+    def guessit(self, filename: str) -> dict:
+        """Parse video filename using the /api/v1/utilities/guessit endpoint with caching."""
+        if not filename:
+            return None
+
+        clean_filename = filename.strip()
+        cache_key = f"guessit_{hashlib.sha256(clean_filename.encode('utf-8')).hexdigest()}"
+
+        cached = self.cache.get(cache_key)
+        if cached is not None:
+            logging(f"CACHE HIT: guessit for {clean_filename}")
+            return cached or None
+
+        params = {"filename": clean_filename}
+        try:
+            r = self.session.get(API_URL + API_GUESSIT, params=params, timeout=REQUEST_TIMEOUT)
+            logging(f"Guessit lookup URL: {r.url} -> {r.status_code}")
+            r.raise_for_status()
+        except (ConnectionError, Timeout, ReadTimeout) as e:
+            logging(f"Guessit connection error: {e}")
+            return None
+        except HTTPError as e:
+            logging(f"Guessit HTTP error: {e.response.status_code}")
+            return None
+
+        try:
+            data = r.json()
+        except ValueError:
+            logging("Invalid JSON returned by guessit endpoint")
+            return None
+
+        self.cache.set(cache_key, data or {}, expires=GUESSIT_CACHE_TTL)
+        sync_cache_stats_setting()
+        logging(f"Guessit parsed: {data.get('title')} ({data.get('year')}) type={data.get('type')}")
+        return data or None
 
     @property
     def user_token(self):
@@ -287,13 +325,13 @@ class OpenSubtitlesProvider:
 
             if status_code == 401:
                 logging("401 error - authentication required. Checking if login was attempted...")
-                raise ProviderError(f"Authentication failed during search: {status_code}")
+                raise ProviderError(f"Authentication failed during search (401 Unauthorized)")
             elif status_code == 429:
-                raise TooManyRequests()
-            elif status_code == 503:
-                raise ProviderError(e)
+                raise TooManyRequests("Rate limit reached (429 Too Many Requests).")
+            elif 500 <= status_code <= 599:
+                raise ServiceUnavailable(f"Server error ({status_code}): OpenSubtitles.com is currently experiencing issues.")
             else:
-                raise ProviderError(f"Bad status code on search: {status_code}")
+                raise ProviderError(f"HTTP Error {status_code} on subtitle search.")
 
         try:
             result = r.json()
@@ -312,6 +350,7 @@ class OpenSubtitlesProvider:
                 try:
                     logging(f"CACHE SAVE: Storing results for {cache_key} (expires in {cache_ttl}s)")
                     self.cache.set(cache_key, result["data"], expires=cache_ttl)
+                    sync_cache_stats_setting()
                 except Exception as e:
                     logging(f"Cache save failed: {e}")
             # --- [END] Cache Save ---

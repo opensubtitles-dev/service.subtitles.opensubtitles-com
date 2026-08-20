@@ -46,7 +46,8 @@ def _store_in_cache(method, params, result):
     }
     log(__name__, f"📋 Cached result for {method}")
 
-__addon__ = xbmcaddon.Addon()
+__addon__ = xbmcaddon.Addon("service.subtitles.opensubtitles-com")
+__scriptid__ = __addon__.getAddonInfo("id")
 
 
 def get_file_path():
@@ -330,41 +331,56 @@ def _extract_show_ids(tvshow):
     return parent_imdb, parent_tmdb, tvshow_id
 
 def _call_guessit_api(filename):
-    """Call OpenSubtitles guessit API to parse filename"""
+    """Call OpenSubtitles guessit API to parse filename with caching"""
+    if not filename:
+        return None
+
     try:
-        import urllib.request
-        import urllib.parse
+        import hashlib
         import json
-        
+        import urllib.parse
+        import urllib.request
+        from resources.lib.cache import Cache
+
+        clean_filename = filename.strip()
+        cache_key = f"guessit_{hashlib.sha256(clean_filename.encode('utf-8')).hexdigest()}"
+        cache = Cache(key_prefix="os_com")
+
+        cached = cache.get(cache_key)
+        if cached is not None:
+            log(__name__, f"📋 Cache hit for guessit: {clean_filename}")
+            return cached or None
+
         # Get API key from addon settings
         api_key = __addon__.getSetting("APIKey")
         if not api_key:
             log(__name__, "No API key found for guessit call")
             return None
-        
+
         # Prepare the request
         base_url = "https://api.opensubtitles.com/api/v1/utilities/guessit"
-        params = {"filename": filename}
+        params = {"filename": clean_filename}
         url = f"{base_url}?{urllib.parse.urlencode(params)}"
-        
+
         # Create request with headers
         req = urllib.request.Request(url)
         req.add_header("Api-Key", api_key)
-        req.add_header("User-Agent", f"Kodi OpenSubtitles.com v{__addon__.getAddonInfo('version')}")
+        req.add_header("User-Agent", f"service.subtitles.opensubtitles-com v{__addon__.getAddonInfo('version')}")
         req.add_header("Accept", "application/json")
-        
-        log(__name__, f"🔍 Calling guessit API for: {filename}")
-        
-        # Make the request
+
+        log(__name__, f"🔍 Calling guessit API for: {clean_filename}")
+
+        # Make the request with a safe timeout
         with urllib.request.urlopen(req, timeout=10) as response:
             if response.getcode() == 200:
-                data = json.loads(response.read().decode('utf-8'))
-                log(__name__, f"✅ Guessit API response: {data}")
+                data = json.loads(response.read().decode("utf-8"))
+                cache.set(cache_key, data or {}, expires=60 * 60 * 24 * 30)
+                log(__name__, f"✅ Guessit API response (cached): {data}")
                 return data
             else:
                 log(__name__, f"❌ Guessit API error: HTTP {response.getcode()}")
                 return None
-                
+
     except Exception as e:
         log(__name__, f"❌ Failed to call guessit API: {e}")
         return None
@@ -751,46 +767,36 @@ def get_media_data():
             log(__name__, f"🎯 API Strategy: title search only '{item['query']}' (no IDs available)")
     else:
         # For movies: Use specific movie IDs
-        if item.get("imdb_id"):
-            log(__name__, f"🎯 API Strategy: imdb_id={item['imdb_id']} (movie)")
-        elif item.get("tmdb_id"):
-            log(__name__, f"🎯 API Strategy: tmdb_id={item['tmdb_id']} (movie)")
+        if item.get("imdb_id") or item.get("tmdb_id"):
+            id_name = f"imdb_id={item.get('imdb_id')}" if item.get("imdb_id") else f"tmdb_id={item.get('tmdb_id')}"
+            log(__name__, f"🎯 API Strategy: {id_name} (movie)")
         else:
             log(__name__, f"🎯 API Strategy: title search only '{item['query']}' (movie, no IDs available)")
 
-    if not item.get("query"):
-        fallback_title = normalize_string(xbmc.getInfoLabel("VideoPlayer.Title"))
-        if fallback_title:
-            item["query"] = fallback_title
-        else:
-            # Last resort: use filename
-            try:
-                playing_file = get_file_path()
-                if playing_file:
-                    import os
-                    filename = os.path.basename(playing_file)
-                    item["query"] = filename
-            except:
-                item["query"] = "Unknown"
+    fallback_title = item.get("query") or item.get("original_title") or normalize_string(xbmc.getInfoLabel("VideoPlayer.Title"))
+    if not fallback_title:
+        # Last resort: use filename
+        try:
+            playing_file = get_file_path()
+            if playing_file:
+                import os
+                fallback_title = os.path.basename(playing_file)
+        except:
+            fallback_title = "Unknown"
+
+    item["query"] = fallback_title
 
     # Specials handling
     if isinstance(item.get("episode_number"), str) and item["episode_number"] and item["episode_number"].lower().find("s") > -1:
         item["season_number"] = "0"
         item["episode_number"] = item["episode_number"][-1:]
 
-    # ---------- Search plan for TV episodes ----------
-    # OS.com ANDs every search parameter, and the two kinds of id have to be sent differently:
-    #   a *show* id must be paired with season_number/episode_number
-    #   an *episode* id must travel alone, or the extra params match nothing
-    # Getting this wrong returns an empty result either way. Video add-ons disagree about
-    # which kind they hand us (Seren gives the episode's, Umbrella and POV the show's -
-    # peno64's logs on issue #40) and nothing local distinguishes them, so where the role is
-    # unknown we try both readings in order instead of guessing. "search_fallbacks" holds the
-    # later attempts as parameter overrides; SubtitleDownloader.search() applies them one at
-    # a time until something comes back.
-    # NB: must run *after* the query fallback above, which would otherwise refill "query".
+    # ---------- Search plan for TV episodes & Movies ----------
+    # When unique IDs (IMDb/TMDb) are available, sending 'query' or 'year' introduces
+    # over-constrained text matching (e.g. original titles in other languages or release year discrepancies).
+    # We clear 'query' and 'year' for the primary ID search, keeping title_attempt as a fallback.
     if item.get("tv_show_title"):
-        title_attempt = {"query": item.get("query"),
+        title_attempt = {"query": fallback_title,
                          "season_number": item.get("season_number"),
                          "episode_number": item.get("episode_number"),
                          "imdb_id": None, "tmdb_id": None,
@@ -799,16 +805,14 @@ def get_media_data():
         episode_ids = item.pop("_player_episode_ids", None) or {}
 
         if role_unknown and (item.get("imdb_id") or item.get("tmdb_id")):
-            # Read it as the show's id first: that keeps season/episode in play, and it is
-            # the reading that was already working for Umbrella/POV before 1.0.11.
             if item.get("imdb_id"):
                 id_key, parent_key, value = "imdb_id", "parent_imdb_id", item["imdb_id"]
             else:
                 id_key, parent_key, value = "tmdb_id", "parent_tmdb_id", item["tmdb_id"]
             item[parent_key] = value
             item[id_key] = None
-            # SubtitleDownloader resolves this against OS.com's /features first; the
-            # attempts below are the offline answer for when that lookup cannot run.
+            item["query"] = ""
+            item["year"] = None
             item["ambiguous_player_id"] = {id_key: value}
             item["search_fallbacks"] = [
                 # then as the episode's id, which has to be sent on its own (Seren)
@@ -822,10 +826,26 @@ def get_media_data():
         elif item.get("imdb_id") or item.get("tmdb_id"):
             # Known to be the episode's own id, so it must travel alone.
             item["query"] = ""
+            item["year"] = None
             item["season_number"] = None
             item["episode_number"] = None
             item["search_fallbacks"] = [title_attempt]
-            log(__name__, "Episode-level ID search: dropped query/season/episode (kept for retry)")
+            log(__name__, "Episode-level ID search: dropped query/year/season/episode (kept for retry)")
+        elif item.get("parent_imdb_id") or item.get("parent_tmdb_id"):
+            # Show ID + season/episode: drop redundant query and year
+            item["query"] = ""
+            item["year"] = None
+            item["search_fallbacks"] = [title_attempt]
+            log(__name__, "Show-level ID search: dropped redundant query and year (kept for retry)")
+    else:
+        # Movie search: If unique IMDb/TMDb ID is present, drop query and year from primary request
+        if item.get("imdb_id") or item.get("tmdb_id"):
+            title_attempt = {"query": fallback_title, "year": item.get("year"),
+                             "imdb_id": None, "tmdb_id": None}
+            item["query"] = ""
+            item["year"] = None
+            item["search_fallbacks"] = [title_attempt]
+            log(__name__, "Movie ID search: dropped redundant query and year (kept for retry)")
 
         elif item.get("parent_imdb_id") or item.get("parent_tmdb_id"):
             # A parent id from the library won. It is usually right, but a mis-scraped show
@@ -855,6 +875,21 @@ def get_media_data():
     return item
 
 
+def is_kodi_hearing_impaired_preferred():
+    """Checks if Kodi has 'prefer subtitles for hearing impaired' enabled in system settings."""
+    try:
+        query = json.dumps({
+            "jsonrpc": "2.0",
+            "method": "Settings.GetSettingValue",
+            "params": {"setting": "subtitles.hearingimpaired"},
+            "id": 1
+        })
+        response = json.loads(xbmc.executeJSONRPC(query))
+        return bool(response.get("result", {}).get("value", False))
+    except Exception:
+        return False
+
+
 def get_language_data(params):
     search_languages = unquote(params.get("languages")).split(",")
     search_languages_str = ""
@@ -875,8 +910,13 @@ def get_language_data(params):
         else:
             log(__name__, f"Language code not found: '{language}'")
 
+    hi_setting = __addon__.getSetting("hearing_impaired")
+    # If add-on setting is default "exclude", but Kodi system has prefer hearing impaired ON, reflect Kodi
+    if (not hi_setting or hi_setting == "exclude") and is_kodi_hearing_impaired_preferred():
+        hi_setting = "include"
+
     item = {
-        "hearing_impaired": __addon__.getSetting("hearing_impaired"),
+        "hearing_impaired": hi_setting or "exclude",
         "foreign_parts_only": __addon__.getSetting("foreign_parts_only"),
         "machine_translated": __addon__.getSetting("machine_translated"),
         "ai_translated": __addon__.getSetting("ai_translated"),
@@ -889,11 +929,45 @@ def get_language_data(params):
 def convert_language(language, reverse=False):
     language_list = {
         "English": "en",
+        "Czech": "cs",
+        "Slovak": "sk",
+        "Spanish": "es",
         "Portuguese (Brazil)": "pt-br",
+        "Portuguese (Portugal)": "pt-pt",
         "Portuguese": "pt-pt",
+        "French": "fr",
+        "German": "de",
+        "Italian": "it",
+        "Dutch": "nl",
+        "Polish": "pl",
+        "Russian": "ru",
+        "Ukrainian": "uk",
+        "Turkish": "tr",
+        "Arabic": "ar",
+        "Hebrew": "he",
+        "Greek": "el",
+        "Romanian": "ro",
+        "Hungarian": "hu",
+        "Bulgarian": "bg",
+        "Serbian": "sr",
+        "Croatian": "hr",
+        "Slovenian": "sl",
+        "Swedish": "sv",
+        "Danish": "da",
+        "Norwegian": "no",
+        "Finnish": "fi",
         "Chinese": "zh-cn",
         "Chinese (simplified)": "zh-cn",
-        "Chinese (traditional)": "zh-tw"}
+        "Chinese (traditional)": "zh-tw",
+        "Japanese": "ja",
+        "Korean": "ko",
+        "Vietnamese": "vi",
+        "Thai": "th",
+        "Indonesian": "id",
+        "Malay": "ms",
+        "Hindi": "hi",
+        "Persian": "fa"
+    }
 
     reverse_language_list = {v: k for k, v in list(language_list.items())}
 

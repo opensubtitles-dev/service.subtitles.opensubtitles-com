@@ -1,8 +1,25 @@
 *.DS_Store
-*.pyc
-*.pyo
+*.py[cod]
+*$py.class
+__pycache__/
 .idea/
+.vscode/
+*.zip
+dist/
+repo_output/
+*.log
 
-.vscode
+.pytest_cache/
+# Secrets & Credentials (Never commit)
+.env
+.env.*
+*.secret
+*credentials*
+*secret*
+token.json
+userdata/
+
 # three-brain skill output — may contain secrets; never commit
 /three-brain-out/
+
+
