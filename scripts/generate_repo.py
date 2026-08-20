@@ -13,7 +13,9 @@ import zipfile
 import hashlib
 import xml.etree.ElementTree as ET
 
-from release_lib import strip_development_settings
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from addon_manifest import iter_addon_files  # noqa: E402  - what ships lives in one place
+from release_lib import strip_development_settings  # noqa: E402
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 OUTPUT_DIR = os.path.join(REPO_ROOT, "repo_output")
@@ -48,6 +50,25 @@ def get_addon_metadata(addon_xml_path):
     version = root.attrib.get("version")
     return addon_id, version, root
 
+def zip_addon(repo_root, target_zip, prefix=""):
+    """Zip the add-on from the shared allow-list in scripts/addon_manifest.py.
+
+    Deliberately not a deny-list: a new internal file must be added to the manifest before
+    it can reach users, rather than shipping until someone remembers to exclude it.
+    """
+    os.makedirs(os.path.dirname(target_zip), exist_ok=True)
+    with zipfile.ZipFile(target_zip, "w", zipfile.ZIP_DEFLATED) as zf:
+        for full_path, rel_path in iter_addon_files(
+                repo_root,
+                on_missing=lambda e: print(f"⚠️  Notice: {e} does not exist, skipping.")):
+            arcname = os.path.join(prefix, rel_path) if prefix else rel_path
+            if rel_path.replace(os.sep, "/") == "resources/settings.xml":
+                with open(full_path, "r", encoding="utf-8") as fh:
+                    zf.writestr(arcname, strip_development_settings(fh.read()))
+            else:
+                zf.write(full_path, arcname)
+
+
 def zip_directory(src_dir, target_zip, prefix="", filter_func=None):
     os.makedirs(os.path.dirname(target_zip), exist_ok=True)
     with zipfile.ZipFile(target_zip, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -58,11 +79,7 @@ def zip_directory(src_dir, target_zip, prefix="", filter_func=None):
                 if filter_func and filter_func(rel_path):
                     continue
                 archive_name = os.path.join(prefix, rel_path) if prefix else rel_path
-                if rel_path.replace(os.sep, "/") == "resources/settings.xml":
-                    with open(full_path, "r", encoding="utf-8") as fh:
-                        zf.writestr(archive_name, strip_development_settings(fh.read()))
-                else:
-                    zf.write(full_path, archive_name)
+                zf.write(full_path, archive_name)
 
 def generate_checksums(file_path):
     with open(file_path, "rb") as f:
@@ -322,7 +339,12 @@ def main():
     sub_zip_file = os.path.join(sub_zip_dir, f"{sub_id}-{sub_ver}.zip")
     
     print(f"📦 Packaging {sub_id} v{sub_ver} -> {sub_zip_file}")
-    zip_directory(REPO_ROOT, sub_zip_file, prefix=sub_id, filter_func=should_exclude)
+    # Allow-list, shared with build_release_zip.py. This was a deny-list until v1.0.16,
+    # which is how v1.0.15 published AGENT_INSTRUCTIONS.md, DEV_WORKFLOW.md,
+    # KODI_STANDARDS.md and TODO.md to every user installing from the repository: no rule
+    # excluded them, and .gitattributes' export-ignore does not apply here (that is
+    # `git archive` only).
+    zip_addon(REPO_ROOT, sub_zip_file, prefix=sub_id)
 
     for asset_file in ("addon.xml", "changelog.txt", "icon.png", "fanart.jpg"):
         src = os.path.join(REPO_ROOT, asset_file)

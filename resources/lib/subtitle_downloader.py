@@ -627,62 +627,80 @@ class SubtitleDownloader:
                 # break the OK / TRY / FAIL grouping the list is meant to show.
                 ranked_subtitles = self.subtitles
             else:
-                ranked_subtitles = rank_subtitles(
-                    self.subtitles,
-                    getattr(self, "video_filename", ""),
-                    getattr(self, "video_guessit", None),
-                    smart_ranking=smart_ranking,
-                    preferred_languages=getattr(self, "preferred_languages", None),
-                    prefer_hearing_impaired=prefer_hi
-                )
+                # Ranking is a nicety; showing the subtitles is not. If scoring trips over an
+                # unexpected field type, fall back to the API's own order rather than raising
+                # out of list_subtitles() - that would skip endOfDirectory() below and leave
+                # the subtitle dialog hanging with nothing in it.
+                try:
+                    ranked_subtitles = rank_subtitles(
+                        self.subtitles,
+                        getattr(self, "video_filename", ""),
+                        getattr(self, "video_guessit", None),
+                        smart_ranking=smart_ranking,
+                        preferred_languages=getattr(self, "preferred_languages", None),
+                        prefer_hearing_impaired=prefer_hi
+                    )
+                except Exception as e:
+                    log(__name__, f"Subtitle ranking failed, falling back to unranked order: {e!r}")
+                    ranked_subtitles = self.subtitles
+                    smart_ranking = False
 
             for subtitle in debug_rows + list(ranked_subtitles):
-                attributes = subtitle["attributes"]
-                language = convert_language(attributes["language"], True)
-                log(__name__, attributes)
-                clean_name = clean_feature_release_name(attributes["feature_details"]["title"], attributes["release"],
-                                                        attributes["feature_details"]["movie_name"])
-                
-                # Build visual attribute badges and append at the END of the line
-                # (SDH and Hash are handled natively by Kodi dialog icons: hearing_imp and sync)
-                badges = []
-                if attributes.get("from_trusted"):
-                    # √ (U+221A) is the only check-like glyph Kodi's default fonts have -
-                    # real check marks are Dingbats and render as tofu (see the matrix in
-                    # docs/kodi_ui_font_compatibility.md).
-                    badges.append("[COLOR green][B]√[/B][/COLOR]")
-                if is_on_demand_translation(attributes):
-                    # Not a real file yet: the server translates it when picked
-                    # (takes ~20s+, uses AI credits) - users deserve the warning.
-                    badges.append("[COLOR cyan][AI on demand][/COLOR]")
-                elif attributes.get("ai_translated"):
-                    badges.append("[COLOR cyan][AI][/COLOR]")
-                elif attributes.get("machine_translated"):
-                    badges.append("[COLOR orange][Machine][/COLOR]")
-                if attributes.get("foreign_parts_only"):
-                    badges.append("[COLOR yellow][Forced][/COLOR]")
+                # One odd entry must not cost the user every other result. Ranking is
+                # guarded above; this guards rendering, where a missing feature_details
+                # would otherwise abort the loop and leave an empty list.
+                try:
+                    attributes = subtitle["attributes"]
+                    language = convert_language(attributes["language"], True)
+                    log(__name__, attributes)
+                    clean_name = clean_feature_release_name(attributes["feature_details"]["title"], attributes["release"],
+                                                            attributes["feature_details"]["movie_name"])
 
-                # Append yellow match badge to label2 (e.g. (+95), omits (Hash) since sync icon is active)
-                if smart_ranking:
-                    match_tag = get_match_display_tag(subtitle)
-                    if match_tag:
-                        badges.append(match_tag)
+                    # Build visual attribute badges and append at the END of the line
+                    # (SDH and Hash are handled natively by Kodi dialog icons: hearing_imp and sync)
+                    badges = []
+                    if attributes.get("from_trusted"):
+                        # √ (U+221A) is the only check-like glyph Kodi's default fonts have -
+                        # real check marks are Dingbats and render as tofu (see the matrix in
+                        # docs/kodi_ui_font_compatibility.md).
+                        badges.append("[COLOR green][B]√[/B][/COLOR]")
+                    if is_on_demand_translation(attributes):
+                        # Not a real file yet: the server translates it when picked
+                        # (takes ~20s+, uses AI credits) - users deserve the warning.
+                        badges.append("[COLOR cyan][AI on demand][/COLOR]")
+                    elif attributes.get("ai_translated"):
+                        badges.append("[COLOR cyan][AI][/COLOR]")
+                    elif attributes.get("machine_translated"):
+                        badges.append("[COLOR orange][Machine][/COLOR]")
+                    if attributes.get("foreign_parts_only"):
+                        badges.append("[COLOR yellow][Forced][/COLOR]")
 
-                if badges:
-                    clean_name = f"{clean_name} {' '.join(badges)}".strip()
+                    # Append yellow match badge to label2 (e.g. (+95), omits (Hash) since sync icon is active)
+                    if smart_ranking:
+                        match_tag = get_match_display_tag(subtitle)
+                        if match_tag:
+                            badges.append(match_tag)
 
-                list_item = xbmcgui.ListItem(label=language,
-                                             label2=clean_name)
-                list_item.setArt({
-                    "icon": str(int(round(float(attributes.get("ratings") or 0) / 2))),
-                    "thumb": get_flag(attributes["language"])})
+                    if badges:
+                        clean_name = f"{clean_name} {' '.join(badges)}".strip()
 
-                is_sync = bool(attributes.get("moviehash_match"))
-                list_item.setProperty("sync", "true" if is_sync else "false")
-                list_item.setProperty("hearing_imp", "true" if attributes.get("hearing_impaired") else "false")
-                
-                files = attributes.get("files") or [{"file_id": 0}]
-                url = f"plugin://{__scriptid__}/?action=download&id={files[0]['file_id']}&language={language}"
-                xbmcplugin.addDirectoryItem(handle=self.handle, url=url, listitem=list_item, isFolder=False)
+                    list_item = xbmcgui.ListItem(label=language,
+                                                 label2=clean_name)
+                    list_item.setArt({
+                        "icon": str(int(round(float(attributes.get("ratings") or 0) / 2))),
+                        "thumb": get_flag(attributes["language"])})
+
+                    is_sync = bool(attributes.get("moviehash_match"))
+                    list_item.setProperty("sync", "true" if is_sync else "false")
+                    list_item.setProperty("hearing_imp", "true" if attributes.get("hearing_impaired") else "false")
+
+                    files = attributes.get("files") or [{"file_id": 0}]
+                    url = f"plugin://{__scriptid__}/?action=download&id={files[0]['file_id']}&language={language}"
+                    xbmcplugin.addDirectoryItem(handle=self.handle, url=url, listitem=list_item, isFolder=False)
+                except Exception as e:
+                    # log the id only - the attributes dict is large and noisy
+                    log(__name__, f"Skipping unusable subtitle entry "
+                                  f"{subtitle.get('id') if isinstance(subtitle, dict) else '?'}: {e!r}")
+                    continue
 
         xbmcplugin.endOfDirectory(self.handle)

@@ -1,3 +1,4 @@
+import os
 import re
 import sys
 import xml.etree.ElementTree as ET
@@ -7,9 +8,26 @@ import xbmc
 import xbmcgui
 import xbmcaddon
 
-from resources.lib.utilities import get_user_agent
 import xbmcvfs
-import os
+
+# --- addon import path guard (keep this above any `resources.*` import) ------------
+# RunScript(<file path>) runs this "without an addon", so Kodi puts every installed
+# add-on's library directory on sys.path ahead of ours and a foreign top-level
+# `resources` package shadows ours. This script imports nothing from `resources` today;
+# the guard is here so that adding such an import later cannot silently break it.
+# See test_connection.py for the full story (issue #39).
+_addon_path = os.path.dirname(os.path.abspath(__file__))
+sys.path = [p for p in sys.path if os.path.normpath(p) != _addon_path]
+sys.path.insert(0, _addon_path)
+# Only evict a *foreign* `resources`; re-importing our own would duplicate its classes.
+_res = sys.modules.get("resources")
+if _res is not None and not any(os.path.normpath(p).startswith(_addon_path)
+                                for p in getattr(_res, "__path__", [])):
+    for _module in [m for m in list(sys.modules) if m == "resources" or m.startswith("resources.")]:
+        del sys.modules[_module]
+# -----------------------------------------------------------------------------------
+
+from resources.lib.utilities import get_user_agent
 
 __addon__ = xbmcaddon.Addon("service.subtitles.opensubtitles-com")
 __addon_name__ = __addon__.getAddonInfo("name")

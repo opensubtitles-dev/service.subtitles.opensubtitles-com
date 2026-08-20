@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v1.0.16] - 2026-08-20
+
+### Fixed
+- **Settings scripts failing with `ModuleNotFoundError`**: Kodi runs `RunScript()` targets "without an addon", putting every installed add-on's library directory on `sys.path` ahead of ours — so another add-on's top-level `resources` package shadows ours and **Test Connection** dies with `No module named 'resources.lib.osclient'`. The import-path guard added in v1.0.11 was lost when `test_connection.py` was rewritten for v1.0.15. Restored, and extended to `clear_cache.py` and `check_updates.py` (issue #39, ticket #168978).
+- **TV episode searches against a mis-scraped library**: Kodi's `imdbnumber` field holds whatever the scraper treats as the item's primary id, which for a TVDB-scraped show is *not* an IMDb id. It was sent as `parent_imdb_id` and matched nothing, while the episode's own id was discarded. `imdbnumber` is now only accepted with a `tt` prefix, `uniqueid["imdb"]` is preferred, and the episode id is retained as a fallback attempt.
+- **One malformed API entry could hide every subtitle**: an unexpected field type raised out of `list_subtitles()`, losing all results *and* skipping `endOfDirectory()` — leaving Kodi's subtitle dialog open and empty. Ranking and rendering are now guarded per entry, and `sanitize_filename()` coerces non-string input.
+- **`check_updates.py` missing from release zips**, leaving the settings "Check for updates" button inert.
+
+### Added
+- **Regression tests for the above** (`tests/test_runscript_entrypoints.py`, `tests/test_listing_resilience.py`): every `RunScript()` entry point must carry the import guard *above* its first `resources` import and appear in `INCLUDE_ENTRIES`; ranking must never drop a result. The v1.0.15 guard removal passed all 62 existing tests — which is precisely why these exist.
+
+---
+
 ## [v1.0.15] - 2026-08-18
 
 ### Added
