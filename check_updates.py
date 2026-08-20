@@ -82,7 +82,7 @@ def check_updates():
         latest_version = None
 
     if not latest_version:
-        dialog.ok(__addon_name__, f"{__language__(32219)}: v{current_version}\n\nCould not connect to update server. Please check your network connection.")
+        dialog.ok(__addon_name__, f"Installed: v{current_version}\n\nCould not connect to update server. Please check your network connection.")
         return
 
     curr_tuple = parse_version_tuple(current_version)
