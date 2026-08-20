@@ -245,12 +245,10 @@ def build_index_html(addons_info):
 <body>
     <div class="container">
         <div class="header">
-            <svg class="logo" width="84" height="84" viewBox="0 0 96 96" fill="none" aria-label="OpenSubtitles" role="img">
-                <rect x="8" y="14" width="80" height="58" rx="14" stroke="currentColor" stroke-width="7"/>
-                <path d="M34 72 L30 86 L48 72 Z" fill="currentColor"/>
-                <rect x="22" y="44" width="34" height="7" rx="3.5" fill="currentColor"/>
-                <rect x="60" y="44" width="14" height="7" rx="3.5" fill="currentColor"/>
-                <rect x="22" y="56" width="52" height="7" rx="3.5" fill="currentColor"/>
+            <svg class="logo" width="88" height="88" viewBox="0 0 512 512" fill="currentColor" aria-label="OpenSubtitles" role="img">
+                <path fill-rule="evenodd" clip-rule="evenodd" d="M256 26C129 26 26 129 26 256s103 230 230 230 230-103 230-230S383 26 256 26Zm0 102c62 0 113 2 136 5 24 3 38 17 41 41 2 20 4 49 4 82s-2 62-4 82c-3 24-17 38-41 41-23 3-74 5-136 5s-113-2-136-5c-24-3-38-17-41-41-2-20-4-49-4-82s2-62 4-82c3-24 17-38 41-41 23-3 74-5 136-5Z"/>
+                <rect x="120" y="300" width="272" height="22" rx="10"/>
+                <rect x="163" y="338" width="186" height="20" rx="10"/>
             </svg>
             <h1>OpenSubtitles.com Repository</h1>
             <p class="subtitle">Official Fast-Track Update Repository for Kodi</p>
