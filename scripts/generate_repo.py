@@ -348,10 +348,12 @@ def main():
     # 3. Package repository.opensubtitles-com dynamically
     repo_id = "repository.opensubtitles-com"
     repo_ver = "1.1.0"
-    repo_xml_content = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    # version comes from repo_ver above - a hardcoded one here once shipped a
+    # bumped zip whose addon.xml still said 1.0.0, so Kodi never updated it
+    repo_xml_content = f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <addon id="repository.opensubtitles-com"
        name="OpenSubtitles.com Official Repository"
-       version="1.0.0"
+       version="{repo_ver}"
        provider-name="OpenSubtitles">
 	<extension point="xbmc.addon.repository" name="OpenSubtitles.com Official Repository">
 		<dir>
