@@ -19,7 +19,7 @@ This file provides a complete technical handover for Claude / next AI agent taki
 ## 2. 🧪 Testing & Validation Commands
 
 ```bash
-# Run complete test suite (71 passing tests)
+# Run complete test suite (167 passing tests)
 python3 -m pytest
 
 # Run repository packager and generate ZIPs + addons.xml + checksums
@@ -70,7 +70,7 @@ python3 scripts/generate_repo.py
 * **Supported & Verified in Kodi Skins**:
   * Formatting: `[COLOR green]`, `[COLOR cyan]`, `[COLOR orange]`, `[COLOR yellow]`, `[COLOR gold]`, `[COLOR red]`, Hex ARGB, `[B]` Bold, `[I]` Italic.
   * Diacritics: Slovak/Czech (`ľščťžýáíéôäň`), Cyrillic (`Русский перевод`), Western European.
-  * BMP Glyphs: Stars (`★`, `☆`), bullets (`•`), pipes (`│`), check marks (`✔`, `✓`).
+  * BMP Glyphs: Stars (`★`, `☆`), bullets (`•`), pipes (`│`), square root as check (`√`). Real check marks (`✔`, `✓`) are Dingbats = tofu; see the matrix.
 * **Unsupported / Avoid**:
   * Emojis (🤖, ⚙️, 🔒, 👂) render as blank spaces / empty boxes in default Kodi TTF fonts (Roboto/Arial).
   * Arabic RTL script lacks bi-directional text shaping in Kodi list items.
@@ -86,7 +86,7 @@ python3 scripts/generate_repo.py
   ```
 
 ### D. Test Flag Interceptor
-* Toggle setting `test_flag_interceptor` in Debug settings.
+* Toggle setting `test_flag_interceptor` in the Development settings tab (Expert-only; stripped from release builds by scripts/release_lib.py).
 * When `ON`, any search returns pure mock test subtitles (defined in `_inject_test_flag_subtitles()`) showcasing various glyphs, check marks, crosses, stars, and language characters.
 
 ---
@@ -99,11 +99,13 @@ python3 scripts/generate_repo.py
 * [`resources/lib/matcher.py`](file:///data/www/opensubtitles.org/public_html/github/service.subtitles.opensubtitles-com/resources/lib/matcher.py) - Match scoring and display badge formatter (`get_match_display_tag`).
 * [`resources/lib/osclient/provider.py`](file:///data/www/opensubtitles.org/public_html/github/service.subtitles.opensubtitles-com/resources/lib/osclient/provider.py) - API client methods including `vote_subtitle` and user info.
 * [`docs/kodi_ui_font_compatibility.md`](file:///data/www/opensubtitles.org/public_html/github/service.subtitles.opensubtitles-com/docs/kodi_ui_font_compatibility.md) - UI font rendering reference.
-* [`tests/`](file:///data/www/opensubtitles.org/public_html/github/service.subtitles.opensubtitles-com/tests/) - Complete pytest suite (71 tests).
+* [`tests/`](file:///data/www/opensubtitles.org/public_html/github/service.subtitles.opensubtitles-com/tests/) - Complete pytest suite (167 tests).
 
 ---
 
 ## 5. 🎯 Next Roadmap Items
-1. Finalize desired check mark (`✔` vs `✓` vs `[Trusted]`) based on user UI testing.
-2. Smart audio stream detection and language awareness during playback in `service_monitor.py`.
-3. Re-enable the 12-hour age check for account status background refresh before production release.
+1. `POST /subtitles/rate` server-side deployment (client ships 404-tolerant).
+2. Auto-upload phase 2: wire `/subtitles/upload/check` once dry-run verdicts look good.
+3. addon.xml translations (~40 languages) still carry old .org-era descriptions - needs human translators.
+4. Submit 2.0.0 to official `xbmc/repo-plugins` after soak time in the kodi.opensubtitles.com feed.
+5. Optional: capture glyph matrix TRY rows 12-20 results; test Estuary "Arial based" font round.
