@@ -256,14 +256,14 @@ def build_index_html(addons_info):
             <p style="color: var(--text-muted); margin-bottom: 0.5rem;">No web browser or USB drive needed. Type or paste this URL into Kodi:</p>
             
             <div class="url-box">
-                <span id="repoUrl">https://opensubtitles.github.io/service.subtitles.opensubtitles-com/</span>
+                <span id="repoUrl">https://kodi.opensubtitles.com/</span>
                 <button class="copy-btn" onclick="navigator.clipboard.writeText(document.getElementById('repoUrl').innerText); this.innerText='Copied!'; setTimeout(()=>this.innerText='Copy', 2000)">Copy</button>
             </div>
 
             <ol>
                 <li>In Kodi, enable <strong>Unknown sources</strong> under <strong>Settings (⚙️) ➔ System ➔ Add-ons</strong>.</li>
                 <li>Go to <strong>Settings (⚙️) ➔ File manager ➔ Add source</strong>.</li>
-                <li>Click <code>&lt;None&gt;</code> and enter the URL above: <code>https://opensubtitles.github.io/service.subtitles.opensubtitles-com/</code></li>
+                <li>Click <code>&lt;None&gt;</code> and enter the URL above: <code>https://kodi.opensubtitles.com/</code></li>
                 <li>Set the media source name to: <strong><code>OpenSubtitles-repo</code></strong> and click <strong>OK</strong>.</li>
                 <li>Go to <strong>Add-ons ➔ Install from zip file ➔ OpenSubtitles-repo</strong>.</li>
                 <li>Select <strong><code>repository.opensubtitles-com.zip</code></strong> and wait for installation confirmation.</li>
@@ -353,7 +353,7 @@ def main():
 
     # 3. Package repository.opensubtitles-com dynamically
     repo_id = "repository.opensubtitles-com"
-    repo_ver = "1.0.0"
+    repo_ver = "1.1.0"
     repo_xml_content = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <addon id="repository.opensubtitles-com"
        name="OpenSubtitles.com Official Repository"
@@ -361,9 +361,9 @@ def main():
        provider-name="OpenSubtitles">
 	<extension point="xbmc.addon.repository" name="OpenSubtitles.com Official Repository">
 		<dir>
-			<info compressed="false">https://opensubtitles.github.io/service.subtitles.opensubtitles-com/addons.xml</info>
-			<checksum>https://opensubtitles.github.io/service.subtitles.opensubtitles-com/addons.xml.md5</checksum>
-			<datadir zip="true">https://opensubtitles.github.io/service.subtitles.opensubtitles-com/zips/</datadir>
+			<info compressed="false">https://kodi.opensubtitles.com/addons.xml</info>
+			<checksum>https://kodi.opensubtitles.com/addons.xml.md5</checksum>
+			<datadir zip="true">https://kodi.opensubtitles.com/zips/</datadir>
 			<hashes>false</hashes>
 		</dir>
 	</extension>

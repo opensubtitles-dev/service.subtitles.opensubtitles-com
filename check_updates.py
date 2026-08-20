@@ -34,6 +34,7 @@ __addon_name__ = __addon__.getAddonInfo("name")
 __language__ = __addon__.getLocalizedString
 
 REMOTE_MANIFEST_URLS = [
+    "https://kodi.opensubtitles.com/addons.xml",
     "https://raw.githubusercontent.com/opensubtitles/service.subtitles.opensubtitles-com/master/addon.xml",
     "https://raw.githubusercontent.com/opensubtitles-dev/service.subtitles.opensubtitles-com/master/addon.xml",
     "https://opensubtitles.github.io/service.subtitles.opensubtitles-com/addons.xml",
