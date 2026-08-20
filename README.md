@@ -62,7 +62,7 @@
 ## ⚙️ Configuration & Setup
 
 1. Open add-on **Settings (Login Details)**:
-   * Enter your OpenSubtitles.com **Username** and **Password** (or API Key if applicable).
+   * Enter your OpenSubtitles.com **Username** and **Password** (use your username, not your email address).
    * Click **Test Connection** to verify your account credentials, VIP status, and daily download quota.
 2. In Kodi, navigate to **Settings ➔ Player ➔ Language ➔ Subtitle Services**:
    * Set **Default movie service** to **OpenSubtitles.com**.
