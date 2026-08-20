@@ -19,7 +19,7 @@ import pytest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SETTINGS_XML = os.path.join(REPO_ROOT, "resources", "settings.xml")
-BUILD_SCRIPT = os.path.join(REPO_ROOT, "scripts", "build_release_zip.py")
+MANIFEST = os.path.join(REPO_ROOT, "scripts", "addon_manifest.py")
 
 
 def _runscript_targets():
@@ -71,12 +71,12 @@ def test_runscript_entrypoint_has_import_path_guard(script):
 @pytest.mark.parametrize("script", _runscript_targets())
 def test_runscript_entrypoint_is_shipped(script):
     """A settings button that runs a file missing from the zip is a dead button."""
-    if not os.path.isfile(BUILD_SCRIPT):
-        pytest.skip("scripts/build_release_zip.py not present")
-    with open(BUILD_SCRIPT, encoding="utf-8") as fh:
-        build_src = fh.read()
-    include_block = re.search(r"INCLUDE_ENTRIES\s*=\s*\{(.*?)\}", build_src, re.S)
-    assert include_block, "could not find INCLUDE_ENTRIES in build_release_zip.py"
+    if not os.path.isfile(MANIFEST):
+        pytest.skip("scripts/addon_manifest.py not present")
+    with open(MANIFEST, encoding="utf-8") as fh:
+        manifest_src = fh.read()
+    include_block = re.search(r"INCLUDE_ENTRIES\s*=\s*\{(.*?)\}", manifest_src, re.S)
+    assert include_block, "could not find INCLUDE_ENTRIES in scripts/addon_manifest.py"
     assert f'"{script}"' in include_block.group(1), (
         f"{script} is launched from settings.xml but is not in INCLUDE_ENTRIES, so release "
         f"zips will not contain it and the button will do nothing."

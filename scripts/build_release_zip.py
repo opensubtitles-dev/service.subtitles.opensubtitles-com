@@ -10,37 +10,10 @@ import sys
 import zipfile
 import xml.etree.ElementTree as ET
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from addon_manifest import iter_addon_files  # noqa: E402  - what ships lives in one place
+
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-
-# Allowed top-level entries to include in production ZIP
-INCLUDE_ENTRIES = {
-    "addon.xml",
-    "service.py",
-    # every script settings.xml launches with RunScript() must be listed here, or the
-    # button is dead in the shipped zip (tests/test_runscript_entrypoints.py enforces it)
-    "test_connection.py",
-    "clear_cache.py",
-    "check_updates.py",
-    "resources",
-    "icon.png",
-    "fanart.jpg",
-    "logo.png",
-    "LICENSE.txt",
-    "changelog.txt",
-    "README.md",
-}
-
-# Explicit file patterns to exclude
-EXCLUDE_PATTERNS = [
-    r"__pycache__",
-    r"\.py[cod]$",
-    r"\.DS_Store$",
-    r"\.git",
-    r"\.pytest_cache",
-    r"\.log$",
-    r"\.secret",
-    r"\.env",
-]
 
 def check_credentials_leak(root_dir):
     """Safety check: Scans files for potential sensitive information."""
@@ -90,28 +63,12 @@ def build_zip():
     print(f"\n📦 Building release archive: {zip_filename} ...")
 
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
-        for entry in INCLUDE_ENTRIES:
-            entry_path = os.path.join(REPO_ROOT, entry)
-            if not os.path.exists(entry_path):
-                print(f"⚠️ Notice: Entry {entry} does not exist, skipping.")
-                continue
-
-            if os.path.isfile(entry_path):
-                arcname = f"{addon_id}/{entry}"
-                zipf.write(entry_path, arcname)
-                print(f"  + {arcname}")
-            elif os.path.isdir(entry_path):
-                for dirpath, _, filenames in os.walk(entry_path):
-                    for filename in filenames:
-                        full_path = os.path.join(dirpath, filename)
-                        rel_path = os.path.relpath(full_path, REPO_ROOT)
-
-                        if any(re.search(pat, rel_path) for pat in EXCLUDE_PATTERNS):
-                            continue
-
-                        arcname = f"{addon_id}/{rel_path}"
-                        zipf.write(full_path, arcname)
-                        print(f"  + {arcname}")
+        for full_path, rel_path in iter_addon_files(
+                REPO_ROOT,
+                on_missing=lambda e: print(f"⚠️ Notice: Entry {e} does not exist, skipping.")):
+            arcname = f"{addon_id}/{rel_path}"
+            zipf.write(full_path, arcname)
+            print(f"  + {arcname}")
 
     zip_size_kb = os.path.getsize(zip_path) / 1024
     print(f"\n Successfully built: {zip_path} ({zip_size_kb:.1f} KB)")
