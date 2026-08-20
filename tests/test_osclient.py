@@ -81,3 +81,66 @@ def test_provider_guessit_success_and_caching(mock_session_cls):
     result2 = provider.guessit("Border.2018.1080p.NF.WEB-DL.mkv")
     assert result2["title"] == "Border"
     assert mock_session.get.call_count == 1
+
+
+def test_nocache_toggle_adds_param_and_bypasses_local_cache():
+    """Dev toggle: nocache=1 goes to the API and the local search cache is skipped."""
+    from unittest.mock import MagicMock, patch
+    import xbmcaddon
+    from resources.lib.osclient.provider import OpenSubtitlesProvider
+
+    addon = xbmcaddon.Addon()
+    addon.setSetting("test_nocache", "true")
+    addon.setSetting("search_cache_duration", "180")
+
+    provider = OpenSubtitlesProvider("key", "user", "pass")
+    provider.cache = MagicMock()
+    response = MagicMock()
+    response.json.return_value = {"data": [], "total_pages": 1}
+    response.status_code = 200
+
+    with patch.object(provider.session, "get", return_value=response) as http_get:
+        provider.search_subtitles({"query": "The Matrix", "languages": "sk"})
+
+    sent = http_get.call_args.kwargs.get("params") or http_get.call_args[0][1] if http_get.call_args else {}
+    assert sent.get("nocache") == 1
+    # Local SEARCH cache bypassed (the only cache.get allowed is the JWT lookup)
+    for call in provider.cache.get.call_args_list:
+        assert call.kwargs.get("key") == "user_token", f"search cache consulted: {call}"
+    provider.cache.set.assert_not_called()   # and nothing gets stored either
+    addon.setSetting("test_nocache", "")     # don't leak into other tests
+
+
+def test_download_retries_through_ai_translation_timeout():
+    """Read timeout on /download = translation still running server-side; the
+    client waits and re-POSTs instead of failing the first click (live bug)."""
+    from unittest.mock import MagicMock, patch
+    from requests import ReadTimeout
+    from resources.lib.osclient.provider import OpenSubtitlesProvider
+
+    provider = OpenSubtitlesProvider("key", "user", "pass")
+    provider.cache = MagicMock()
+    provider.cache.get.return_value = "jwt-token"
+
+    ok = MagicMock()
+    ok.url = "https://api.opensubtitles.com/api/v1/download"
+    ok.status_code = 200
+    ok.json.return_value = {"link": "https://dl.opensubtitles.com/file.srt"}
+    content = MagicMock(); content.content = b"1\n00:00:01,000 --> 00:00:02,000\nAhoj\n"
+    content.raise_for_status = MagicMock()
+
+    calls = {"n": 0}
+    def post(*a, **k):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise ReadTimeout("read timeout=30")
+        return ok
+
+    with patch.object(provider.session, "post", side_effect=post), \
+         patch.object(provider.session, "get", return_value=content), \
+         patch("resources.lib.osclient.provider.time.sleep") as sleep:
+        result = provider.download_subtitle({"file_id": 1246448409911500000000000000000000})
+
+    assert calls["n"] == 2          # timed out once, succeeded on retry
+    sleep.assert_called_once_with(5)
+    assert result["content"].startswith(b"1\n")

@@ -11,7 +11,7 @@ This file provides a complete technical handover for Claude / next AI agent taki
 * **Fork Remote**: `fork` (`https://github.com/opensubtitles/service.subtitles.opensubtitles-com.git`)
 * **Branch Strategy**:
   * **`v1.0.15`**: **FROZEN**. Pull Request [#42](https://github.com/opensubtitles-dev/service.subtitles.opensubtitles-com/pull/42) submitted upstream. Do not modify.
-  * **`develop`**: **ACTIVE**. Current version is bumped to `1.0.16`. All new features (service monitor, badges, interceptor, auto-download, rating) are developed here.
+  * **`develop`**: **ACTIVE**. Current version is bumped to `2.0.0` (NEW GENERATION release). All new features (service monitor, badges, interceptor, auto-download, rating) are developed here.
 
 ---
 
@@ -71,7 +71,7 @@ python3 scripts/generate_repo.py
 
 ## 4. 📂 Key Files
 
-* [`addon.xml`](file:///data/www/opensubtitles.org/public_html/github/service.subtitles.opensubtitles-com/addon.xml) - Extension points and addon metadata (v1.0.16).
+* [`addon.xml`](file:///data/www/opensubtitles.org/public_html/github/service.subtitles.opensubtitles-com/addon.xml) - Extension points and addon metadata (v2.0.0).
 * [`service_monitor.py`](file:///data/www/opensubtitles.org/public_html/github/service.subtitles.opensubtitles-com/service_monitor.py) - Kodi background service (monitor + player).
 * [`resources/lib/subtitle_downloader.py`](file:///data/www/opensubtitles.org/public_html/github/service.subtitles.opensubtitles-com/resources/lib/subtitle_downloader.py) - Search execution, badge formatting at line end, and mock interceptor.
 * [`resources/lib/matcher.py`](file:///data/www/opensubtitles.org/public_html/github/service.subtitles.opensubtitles-com/resources/lib/matcher.py) - Match scoring and display badge formatter (`get_match_display_tag`).

@@ -45,7 +45,7 @@ msgid "Unexpected error while searching for subtitles."
 msgstr ""
 
 msgctxt "#32010"
-msgid "Test Connection"
+msgid "[ TEST CONNECTION ]"
 msgstr ""
 
 msgctxt "#32011"
@@ -125,7 +125,7 @@ msgid "Search cache cleared successfully."
 msgstr ""
 
 msgctxt "#32219"
-msgid "Version 1.0.16 (Click to check for updates)"
+msgid "Version 2.0.0 (Click to check for updates)"
 msgstr ""
 
 msgctxt "#32220"
@@ -166,4 +166,92 @@ msgstr ""
 
 msgctxt "#32250"
 msgid "Test Interceptor: Inject sample flag subtitles in searches"
+msgstr ""
+
+msgctxt "#32251"
+msgid "OpenSubtitles.com account"
+msgstr ""
+
+msgctxt "#32252"
+msgid "Sign in to download subtitles: add your username and password in the add-on settings."
+msgstr ""
+
+msgctxt "#32253"
+msgid "Wrong username or password. Please update them in the add-on settings."
+msgstr ""
+
+msgctxt "#32254"
+msgid "Use your OpenSubtitles.com username, not your email address."
+msgstr ""
+
+msgctxt "#32255"
+msgid "Signed in to OpenSubtitles.com"
+msgstr ""
+
+msgctxt "#32256"
+msgid "Update last checked"
+msgstr ""
+
+msgctxt "#32257"
+msgid "New version available"
+msgstr ""
+
+msgctxt "#32258"
+msgid "Register"
+msgstr ""
+
+msgctxt "#32259"
+msgid "Scan with your phone to open OpenSubtitles.com"
+msgstr ""
+
+msgctxt "#32260"
+msgid "Kodi's own 'Auto download first subtitle' is active - add-on auto-download is standing by. Disable Kodi's to get multi-language auto-download."
+msgstr ""
+
+msgctxt "#32261"
+msgid "Test: Preview rating dialog 5 seconds into playback"
+msgstr ""
+
+msgctxt "#32262"
+msgid "Development"
+msgstr ""
+
+msgctxt "#32263"
+msgid "Test: Auto-upload subtitles (dry run - logs eligibility only)"
+msgstr ""
+
+msgctxt "#32264"
+msgid "Account: Free - Buy VIP"
+msgstr ""
+
+msgctxt "#32265"
+msgid "AI Credits"
+msgstr ""
+
+msgctxt "#32266"
+msgid "Buy AI credits"
+msgstr ""
+
+msgctxt "#32267"
+msgid "Select a credit package"
+msgstr ""
+
+msgctxt "#32268"
+msgid "Test: Disable caches (adds nocache=1 to API searches)"
+msgstr ""
+
+msgctxt "#32269"
+msgid "Test: Disable title-search fallback (id/hash searches only)"
+msgstr ""
+
+msgctxt "#32270"
+msgid "Test: Show executed search as first result row"
+msgstr ""
+
+msgctxt "#32271"
+msgid "Test: Override subtitle language (all searches)"
+msgstr ""
+
+msgctxt "#32272"
+msgid "This subtitle is an on-demand AI translation and needs AI credits - your balance is 0. Use 'Buy AI credits' in the add-on settings, then try again."
 msgstr ""

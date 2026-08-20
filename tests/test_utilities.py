@@ -37,3 +37,22 @@ def test_account_status_24h_expiration_expired():
     
     status = check_and_get_account_status()
     assert "Expired (>24h)" in status
+
+
+def test_single_user_agent_policy():
+    """One UA everywhere: 'Opensubtitles.com Kodi plugin v<version>' (v2.0.0 policy)."""
+    from resources.lib.utilities import get_user_agent
+
+    ua = get_user_agent()
+    assert ua.startswith("Opensubtitles.com Kodi plugin v")
+
+    # No file may define its own User-Agent string anymore
+    import pathlib
+    offenders = []
+    for path in pathlib.Path(".").rglob("*.py"):
+        if "tests" in path.parts or "scratchpad" in str(path):
+            continue
+        for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if "User-Agent" in line and "get_user_agent()" not in line and '"""' not in line:
+                offenders.append(f"{path}:{n}")
+    assert not offenders, f"hardcoded User-Agent found: {offenders}"

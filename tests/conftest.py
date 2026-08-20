@@ -46,6 +46,15 @@ class MockPlayer:
     def onPlayBackEnded(self):
         pass
 
+    def getPlayingFile(self):
+        return ""
+
+    def getTotalTime(self):
+        return 0.0
+
+    def isPlayingVideo(self):
+        return False
+
 
 # Create mock objects for Kodi C-extension modules before any resources are imported
 if "xbmc" not in sys.modules:
@@ -57,6 +66,7 @@ if "xbmc" not in sys.modules:
     xbmc_mock.LOGFATAL = 4
     xbmc_mock.log = MagicMock()
     xbmc_mock.getInfoLabel = MagicMock(return_value="")
+    xbmc_mock.getCondVisibility = MagicMock(return_value=False)
     xbmc_mock.executebuiltin = MagicMock()
     xbmc_mock.Monitor = MockMonitor
     xbmc_mock.Player = MockPlayer

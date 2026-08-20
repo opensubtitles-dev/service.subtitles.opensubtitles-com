@@ -13,6 +13,8 @@ import zipfile
 import hashlib
 import xml.etree.ElementTree as ET
 
+from release_lib import strip_development_settings
+
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 OUTPUT_DIR = os.path.join(REPO_ROOT, "repo_output")
 ZIPS_DIR = os.path.join(OUTPUT_DIR, "zips")
@@ -56,7 +58,11 @@ def zip_directory(src_dir, target_zip, prefix="", filter_func=None):
                 if filter_func and filter_func(rel_path):
                     continue
                 archive_name = os.path.join(prefix, rel_path) if prefix else rel_path
-                zf.write(full_path, archive_name)
+                if rel_path.replace(os.sep, "/") == "resources/settings.xml":
+                    with open(full_path, "r", encoding="utf-8") as fh:
+                        zf.writestr(archive_name, strip_development_settings(fh.read()))
+                else:
+                    zf.write(full_path, archive_name)
 
 def generate_checksums(file_path):
     with open(file_path, "rb") as f:

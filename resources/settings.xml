@@ -24,6 +24,14 @@
                         <hidden>true</hidden>
                     </control>
                 </setting>
+                <setting id="account_is_vip" type="string">
+                    <level>4</level>
+                    <default>false</default>
+                </setting>
+                <setting id="account_logged_in" type="string">
+                    <level>4</level>
+                    <default>false</default>
+                </setting>
                 <setting id="test_connection" type="action" label="32010">
                     <level>0</level>
                     <default/>
@@ -36,6 +44,19 @@
                         <data>RunScript(special://home/addons/service.subtitles.opensubtitles-com/test_connection.py)</data>
                     </control>
                 </setting>
+                <setting id="show_register_qr" type="action" label="32258">
+                    <level>0</level>
+                    <default/>
+                    <dependencies>
+                        <!-- Registration only matters while sign-in is not working:
+                             never verified, wrong password, email-as-username... -->
+                        <dependency type="visible" setting="account_logged_in" operator="is">false</dependency>
+                    </dependencies>
+                    <control type="button" format="action">
+                        <close>true</close>
+                        <data>RunScript(special://home/addons/service.subtitles.opensubtitles-com/show_qr.py, register)</data>
+                    </control>
+                </setting>
                 <setting id="account_status" type="string" label="32204">
                     <level>0</level>
                     <default>Not Verified</default>
@@ -44,9 +65,31 @@
                     </constraints>
                     <dependencies>
                         <dependency type="enable" setting="account_status" operator="is">__disabled__</dependency>
+                        <!-- One line per account state: a logged-in free user sees the
+                             combined "Free account - Buy VIP" button instead of this row -->
+                        <dependency type="visible">
+                            <or>
+                                <condition setting="account_is_vip" operator="is">true</condition>
+                                <condition setting="account_logged_in" operator="is">false</condition>
+                            </or>
+                        </dependency>
                     </dependencies>
                     <control type="edit" format="string">
                         <heading>32204</heading>
+                    </control>
+                </setting>
+                <setting id="show_vip_qr" type="action" label="32264">
+                    <level>0</level>
+                    <default/>
+                    <dependencies>
+                        <!-- The single account line for logged-in free users:
+                             status and upsell combined, click shows the VIP QR -->
+                        <dependency type="visible" setting="account_is_vip" operator="is">false</dependency>
+                        <dependency type="visible" setting="account_logged_in" operator="is">true</dependency>
+                    </dependencies>
+                    <control type="button" format="action">
+                        <close>true</close>
+                        <data>RunScript(special://home/addons/service.subtitles.opensubtitles-com/show_qr.py, vip)</data>
                     </control>
                 </setting>
                 <setting id="account_details" type="string" label="32205">
@@ -56,10 +99,29 @@
                         <allowempty>true</allowempty>
                     </constraints>
                     <dependencies>
+                        <dependency type="visible" setting="account_logged_in" operator="is">true</dependency>
                         <dependency type="enable" setting="account_details" operator="is">__disabled__</dependency>
                     </dependencies>
                     <control type="edit" format="string">
                         <heading>32205</heading>
+                    </control>
+                </setting>
+                <setting id="ai_credits" type="string" label="32265">
+                    <level>0</level>
+                    <default>Sign in to view</default>
+                    <constraints>
+                        <allowempty>true</allowempty>
+                    </constraints>
+                    <dependencies>
+                        <dependency type="visible" setting="account_logged_in" operator="is">true</dependency>
+                    </dependencies>
+                    <!-- One line: label left, credits + [ BUY ] hint right, click runs
+                         the purchase flow. A string setting with a button/action
+                         control shows its VALUE and stays clickable - the pattern
+                         that merges a read-only row and a button into one. -->
+                    <control type="button" format="action">
+                        <close>true</close>
+                        <data>RunScript(special://home/addons/service.subtitles.opensubtitles-com/buy_credits.py)</data>
                     </control>
                 </setting>
                 <setting id="account_checked_at" type="string" label="32206">
@@ -69,6 +131,7 @@
                         <allowempty>true</allowempty>
                     </constraints>
                     <dependencies>
+                        <dependency type="visible" setting="account_logged_in" operator="is">true</dependency>
                         <dependency type="enable" setting="account_checked_at" operator="is">__disabled__</dependency>
                     </dependencies>
                     <control type="edit" format="string">
@@ -78,6 +141,20 @@
                 <setting id="account_verified_at" type="string">
                     <level>4</level>
                     <default>0</default>
+                </setting>
+                <setting id="account_credentials_fingerprint" type="string">
+                    <level>4</level>
+                    <default></default>
+                    <constraints>
+                        <allowempty>true</allowempty>
+                    </constraints>
+                </setting>
+                <setting id="account_alert_state" type="string">
+                    <level>4</level>
+                    <default></default>
+                    <constraints>
+                        <allowempty>true</allowempty>
+                    </constraints>
                 </setting>
                 <setting id="APIKey" type="string">
                     <level>4</level>
@@ -157,14 +234,6 @@
                     <default>false</default>
                     <control type="toggle" />
                 </setting>
-                <setting id="auto_download_notify" type="boolean" label="32242">
-                    <level>0</level>
-                    <default>true</default>
-                    <dependencies>
-                        <dependency type="enable" setting="auto_download" operator="is">true</dependency>
-                    </dependencies>
-                    <control type="toggle" />
-                </setting>
                 <setting id="prompt_rating" type="boolean" label="32243">
                     <level>0</level>
                     <default>false</default>
@@ -174,10 +243,22 @@
         </category>
         <category id="debug" label="32103">
             <group id="1">
-                <setting id="test_flag_interceptor" type="boolean" label="32250">
+                <setting id="update_last_checked" type="string" label="32256">
                     <level>3</level>
-                    <default>true</default>
-                    <control type="toggle" />
+                    <default>Not yet checked</default>
+                    <constraints>
+                        <allowempty>true</allowempty>
+                    </constraints>
+                    <dependencies>
+                        <dependency type="enable" setting="update_last_checked" operator="is">__disabled__</dependency>
+                    </dependencies>
+                    <control type="edit" format="string">
+                        <heading>32256</heading>
+                    </control>
+                </setting>
+                <setting id="update_checked_at" type="string">
+                    <level>4</level>
+                    <default>0</default>
                 </setting>
                 <setting id="addon_version" type="action" label="32219">
                     <level>3</level>
@@ -216,6 +297,62 @@
                     <control type="button" format="action">
                         <close>true</close>
                         <data>RunScript(special://home/addons/service.subtitles.opensubtitles-com/clear_cache.py)</data>
+                    </control>
+                </setting>
+            </group>
+        </category>
+        <category id="development" label="32262">
+            <group id="1">
+                <setting id="test_flag_interceptor" type="boolean" label="32250">
+                    <level>3</level>
+                    <default>false</default>
+                    <control type="toggle" />
+                </setting>
+                <setting id="test_rating_preview" type="boolean" label="32261">
+                    <level>3</level>
+                    <default>false</default>
+                    <control type="toggle" />
+                </setting>
+                <setting id="auto_upload_subtitles" type="boolean" label="32263">
+                    <level>3</level>
+                    <default>false</default>
+                    <control type="toggle" />
+                </setting>
+                <setting id="test_nocache" type="boolean" label="32268">
+                    <level>3</level>
+                    <default>false</default>
+                    <control type="toggle" />
+                </setting>
+                <setting id="test_disable_query_fallback" type="boolean" label="32269">
+                    <level>3</level>
+                    <default>false</default>
+                    <control type="toggle" />
+                </setting>
+                <setting id="test_show_search_debug" type="boolean" label="32270">
+                    <level>3</level>
+                    <default>false</default>
+                    <control type="toggle" />
+                </setting>
+                <setting id="test_override_language" type="string" label="32271">
+                    <level>3</level>
+                    <default>off</default>
+                    <constraints>
+                        <!-- Every option MUST carry a non-empty value: an empty
+                             <option></option> is a null-text dereference in Kodi's
+                             CSettingString::Deserialize - hard SIGSEGV at startup
+                             (crashed live 2026-08-20, Kodi-...-004109.ips). -->
+                        <options>
+                            <option label="off">off</option>
+                            <option label="Czech">cs</option>
+                            <option label="Slovak">sk</option>
+                            <option label="Slovenian">sl</option>
+                            <option label="Polish">pl</option>
+                            <option label="German">de</option>
+                            <option label="Russian">ru</option>
+                        </options>
+                    </constraints>
+                    <control type="list" format="string">
+                        <heading>32271</heading>
                     </control>
                 </setting>
             </group>

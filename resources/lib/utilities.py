@@ -13,6 +13,25 @@ __addon_name__ = __addon__.getAddonInfo("name")
 __language__ = __addon__.getLocalizedString
 
 
+def get_language_override():
+    """Dev toggle: force one subtitle language for every search.
+
+    Returns an ISO 639-1 code or "" (off). Saves switching Kodi's own language
+    settings for each test round. Stripped from release builds.
+    """
+    code = __addon__.getSetting("test_override_language") or ""
+    return code if code in ("cs", "sk", "sl", "pl", "de", "ru") else ""
+
+
+def get_user_agent():
+    """The ONE User-Agent for every outbound request (API, guessit, GitHub).
+
+    Policy since v2.0.0: a single identity everywhere -
+    "Opensubtitles.com Kodi plugin v<version>".
+    """
+    return f"Opensubtitles.com Kodi plugin v{__addon__.getAddonInfo('version')}"
+
+
 def log(module, msg):
     xbmc.log(f"### [{__addon_name__}:{module}] - {msg}", level=xbmc.LOGDEBUG)
 
@@ -29,7 +48,7 @@ def error(module, msg_id=None, msg="", detail=""):
     if msg_id:
         dialog_msg = f"{__language__(2103)}\n{__language__(msg_id)}"
         if detail:
-            dialog_msg += f"\n\n[I]{detail}[/I]"
+            dialog_msg += f"\n[I]{detail}[/I]"
         xbmcgui.Dialog().ok(__addon_name__, dialog_msg)
 
 

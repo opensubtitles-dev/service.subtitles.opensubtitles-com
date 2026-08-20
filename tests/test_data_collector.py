@@ -52,3 +52,40 @@ def test_call_guessit_api_caching():
         res2 = _call_guessit_api("Parasite.2019.1080p.BluRay.mkv")
         assert res2["title"] == "Parasite"
         assert mock_urlopen.call_count == 1
+
+
+def test_language_override_forces_single_language():
+    import xbmcaddon
+    from resources.lib.data_collector import get_language_data
+
+    addon = xbmcaddon.Addon()
+    addon.setSetting("test_override_language", "sk")
+    try:
+        data = get_language_data({"languages": "English,Czech", "preferredlanguage": "German"})
+        assert data["languages"] == "sk"
+    finally:
+        addon.setSetting("test_override_language", "")
+
+
+def test_override_rejects_unknown_codes():
+    import xbmcaddon
+    from resources.lib.utilities import get_language_override
+
+    addon = xbmcaddon.Addon()
+    addon.setSetting("test_override_language", "xx")
+    try:
+        assert get_language_override() == ""
+    finally:
+        addon.setSetting("test_override_language", "")
+
+
+def test_preferred_language_is_converted_not_seeded_raw():
+    """Regression: wire carried ',English,cs,sk' - leading comma + raw English name."""
+    from resources.lib.data_collector import get_language_data
+
+    data = get_language_data({"languages": "Czech,Slovak", "preferredlanguage": "English"})
+
+    assert not data["languages"].startswith(","), "leading comma leaked again"
+    assert "English" not in data["languages"], "raw language name leaked again"
+    parts = data["languages"].split(",")
+    assert "en" in parts and "cs" in parts and "sk" in parts

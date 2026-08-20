@@ -6,7 +6,7 @@ import xml.etree.ElementTree as ET
 import xbmc
 import xbmcaddon
 
-from resources.lib.utilities import log, normalize_string
+from resources.lib.utilities import log, normalize_string, get_user_agent, get_language_override
 
 # Simple cache for library queries to avoid repeated calls
 _library_cache = {}
@@ -348,7 +348,7 @@ def _call_guessit_api(filename):
         # Create request with headers
         req = urllib.request.Request(url)
         req.add_header("Api-Key", api_key)
-        req.add_header("User-Agent", f"service.subtitles.opensubtitles-com v{__addon__.getAddonInfo('version')}")
+        req.add_header("User-Agent", get_user_agent())
         req.add_header("Accept", "application/json")
 
         log(__name__, f"🔍 Calling guessit API for: {clean_filename}")
@@ -839,13 +839,28 @@ def is_kodi_hearing_impaired_preferred():
 
 
 def get_language_data(params):
+    # Dev override: one forced language beats everything Kodi passed in.
+    # Already an ISO code - no name conversion needed, return directly.
+    override = get_language_override()
+    if override:
+        log(__name__, f"DEV language override active: searching '{override}' only")
+        hi_override = __addon__.getSetting("hearing_impaired")
+        return {
+            "hearing_impaired": hi_override or "exclude",
+            "foreign_parts_only": __addon__.getSetting("foreign_parts_only"),
+            "machine_translated": __addon__.getSetting("machine_translated"),
+            "ai_translated": __addon__.getSetting("ai_translated"),
+            "languages": override,
+        }
+
     search_languages = unquote(params.get("languages")).split(",")
     search_languages_str = ""
     preferred_language = params.get("preferredlanguage")
 
     if preferred_language and preferred_language not in search_languages and preferred_language != "Unknown" and preferred_language != "Undetermined":
+        # Only queue the name for conversion below - seeding the string with the
+        # raw English name produced ",English,cs,sk" on the wire (bug, 2026-08-19).
         search_languages.append(preferred_language)
-        search_languages_str = search_languages_str + "," + preferred_language
 
     for language in search_languages:
         lang = convert_language(language)

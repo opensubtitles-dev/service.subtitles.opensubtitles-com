@@ -1,3 +1,23 @@
+v2.0.0 (2026-08-19)
+NEW GENERATION RELEASE - rebuilt around the background service
+- added multi-language auto-download: top-ranked subtitle for every preferred Kodi subtitle language; primary plays, others selectable in the stream list
+- added subtitle storage honoring Kodi's own settings (movie folder / custom path / temp) with Kodi-convention naming (<video>.<lang>.srt) so future plays auto-detect them
+- added post-playback rating dialog: 1-5 stars (bad/poor/okay/good/excellent) plus in-sync yes/no, submitted with subtitle_id over JWT (endpoint PROPOSED)
+- added background account status refresh with actionable alerts (missing credentials, wrong password, email-as-username) - transient server errors stay silent
+- added sign-in confirmation on newly entered credentials; repeated-nag protection via credential fingerprint (SHA-256, no plaintext stored)
+- added daily silent update check with read-only "Update last checked" row; schedule stamp in its own race-free state file
+- added QR code dialog (zero-dependency PNG renderer) with registration link from settings
+- added detection of Kodi's native "Auto download first subtitle": add-on stands down to avoid double downloads and quota burn
+- added AI/machine translation ranking penalty: human translations outrank AI (-3500) and machine (-5000) uploads
+- added Development settings tab (Expert-only, last): mock search interceptor and rating dialog preview
+- added subtitle delay + watched-position sampling during playback (groundwork for community auto-upload)
+- changed [Trusted] badge to green bold check mark; all UI glyphs verified against Kodi font matrix
+- changed User-Agent unified everywhere to "Opensubtitles.com Kodi plugin v<version>"
+- fixed settings-write race between service threads reverting each other's values
+- fixed xbmcvfs.copy failures on local paths (direct-write fallback with real error logging)
+- fixed release ZIP missing service_monitor.py and check_updates.py
+- docs: Kodi API internals reference (plugin contract from Kodi C++ source, Player/Monitor semantics, JSON-RPC), glyph compatibility matrix, auto-download comparison
+
 
 v1.0.15 (2026-08-18)
 - added Smart Subtitle Matcher and precision ranking engine comparing video filename and Guessit metadata with release groups, sources, and cuts

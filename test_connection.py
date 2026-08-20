@@ -14,10 +14,27 @@ from resources.lib.exceptions import (
     TooManyRequests,
 )
 from resources.lib.osclient.provider import OpenSubtitlesProvider
+from resources.lib.account_state import save_account_state
 
 __addon__ = xbmcaddon.Addon("service.subtitles.opensubtitles-com")
 __addon_name__ = __addon__.getAddonInfo("name")
 __language__ = __addon__.getLocalizedString
+
+
+def _mark_not_logged_in():
+    """Data rows hide and Register reappears; credits are never shown stale."""
+    __addon__.setSetting("account_logged_in", "false")
+    __addon__.setSetting("account_is_vip", "false")
+    __addon__.setSetting("ai_credits", "Sign in to view")
+    save_account_state({
+        "account_status": __addon__.getSetting("account_status"),
+        "account_details": __addon__.getSetting("account_details"),
+        "account_checked_at": __addon__.getSetting("account_checked_at"),
+        "account_verified_at": "0",
+        "account_logged_in": "false",
+        "account_is_vip": "false",
+        "ai_credits": "Sign in to view",
+    })
 
 
 def test_connection():
@@ -28,6 +45,7 @@ def test_connection():
 
     if not username or not password:
         __addon__.setSetting("account_status", "Not Verified (Missing credentials)")
+        _mark_not_logged_in()
         __addon__.setSetting("account_details", "Please enter username and password")
         __addon__.setSetting("account_checked_at", now_str)
         __addon__.setSetting("account_verified_at", "0")
@@ -40,13 +58,15 @@ def test_connection():
         user_info = provider.get_user_info()
     except AuthenticationError as e:
         __addon__.setSetting("account_status", "Error 401 (Invalid credentials)")
+        _mark_not_logged_in()
         __addon__.setSetting("account_details", "Check username and password")
         __addon__.setSetting("account_checked_at", now_str)
         __addon__.setSetting("account_verified_at", "0")
-        xbmcgui.Dialog().ok(__addon_name__, f"{__language__(32003)}\n\n[I]{e}[/I]")
+        xbmcgui.Dialog().ok(__addon_name__, __language__(32003))
         return
     except BadUsernameError as e:
         __addon__.setSetting("account_status", "Error 400 (Bad username)")
+        _mark_not_logged_in()
         __addon__.setSetting("account_details", "Use username, not email address")
         __addon__.setSetting("account_checked_at", now_str)
         __addon__.setSetting("account_verified_at", "0")
@@ -57,14 +77,14 @@ def test_connection():
         __addon__.setSetting("account_details", "Please wait before trying again")
         __addon__.setSetting("account_checked_at", now_str)
         __addon__.setSetting("account_verified_at", "0")
-        xbmcgui.Dialog().ok(__addon_name__, f"{__language__(32007)}\n\n[I]{e}[/I]")
+        xbmcgui.Dialog().ok(__addon_name__, f"{__language__(32007)}\n[I]{e}[/I]")
         return
     except ServiceUnavailable as e:
         __addon__.setSetting("account_status", "Error (Server/Network issue)")
         __addon__.setSetting("account_details", "OpenSubtitles.com is currently unreachable")
         __addon__.setSetting("account_checked_at", now_str)
         __addon__.setSetting("account_verified_at", "0")
-        xbmcgui.Dialog().ok(__addon_name__, f"{__language__(32008)}\n\n[I]{e}[/I]")
+        xbmcgui.Dialog().ok(__addon_name__, f"{__language__(32008)}\n[I]{e}[/I]")
         return
     except (ConfigurationError, ProviderError, RequestException) as e:
         __addon__.setSetting("account_status", "Error (Connection failed)")
@@ -84,24 +104,51 @@ def test_connection():
     allowed = user_info.get("allowed_downloads", "N/A")
     downloads_count = user_info.get("downloads_count", "N/A")
 
-    vip_badge = "VIP" if user_info.get("vip") else "Free User"
-    __addon__.setSetting("account_status", f"OK ({vip_badge})")
+    # AI credits: always fetched live here - get_ai_credits() performs a direct
+    # GET with no cache layer, so every Test Connection shows the current balance.
+    ai_credits = provider.get_ai_credits()
+
+    is_vip = bool(user_info.get("vip"))
+    __addon__.setSetting("account_status", "OK (VIP)" if is_vip else "Free account")
     __addon__.setSetting("account_details", f"Quota: {remaining}/{allowed} left | Level: {level}")
     __addon__.setSetting("account_checked_at", now_str)
     __addon__.setSetting("account_verified_at", str(now_epoch))
+    __addon__.setSetting("account_logged_in", "true")
+    __addon__.setSetting("account_is_vip", "true" if is_vip else "false")
+    # Value renders right-aligned on the clickable row: "460  [ BUY AI CREDITS ]"
+    __addon__.setSetting("ai_credits",
+                         f"{ai_credits}  [ BUY AI CREDITS ]" if isinstance(ai_credits, int) else "Unavailable")
+
+    # Authoritative copy: settings values can be reverted by any settings-dialog
+    # snapshot save (Kodi keeps the pre-script model alive across RunScript);
+    # the service reconciles settings from this file whenever that happens.
+    save_account_state({
+        "account_status": "OK (VIP)" if is_vip else "Free account",
+        "account_details": f"Quota: {remaining}/{allowed} left | Level: {level}",
+        "account_checked_at": now_str,
+        "account_verified_at": str(now_epoch),
+        "account_logged_in": "true",
+        "account_is_vip": "true" if is_vip else "false",
+        "ai_credits": __addon__.getSetting("ai_credits"),
+    })
 
     version = __addon__.getAddonInfo("version")
+    # Compact on purpose: the ok-dialog shows ~3 lines before it scrolls and
+    # cannot be resized (skin-owned). Heading carries the add-on + version;
+    # body = the three facts that matter. "Remaining" is implied by X / Y.
+    credits_part = f"\nAI Credits: [B]{ai_credits}[/B]" if isinstance(ai_credits, int) else ""
     info_text = (
-        f"Username: {username}\n"
-        f"Level: {level}  |  VIP: {vip}\n"
-        f"Downloads today: {downloads_count} / {allowed}\n"
-        f"Remaining downloads: {remaining}"
+        f"Username: [B]{username}[/B]  |  VIP: [B]{'Yes' if user_info.get('vip') else 'No'}[/B]\n"
+        f"Downloads today: [B]{downloads_count} / {allowed}[/B]"
+        f"{credits_part}"
     )
 
     xbmcgui.Dialog().ok(f"{__addon_name__} v{version}", info_text)
 
 
 if __name__ == "__main__":
+    # Single writer by design (v2.0.0): this script is the ONLY place account_*
+    # settings are written. The background service never touches them.
     try:
         test_connection()
     finally:

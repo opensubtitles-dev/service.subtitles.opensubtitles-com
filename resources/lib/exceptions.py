@@ -32,3 +32,7 @@ class TooManyRequests(ProviderError):
 class BadUsernameError(ProviderError):
     """Exception raised by providers when user entered the email instead of the username in the username field."""
     pass
+
+class AICreditsExhausted(DownloadLimitExceeded):
+    """Raised when an AI-translated subtitle needs credits and the balance is zero."""
+    pass

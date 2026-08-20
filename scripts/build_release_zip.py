@@ -8,6 +8,8 @@ import os
 import re
 import sys
 import zipfile
+
+from release_lib import strip_development_settings
 import xml.etree.ElementTree as ET
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -16,7 +18,11 @@ REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 INCLUDE_ENTRIES = {
     "addon.xml",
     "service.py",
+    "service_monitor.py",
     "test_connection.py",
+    "check_updates.py",
+    "show_qr.py",
+    "buy_credits.py",
     "clear_cache.py",
     "resources",
     "icon.png",
@@ -107,8 +113,13 @@ def build_zip():
                             continue
 
                         arcname = f"{addon_id}/{rel_path}"
-                        zipf.write(full_path, arcname)
-                        print(f"  + {arcname}")
+                        if rel_path.replace(os.sep, "/") == "resources/settings.xml":
+                            with open(full_path, "r", encoding="utf-8") as f:
+                                zipf.writestr(arcname, strip_development_settings(f.read()))
+                            print(f"  + {arcname} (Development settings stripped)")
+                        else:
+                            zipf.write(full_path, arcname)
+                            print(f"  + {arcname}")
 
     zip_size_kb = os.path.getsize(zip_path) / 1024
     print(f"\n Successfully built: {zip_path} ({zip_size_kb:.1f} KB)")

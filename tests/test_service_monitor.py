@@ -5,6 +5,7 @@ import xbmcgui
 import time
 import os
 
+import service_monitor
 from service_monitor import (
     OpenSubtitlesMonitor,
     OpenSubtitlesPlayer,
@@ -15,21 +16,24 @@ from service_monitor import (
 def test_monitor_settings_changed():
     player = MagicMock()
     monitor = OpenSubtitlesMonitor(player)
-    monitor.onSettingsChanged()
+    with patch("service_monitor.threading.Thread") as thread:
+        monitor.onSettingsChanged()
     player.reload_settings.assert_called_once()
+    # Only the read-only display reconciler may be spawned - never a validator
+    # that would hit the API (Test Connection is the single credential writer).
+    assert thread.call_count == 1
+    assert thread.call_args.kwargs["target"] is service_monitor._reconcile_account_display
 
 
 def test_player_reload_settings():
     addon = xbmcaddon.Addon()
     addon.setSetting("auto_download", "true")
-    addon.setSetting("auto_download_notify", "false")
     addon.setSetting("prompt_rating", "true")
 
     player = OpenSubtitlesPlayer()
     player.reload_settings()
 
     assert player.auto_download_enabled is True
-    assert player.auto_download_notify is False
     assert player.prompt_rating_enabled is True
 
 
@@ -48,7 +52,6 @@ def test_player_av_started_auto_download_disabled():
 def test_player_av_started_auto_download_success(tmp_path):
     addon = xbmcaddon.Addon()
     addon.setSetting("auto_download", "true")
-    addon.setSetting("auto_download_notify", "true")
     addon.setSetting("OSuser", "testuser")
     addon.setSetting("OSpass", "testpass")
     addon.setSetting("APIKey", "testkey")
@@ -81,12 +84,18 @@ def test_player_av_started_auto_download_success(tmp_path):
 
     temp_sub_dir = str(tmp_path)
     mock_dialog_inst = MagicMock()
+
+    def sync_thread(target=None, args=(), kwargs=None, daemon=True):
+        target(*args, **(kwargs or {}))
+        return MagicMock()
+
     with patch("service_monitor.get_media_data", return_value=mock_media), \
          patch("service_monitor.get_file_path", return_value="/movies/Inception.2010.1080p.mkv"), \
          patch("service_monitor.OpenSubtitlesProvider.search_subtitles", return_value=mock_subs), \
          patch("service_monitor.OpenSubtitlesProvider.download_subtitle", return_value=mock_download_res), \
          patch("xbmcvfs.translatePath", return_value=temp_sub_dir), \
-         patch("xbmcgui.Dialog", return_value=mock_dialog_inst):
+         patch("xbmcgui.Dialog", return_value=mock_dialog_inst), \
+         patch("service_monitor.threading.Thread", side_effect=sync_thread):
 
         player.onAVStarted()
 
@@ -116,22 +125,23 @@ def test_player_playback_ended_rating_prompt():
     }
 
     mock_dialog_inst = MagicMock()
-    mock_dialog_inst.yesno.return_value = True
+    mock_dialog_inst.select.return_value = 3       # "4 - Good"
+    mock_dialog_inst.yesnocustom.return_value = 1  # sync: Yes
+
+    def sync_thread_exec(target=None, args=(), kwargs=None, daemon=True):
+        target(*args, **(kwargs or {}))
+        return MagicMock()
 
     with patch("xbmcgui.Dialog", return_value=mock_dialog_inst), \
-         patch("service_monitor.OpenSubtitlesProvider.vote_subtitle", return_value=True) as mock_vote, \
-         patch("threading.Thread") as mock_thread:
-
-        def sync_thread_exec(target, daemon=True):
-            target()
-            return MagicMock()
-
-        mock_thread.side_effect = sync_thread_exec
+         patch("service_monitor.OpenSubtitlesProvider.rate_subtitle", return_value=True) as mock_rate, \
+         patch("threading.Thread", side_effect=sync_thread_exec):
 
         player.onPlayBackEnded()
 
-        mock_dialog_inst.yesno.assert_called_once()
-        mock_vote.assert_called_once_with(12345, 5)
+        mock_dialog_inst.select.assert_called_once()
+        labels = mock_dialog_inst.select.call_args[0][1]
+        assert len(labels) == 5 and labels[0].endswith("1 - Bad") and labels[4].endswith("5 - Excellent")
+        mock_rate.assert_called_once_with("sub_1", 4, sync=True)
         mock_dialog_inst.notification.assert_called_once()
         assert player.active_session is None
 
@@ -144,39 +154,53 @@ def test_service_shutdown_graceful():
         run_service()
 
 
-def test_check_and_refresh_account_status_success():
-    from service_monitor import check_and_refresh_account_status
+
+
+def test_rating_preview_shows_dialog_5s_into_playback_in_dev_mode():
+    """test_flag_interceptor ON -> rating dialog preview fires after playback start."""
+    import service_monitor
     addon = xbmcaddon.Addon()
-    addon.setSetting("OSuser", "testuser")
-    addon.setSetting("OSpass", "testpass")
-    addon.setSetting("APIKey", "testkey")
-    addon.setSetting("account_verified_at", "0") # Stale
+    addon.setSetting("test_flag_interceptor", "true")
+    addon.setSetting("auto_download", "false")
 
-    mock_user_info = {
-        "level": "VIP Member",
-        "vip": True,
-        "remaining_downloads": 995,
-        "allowed_downloads": 1000,
-        "downloads_count": 5
-    }
+    player = OpenSubtitlesPlayer()
+    player.isPlayingVideo = MagicMock(return_value=True)
+    player.monitor = MagicMock()
+    player.monitor.waitForAbort.return_value = False  # 5s elapse without abort
 
-    with patch("service_monitor.OpenSubtitlesProvider.login"), \
-         patch("service_monitor.OpenSubtitlesProvider.get_user_info", return_value=mock_user_info):
-        check_and_refresh_account_status(force=True)
+    dialog = MagicMock()
+    dialog.select.return_value = 4       # 5 - Excellent
+    dialog.yesnocustom.return_value = 1  # sync: Yes
 
-        assert addon.getSetting("account_status") == "OK (VIP)"
-        assert "995/1000" in addon.getSetting("account_details")
-        assert addon.getSetting("account_verified_at") != "0"
+    def sync_thread(target=None, args=(), kwargs=None, daemon=True):
+        target(*args, **(kwargs or {}))
+        return MagicMock()
+
+    with patch("service_monitor.xbmcgui.Dialog", return_value=dialog), \
+         patch("service_monitor.OpenSubtitlesProvider.rate_subtitle") as rate, \
+         patch("service_monitor.threading.Thread", side_effect=sync_thread):
+        player.onAVStarted()
+
+    player.monitor.waitForAbort.assert_called_with(5)
+    dialog.select.assert_called_once()               # the rating list appeared
+    assert "Preview" in dialog.select.call_args[0][0]
+    dialog.yesnocustom.assert_called_once()          # the sync question appeared
+    rate.assert_not_called()                          # preview never submits
+    addon.setSetting("test_flag_interceptor", "")     # don't leak into other tests
 
 
-def test_check_and_refresh_account_status_missing_credentials():
-    from service_monitor import check_and_refresh_account_status
+def test_dialog_snapshot_revert_is_reconciled_from_state_file():
+    """Regression: OK dialog save reverted a passed Test Connection to stale 401."""
+    import service_monitor
     addon = xbmcaddon.Addon()
-    addon.setSetting("OSuser", "")
-    addon.setSetting("OSpass", "")
-    addon.setSetting("APIKey", "testkey")
+    addon.setSetting("account_status", "Error 401 (Invalid credentials)")  # the revert
+    addon.setSetting("account_logged_in", "false")
 
-    with patch("service_monitor.OpenSubtitlesProvider.login") as mock_login:
-        check_and_refresh_account_status()
-        mock_login.assert_not_called()
+    truth = {"account_status": "OK (VIP)", "account_logged_in": "true", "ai_credits": "460"}
+    with patch("service_monitor.load_account_state", return_value=truth), \
+         patch("service_monitor.xbmc.getCondVisibility", return_value=False):
+        service_monitor._reconcile_account_display()
 
+    assert addon.getSetting("account_status") == "OK (VIP)"
+    assert addon.getSetting("account_logged_in") == "true"
+    assert addon.getSetting("ai_credits") == "460"

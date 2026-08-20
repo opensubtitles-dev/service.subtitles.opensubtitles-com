@@ -14,9 +14,9 @@ import xbmcvfs
 from resources.lib.data_collector import get_language_data, get_media_data, get_file_path, convert_language, \
     clean_feature_release_name, get_flag, _call_guessit_api
 from resources.lib.exceptions import AuthenticationError, ConfigurationError, DownloadLimitExceeded, ProviderError, \
-    ServiceUnavailable, TooManyRequests, BadUsernameError
+    ServiceUnavailable, TooManyRequests, BadUsernameError, AICreditsExhausted
 from resources.lib.file_operations import get_file_data
-from resources.lib.matcher import rank_subtitles, get_match_display_tag
+from resources.lib.matcher import rank_subtitles, get_match_display_tag, is_on_demand_translation
 from resources.lib.osclient.provider import OpenSubtitlesProvider
 from resources.lib.utilities import get_params, log, error
 
@@ -48,6 +48,108 @@ def clean_temp_directory():
 
 # Run initial cleanup on load
 clean_temp_directory()
+
+
+# ---------------------------------------------------------------------------
+# Glyph rendering test harness (enabled by the test_flag_interceptor setting)
+#
+# Kodi's default fonts carry no emoji and only part of the symbol blocks, so any
+# glyph used in a list label has to be seen on screen before it ships. Each row
+# below prints its glyphs next to their codepoints, so a blank rectangle names
+# the character that failed. Rows render in this order: OK first (a known-good
+# baseline to judge a font or skin change against), TRY next (untested), FAIL
+# last (already known bad - kept so a different font can be re-checked).
+#
+# Confirmed results belong in docs/kodi_ui_font_compatibility.md.
+# Format: (tier tag, Kodi color, [(glyph, codepoint), ...])
+# ---------------------------------------------------------------------------
+GLYPH_TEST_ROWS = [
+    # -- Confirmed rendering (Estuary, Default fonts) -----------------------
+    ("OK", "green", [("√", "221A"), ("★", "2605"), ("☆", "2606"), ("●", "25CF"), ("○", "25CB")]),
+    ("OK", "green", [("■", "25A0"), ("▪", "25AA"), ("▫", "25AB"), ("▬", "25AC"), ("▲", "25B2"), ("▼", "25BC")]),
+    ("OK", "green", [("►", "25BA"), ("◄", "25C4"), ("◘", "25D8"), ("◙", "25D9"), ("•", "2022")]),
+    ("OK", "green", [("←", "2190"), ("↑", "2191"), ("→", "2192"), ("↓", "2193"), ("↔", "2194")]),
+    ("OK", "green", [("│", "2502"), ("─", "2500"), ("═", "2550"), ("║", "2551"), ("‖", "2016"), ("¦", "00A6")]),
+    ("OK", "green", [("░", "2591"), ("▒", "2592"), ("▓", "2593"), ("█", "2588"), ("▌", "258C")]),
+    ("OK", "green", [("»", "00BB"), ("‹", "2039"), ("›", "203A"), ("…", "2026"), ("°", "00B0")]),
+    ("OK", "green", [("†", "2020"), ("‡", "2021"), ("‰", "2030"), ("¶", "00B6"), ("§", "00A7"), ("¤", "00A4")]),
+    ("OK", "green", [("∞", "221E"), ("≈", "2248"), ("≠", "2260"), ("±", "00B1"), ("×", "00D7"), ("÷", "00F7")]),
+    ("OK", "green", [("¬", "00AC"), ("′", "2032"), ("″", "2033"), ("™", "2122"), ("©", "00A9")]),
+    ("OK", "green", [("€", "20AC"), ("£", "00A3"), ("¥", "00A5"), ("¢", "00A2")]),
+
+    # -- Untested candidates ------------------------------------------------
+    ("TRY", "white", [("①", "2460"), ("②", "2461"), ("ⓘ", "24D8"), ("Ⓐ", "24B6"), ("⑴", "2474")]),
+    ("TRY", "white", [("–", "2013"), ("—", "2014"), ("‾", "203E"), ("«", "00AB"), ("„", "201E")]),
+    ("TRY", "white", [("¹", "00B9"), ("²", "00B2"), ("³", "00B3"), ("½", "00BD"), ("¼", "00BC"), ("¾", "00BE")]),
+    # WGL4 symbols - present in many desktop TTFs, so plausible even though the rest of
+    # Misc Symbols failed. Card suits and notes would be useful for genre / audio marks.
+    ("TRY", "white", [("☺", "263A"), ("☻", "263B"), ("☼", "263C"), ("☐", "2610"), ("⌂", "2302")]),
+    ("TRY", "white", [("♠", "2660"), ("♣", "2663"), ("♥", "2665"), ("♦", "2666"), ("♪", "266A"), ("♫", "266B")]),
+    ("TRY", "white", [("♀", "2640"), ("♂", "2642"), ("µ", "00B5"), ("∙", "2219"), ("⌐", "2310"), ("⌀", "2300")]),
+    ("TRY", "cyan", [("⇐", "21D0"), ("⇑", "21D1"), ("⇓", "21D3"), ("⇔", "21D4"), ("↕", "2195"), ("↺", "21BA")]),
+    ("TRY", "cyan", [("∆", "2206"), ("∑", "2211"), ("∏", "220F"), ("∫", "222B"), ("≤", "2264"), ("≥", "2265")]),
+    # Timing and playback marks - the semantics we would most like for sync / duration.
+    ("TRY", "cyan", [("⌛", "231B"), ("⌚", "231A"), ("⏱", "23F1"), ("⏳", "23F3"), ("⏩", "23E9"), ("⏸", "23F8")]),
+
+    # -- Known failures, kept for re-testing under other fonts / skins ------
+    ("FAIL", "red", [("✓", "2713"), ("✔", "2714"), ("☑", "2611"), ("✗", "2717"), ("✘", "2718")]),
+    ("FAIL", "red", [("✕", "2715"), ("✖", "2716"), ("☒", "2612"), ("⚠", "26A0"), ("⚡", "26A1")]),
+    ("FAIL", "red", [("✦", "2726"), ("✪", "272A"), ("❖", "2756"), ("▶", "25B6"), ("◆", "25C6")]),
+    ("FAIL", "red", [("⇒", "21D2"), ("┃", "2503"), ("┆", "2506")]),
+    # More of the same blocks: every one of these is the icon somebody eventually asks
+    # for, so they stay on screen as a standing answer rather than a memory of one.
+    ("FAIL", "red", [("☓", "2613"), ("✚", "271A"), ("✜", "271C"), ("✝", "271D"), ("✤", "2724")]),
+    ("FAIL", "red", [("➜", "279C"), ("➤", "27A4"), ("➡", "27A1"), ("✈", "2708"), ("✉", "2709"), ("✍", "270D")]),
+    ("FAIL", "red", [("⚑", "2691"), ("⚐", "2690"), ("⚓", "2693"), ("⚔", "2694"), ("⚙", "2699"), ("⛔", "26D4")]),
+    # Emoji do not just go missing: they break the [COLOR] markup around them, so the
+    # tag leaks into the label as literal text. Never put one in an on-screen string.
+    ("FAIL", "red", [("✅", "2705"), ("❌", "274C"), ("❎", "274E"), ("❗", "2757"), ("❓", "2753")]),
+    ("FAIL", "red", [("🤖", "1F916"), ("⭐", "2B50"), ("👍", "1F44D"), ("🔒", "1F512")]),
+    ("FAIL", "red", [("🎬", "1F3AC"), ("🔥", "1F525"), ("👂", "1F442"), ("🏆", "1F3C6"), ("🎯", "1F3AF")]),
+]
+
+
+# Real-world subtitle titles are not ASCII. Each entry renders as one list row so a
+# script that cannot be drawn - or is drawn backwards, as RTL text is without a
+# bi-directional shaper - shows up here instead of in a user's search results.
+CHARSET_TEST_ROWS = [
+    ("Latin diacritics", "Film.2024.Slovenske.a.Ceske.ľščťžýáíéôäňĎĹŔ.Größe.Français.Español.Português"),
+    ("Polish Hungarian Turkish", "Film.2024.Ąćęłńóśźż.Őőűű.İıĞğŞşÇç"),
+    ("Cyrillic", "Фильм.2024.Русские.Субтитры.Проверено.Ґїєњ"),
+    ("Greek", "Ταινία.2024.Ελληνικοί.Υπότιτλοι"),
+    ("Hebrew RTL", "סרט.2024.כתוביות.בעברית"),
+    ("Arabic RTL", "فيلم.2024.ترجمة.عربية"),
+    ("Chinese", "电影.2024.简体中文字幕.繁體中文字幕"),
+    ("Japanese", "映画.2024.日本語字幕.カタカナ.ひらがな.漢字"),
+    ("Korean", "영화.2024.한국어자막"),
+    ("Thai", "ภาพยนตร์.2024.คำบรรยายไทย"),
+    ("Vietnamese", "Phim.2024.Phụ.đề.tiếng.Việt.Chuẩn"),
+]
+
+
+def _mock_subtitle(sub_id, language, release, file_id, title="Movie 2024", ratings=8.0,
+                   from_trusted=False, moviehash_match=False, hearing_impaired=False,
+                   ai_translated=False, machine_translated=False, foreign_parts_only=False):
+    """One synthetic search result in the shape the provider returns."""
+    return {
+        "id": sub_id,
+        "attributes": {
+            "language": language,
+            "release": release,
+            "ratings": ratings,
+            "votes": 100,
+            "download_count": 1000,
+            "from_trusted": from_trusted,
+            "moviehash_match": moviehash_match,
+            "hearing_impaired": hearing_impaired,
+            "ai_translated": ai_translated,
+            "machine_translated": machine_translated,
+            "foreign_parts_only": foreign_parts_only,
+            "hd": True,
+            "files": [{"file_id": file_id}],
+            "feature_details": {"title": title, "movie_name": title},
+        },
+    }
 
 
 class SubtitleDownloader:
@@ -187,22 +289,20 @@ class SubtitleDownloader:
             if resolved:
                 self.query.update(resolved)
 
-        self.subtitles, searched_ok = self._search_subtitles(self.query)
-
-        for attempt in fallbacks:
-            if self.subtitles or not searched_ok:
-                break
-            retry = {**self.query, **attempt}
-            log(__name__, f"No results, retrying with: {({k: v for k, v in attempt.items() if v})}")
-            self.subtitles, searched_ok = self._search_subtitles(retry)
+        self._run_search_attempts(fallbacks)
 
         # If test flag interceptor is ON, return ONLY sample mock subtitles with flags
         test_interceptor = __addon__.getSetting("test_flag_interceptor")
         if test_interceptor and test_interceptor.lower() in ("true", "1"):
-            log(__name__, "🧪 Test Flag Interceptor is ON: returning ONLY mock flag subtitles")
+            log(__name__, "Test Flag Interceptor is ON: returning ONLY mock glyph/flag subtitles")
             self.subtitles = self._inject_test_flag_subtitles()
+            # Keep the authored order so the confirmed-good glyph rows stay on top.
+            self.mock_glyph_mode = True
             self.list_subtitles()
             return
+
+        if (__addon__.getSetting("test_show_search_debug") or "").lower() in ("true", "1"):
+            self.subtitles = [self._search_debug_item()] + (self.subtitles or [])
 
         if self.subtitles and len(self.subtitles):
             log(__name__, len(self.subtitles))
@@ -211,211 +311,124 @@ class SubtitleDownloader:
             # TODO retry using guessit???
             log(__name__, "No subtitle found")
 
+    def _search_debug_item(self):
+        """Dev-only first row showing exactly what was sent to the API.
+
+        One row per search attempt, joined with >>>. Clicking it is harmless:
+        the row carries no file_id, so the download action refuses it.
+        """
+        SEND_KEYS = ("imdb_id", "tmdb_id", "parent_imdb_id", "parent_tmdb_id",
+                     "season_number", "episode_number", "query", "year",
+                     "moviehash", "languages")
+        parts = []
+        for attempt in getattr(self, "search_attempts", []):
+            sent = {k: attempt[k] for k in SEND_KEYS if attempt.get(k)}
+            parts.append(", ".join(f"{k}={v}" for k, v in sent.items()))
+        text = "  >>>  ".join(parts) or "no search executed"
+        return {
+            "id": "search_debug",
+            "_match_score": 99999.0,  # pinned on top even through ranking
+            "attributes": {
+                "language": "en",
+                "release": f"[COLOR yellow][B]SEARCH:[/B] {text}[/COLOR]",
+                "ratings": 0, "votes": 0, "download_count": 0,
+                "from_trusted": False, "moviehash_match": False,
+                "hearing_impaired": False, "ai_translated": False,
+                "machine_translated": False, "foreign_parts_only": False,
+                "files": [],
+                "feature_details": {"title": "SEARCH", "movie_name": "SEARCH"},
+            },
+        }
+
+    def _run_search_attempts(self, fallbacks):
+        """Primary search plus the fallback ladder; records what was attempted.
+
+        Dev toggle test_disable_query_fallback keeps an empty id/hash result
+        empty instead of retrying by title - the title fallback can surface
+        fuzzy wrong-feature matches.
+        """
+        no_fallback = (__addon__.getSetting("test_disable_query_fallback") or "").lower() in ("true", "1")
+        attempts_made = [dict(self.query)]
+
+        self.subtitles, searched_ok = self._search_subtitles(self.query)
+
+        for attempt in fallbacks:
+            if self.subtitles or not searched_ok:
+                break
+            if no_fallback:
+                log(__name__, "DEV: title-search fallback disabled, keeping empty result")
+                break
+            retry = {**self.query, **attempt}
+            log(__name__, f"No results, retrying with: {({k: v for k, v in attempt.items() if v})}")
+            attempts_made.append(retry)
+            self.subtitles, searched_ok = self._search_subtitles(retry)
+
+        self.search_attempts = attempts_made
+
     def _inject_test_flag_subtitles(self):
-        """Injects test subtitles demonstrating all flag types, UTF-8, symbols, and formatting."""
-        test_lang = (self.preferred_languages[0] if getattr(self, "preferred_languages", None) else "en")
-        return [
-            {
-                "id": "mock_ok_checks",
-                "_match_score": 10500.0,
-                "attributes": {
-                    "language": test_lang,
-                    "release": "Movie.2024.1080p.BluRay.x264 [COLOR green]✓ OK1[/COLOR] [COLOR green]✔ OK2[/COLOR] [COLOR green]☑ OK3[/COLOR] [COLOR green]√ OK4[/COLOR]",
-                    "ratings": 9.8,
-                    "votes": 120,
-                    "download_count": 4500,
-                    "from_trusted": True,
-                    "moviehash_match": True,
-                    "hearing_impaired": False,
-                    "ai_translated": False,
-                    "machine_translated": False,
-                    "foreign_parts_only": False,
-                    "hd": True,
-                    "files": [{"file_id": 999001}],
-                    "feature_details": {"title": "Movie 2024", "movie_name": "Movie 2024"}
-                }
-            },
-            {
-                "id": "mock_bad_crosses",
-                "_match_score": 4500.0,
-                "attributes": {
-                    "language": test_lang,
-                    "release": "Movie.2024.1080p.BluRay.x264 [COLOR red]✗ Bad1[/COLOR] [COLOR red]✘ Bad2[/COLOR] [COLOR red]✕ Bad3[/COLOR] [COLOR red]✖ Bad4[/COLOR] [COLOR red]☒ Bad5[/COLOR]",
-                    "ratings": 4.5,
-                    "votes": 15,
-                    "download_count": 300,
-                    "from_trusted": False,
-                    "moviehash_match": False,
-                    "hearing_impaired": False,
-                    "ai_translated": False,
-                    "machine_translated": True,
-                    "foreign_parts_only": False,
-                    "hd": False,
-                    "files": [{"file_id": 999002}],
-                    "feature_details": {"title": "Movie 2024", "movie_name": "Movie 2024"}
-                }
-            },
-            {
-                "id": "mock_warnings_lightning",
-                "_match_score": 4200.0,
-                "attributes": {
-                    "language": test_lang,
-                    "release": "Movie.2024.1080p.WEB-DL [COLOR yellow]⚠ Warning[/COLOR] [COLOR yellow]⚡ Sync[/COLOR] [COLOR yellow]⚡ Fast[/COLOR]",
-                    "ratings": 8.0,
-                    "votes": 50,
-                    "download_count": 1800,
-                    "from_trusted": False,
-                    "moviehash_match": False,
-                    "hearing_impaired": True,
-                    "ai_translated": True,
-                    "machine_translated": False,
-                    "foreign_parts_only": False,
-                    "hd": True,
-                    "files": [{"file_id": 999003}],
-                    "feature_details": {"title": "Movie 2024", "movie_name": "Movie 2024"}
-                }
-            },
-            {
-                "id": "mock_stars_ratings",
-                "_match_score": 4000.0,
-                "attributes": {
-                    "language": test_lang,
-                    "release": "Movie.2024.1080p.BluRay [COLOR gold]★ 9.8[/COLOR] [COLOR gold]☆ 4/5[/COLOR] [COLOR gold]✪ Top[/COLOR] [COLOR gold]✦ HQ[/COLOR]",
-                    "ratings": 9.8,
-                    "votes": 250,
-                    "download_count": 5200,
-                    "from_trusted": True,
-                    "moviehash_match": False,
-                    "hearing_impaired": False,
-                    "ai_translated": False,
-                    "machine_translated": False,
-                    "foreign_parts_only": False,
-                    "hd": True,
-                    "files": [{"file_id": 999004}],
-                    "feature_details": {"title": "Movie 2024", "movie_name": "Movie 2024"}
-                }
-            },
-            {
-                "id": "mock_dots_diamonds",
-                "_match_score": 3800.0,
-                "attributes": {
-                    "language": test_lang,
-                    "release": "Movie.2024.1080p.WEB [COLOR lightblue]● Dot1[/COLOR] [COLOR lightblue]○ Dot2[/COLOR] [COLOR lightblue]• Bullet[/COLOR] [COLOR lightblue]◆ Diamond[/COLOR]",
-                    "ratings": 8.5,
-                    "votes": 60,
-                    "download_count": 1800,
-                    "from_trusted": True,
-                    "moviehash_match": False,
-                    "hearing_impaired": False,
-                    "ai_translated": False,
-                    "machine_translated": False,
-                    "foreign_parts_only": True,
-                    "hd": True,
-                    "files": [{"file_id": 999005}],
-                    "feature_details": {"title": "Movie 2024", "movie_name": "Movie 2024"}
-                }
-            },
-            {
-                "id": "mock_arrows_pointers",
-                "_match_score": 3600.0,
-                "attributes": {
-                    "language": test_lang,
-                    "release": "Movie.2024.1080p.BluRay [COLOR white]► Play[/COLOR] [COLOR white]▶ Arrow[/COLOR] [COLOR white]» Next[/COLOR] [COLOR grey]│[/COLOR] [COLOR white]DTS-HD[/COLOR]",
-                    "ratings": 7.5,
-                    "votes": 25,
-                    "download_count": 900,
-                    "from_trusted": False,
-                    "moviehash_match": False,
-                    "hearing_impaired": False,
-                    "ai_translated": True,
-                    "machine_translated": False,
-                    "foreign_parts_only": False,
-                    "hd": True,
-                    "files": [{"file_id": 999006}],
-                    "feature_details": {"title": "Movie 2024", "movie_name": "Movie 2024"}
-                }
-            },
-            {
-                "id": "mock_triangles_quality",
-                "_match_score": 3400.0,
-                "attributes": {
-                    "language": test_lang,
-                    "release": "Movie.2024.2160p.HDR [COLOR green]▲ High[/COLOR] [COLOR red]▼ Low[/COLOR] [COLOR cyan]■ Square[/COLOR] [COLOR yellow]❖ Badge[/COLOR]",
-                    "ratings": 8.0,
-                    "votes": 40,
-                    "download_count": 1100,
-                    "from_trusted": True,
-                    "moviehash_match": False,
-                    "hearing_impaired": False,
-                    "ai_translated": False,
-                    "machine_translated": False,
-                    "foreign_parts_only": False,
-                    "hd": True,
-                    "files": [{"file_id": 999007}],
-                    "feature_details": {"title": "Movie 2024", "movie_name": "Movie 2024"}
-                }
-            },
-            {
-                "id": "mock_bracket_badges",
-                "_match_score": 3200.0,
-                "attributes": {
-                    "language": test_lang,
-                    "release": "Movie.2024.1080p.BluRay.x264-FLUX [COLOR green][✔ Trusted][/COLOR] [COLOR cyan][✦ AI][/COLOR] [COLOR gold][★ 9.5][/COLOR]",
-                    "ratings": 9.5,
-                    "votes": 110,
-                    "download_count": 3500,
-                    "from_trusted": False,
-                    "moviehash_match": False,
-                    "hearing_impaired": False,
-                    "ai_translated": False,
-                    "machine_translated": False,
-                    "foreign_parts_only": False,
-                    "hd": True,
-                    "files": [{"file_id": 999008}],
-                    "feature_details": {"title": "Movie 2024", "movie_name": "Movie 2024"}
-                }
-            },
-            {
-                "id": "mock_czech_slovak_glyphs",
-                "_match_score": 3000.0,
-                "attributes": {
-                    "language": test_lang,
-                    "release": "Film.2024.Slovenské.a.České.Znaky.ľščťžýáíéôäň [COLOR green]✔ Overené[/COLOR] [COLOR gold]★ 9.9[/COLOR]",
-                    "ratings": 9.9,
-                    "votes": 180,
-                    "download_count": 4200,
-                    "from_trusted": True,
-                    "moviehash_match": False,
-                    "hearing_impaired": False,
-                    "ai_translated": False,
-                    "machine_translated": False,
-                    "foreign_parts_only": False,
-                    "hd": True,
-                    "files": [{"file_id": 999009}],
-                    "feature_details": {"title": "Movie 2024", "movie_name": "Movie 2024"}
-                }
-            },
-            {
-                "id": "mock_cyrillic_glyphs",
-                "_match_score": 2800.0,
-                "attributes": {
-                    "language": test_lang,
-                    "release": "Фильм.2024.1080p.Русские.Субтитры.Проверено [COLOR green]✔ Проверено[/COLOR] [COLOR gold]★ 9.4[/COLOR]",
-                    "ratings": 9.4,
-                    "votes": 90,
-                    "download_count": 2100,
-                    "from_trusted": True,
-                    "moviehash_match": False,
-                    "hearing_impaired": False,
-                    "ai_translated": False,
-                    "machine_translated": False,
-                    "foreign_parts_only": False,
-                    "hd": True,
-                    "files": [{"file_id": 999010}],
-                    "feature_details": {"title": "Movie 2024", "movie_name": "Movie 2024"}
-                }
-            }
-        ]
+        """Builds the glyph rendering test list shown when test_flag_interceptor is ON.
+
+        Order on screen is the order returned here (list_subtitles() skips ranking in
+        mock mode): confirmed-good glyphs first as a baseline, unknown candidates next,
+        known failures last, functional badge/icon rows at the bottom.
+        """
+        language = (self.preferred_languages[0] if getattr(self, "preferred_languages", None) else "en")
+
+        subtitles = []
+        for index, (tag, color, glyphs) in enumerate(GLYPH_TEST_ROWS, start=1):
+            cells = " ".join(f"[COLOR {color}]{glyph} {codepoint}[/COLOR]" for glyph, codepoint in glyphs)
+            subtitles.append(_mock_subtitle(
+                sub_id=f"mock_glyph_{index:02d}",
+                language=language,
+                # "GLYPH" is also the feature title so clean_feature_release_name()
+                # returns the release untouched instead of prefixing a movie name.
+                release=f"GLYPH {index:02d} {tag} {cells}",
+                file_id=990000 + index,
+                title="GLYPH",
+            ))
+
+        # Functional rows: badge pipeline, native Kodi icons, and non-ASCII charsets.
+        subtitles.extend([
+            _mock_subtitle(
+                sub_id="mock_flags_hash_trusted",
+                language=language,
+                release="FLAGS Movie.2024.1080p.BluRay.x264-FLUX",
+                file_id=999001,
+                ratings=9.8,
+                from_trusted=True,
+                moviehash_match=True,
+            ),
+            _mock_subtitle(
+                sub_id="mock_flags_ai_hi",
+                language=language,
+                release="FLAGS Movie.2024.1080p.WEB-DL.DDP5.1",
+                file_id=999002,
+                ratings=8.0,
+                hearing_impaired=True,
+                ai_translated=True,
+            ),
+            _mock_subtitle(
+                sub_id="mock_flags_machine_forced",
+                language=language,
+                release="FLAGS Movie.2024.720p.HDTV.x264",
+                file_id=999003,
+                ratings=4.5,
+                machine_translated=True,
+                foreign_parts_only=True,
+            ),
+        ])
+
+        for index, (script, sample) in enumerate(CHARSET_TEST_ROWS, start=1):
+            subtitles.append(_mock_subtitle(
+                sub_id=f"mock_charset_{index:02d}",
+                language=language,
+                title="CHARSET",
+                release=f"CHARSET {script} {sample}",
+                file_id=998000 + index,
+                ratings=9.0,
+            ))
+
+        return subtitles
 
     def _resolve_ambiguous_id(self, ambiguous):
         """Turn a player-supplied id of unknown role into a definite set of search params.
@@ -489,6 +502,10 @@ class SubtitleDownloader:
         return None, False
 
     def download(self):
+        if str(self.params.get("id", "")) in ("", "0"):
+            # The dev search-debug row (and any malformed item) has no file
+            log(__name__, "Download refused: item carries no file_id (debug row?)")
+            return
         valid = 1
         try:
             self.file = self.open_subtitles.download_subtitle(
@@ -498,6 +515,12 @@ class SubtitleDownloader:
             valid = 0
         except BadUsernameError as e:
             error(__name__, 32214, e)
+            valid = 0
+        except AICreditsExhausted as e:
+            # Not the download quota - the AI credits balance. Own dialog text,
+            # otherwise the generic limit message misleads (seen live).
+            log(__name__, f"AI credits exhausted: {e}")
+            error(__name__, 32272, e)
             valid = 0
         except DownloadLimitExceeded as e:
             log(__name__, f"Download limit exceeded: {e}")
@@ -585,7 +608,13 @@ class SubtitleDownloader:
         #    xbmcplugin.addDirectoryItem(handle=int(sys.argv[1]), url=sub, listitem=listitem, isFolder=False)
 
     def list_subtitles(self):
-        if self.subtitles:
+        # The dev search-debug row must survive ranking (which recomputes scores)
+        # and always sit on top - detach it here, re-attach after ranking.
+        debug_rows = [s for s in (self.subtitles or []) if s.get("id") == "search_debug"]
+        if debug_rows:
+            self.subtitles = [s for s in self.subtitles if s.get("id") != "search_debug"]
+
+        if self.subtitles or debug_rows:
             smart_ranking_setting = __addon__.getSetting("smart_ranking")
             smart_ranking = smart_ranking_setting.lower() in ("true", "1") if smart_ranking_setting else True
 
@@ -593,16 +622,21 @@ class SubtitleDownloader:
             hi_setting = __addon__.getSetting("hearing_impaired")
             prefer_hi = (hi_setting == "only") or (hi_setting == "include" and is_kodi_hearing_impaired_preferred()) or (not hi_setting and is_kodi_hearing_impaired_preferred())
 
-            ranked_subtitles = rank_subtitles(
-                self.subtitles,
-                getattr(self, "video_filename", ""),
-                getattr(self, "video_guessit", None),
-                smart_ranking=smart_ranking,
-                preferred_languages=getattr(self, "preferred_languages", None),
-                prefer_hearing_impaired=prefer_hi
-            )
+            if getattr(self, "mock_glyph_mode", False):
+                # Glyph test harness: ranking would reorder the rows by match score and
+                # break the OK / TRY / FAIL grouping the list is meant to show.
+                ranked_subtitles = self.subtitles
+            else:
+                ranked_subtitles = rank_subtitles(
+                    self.subtitles,
+                    getattr(self, "video_filename", ""),
+                    getattr(self, "video_guessit", None),
+                    smart_ranking=smart_ranking,
+                    preferred_languages=getattr(self, "preferred_languages", None),
+                    prefer_hearing_impaired=prefer_hi
+                )
 
-            for subtitle in ranked_subtitles:
+            for subtitle in debug_rows + list(ranked_subtitles):
                 attributes = subtitle["attributes"]
                 language = convert_language(attributes["language"], True)
                 log(__name__, attributes)
@@ -613,8 +647,15 @@ class SubtitleDownloader:
                 # (SDH and Hash are handled natively by Kodi dialog icons: hearing_imp and sync)
                 badges = []
                 if attributes.get("from_trusted"):
-                    badges.append("[COLOR green][Trusted][/COLOR]")
-                if attributes.get("ai_translated"):
+                    # √ (U+221A) is the only check-like glyph Kodi's default fonts have -
+                    # real check marks are Dingbats and render as tofu (see the matrix in
+                    # docs/kodi_ui_font_compatibility.md).
+                    badges.append("[COLOR green][B]√[/B][/COLOR]")
+                if is_on_demand_translation(attributes):
+                    # Not a real file yet: the server translates it when picked
+                    # (takes ~20s+, uses AI credits) - users deserve the warning.
+                    badges.append("[COLOR cyan][AI on demand][/COLOR]")
+                elif attributes.get("ai_translated"):
                     badges.append("[COLOR cyan][AI][/COLOR]")
                 elif attributes.get("machine_translated"):
                     badges.append("[COLOR orange][Machine][/COLOR]")
@@ -640,7 +681,8 @@ class SubtitleDownloader:
                 list_item.setProperty("sync", "true" if is_sync else "false")
                 list_item.setProperty("hearing_imp", "true" if attributes.get("hearing_impaired") else "false")
                 
-                url = f"plugin://{__scriptid__}/?action=download&id={attributes['files'][0]['file_id']}&language={language}"
+                files = attributes.get("files") or [{"file_id": 0}]
+                url = f"plugin://{__scriptid__}/?action=download&id={files[0]['file_id']}&language={language}"
                 xbmcplugin.addDirectoryItem(handle=self.handle, url=url, listitem=list_item, isFolder=False)
 
         xbmcplugin.endOfDirectory(self.handle)

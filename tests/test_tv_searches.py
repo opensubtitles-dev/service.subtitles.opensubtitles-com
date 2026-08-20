@@ -135,3 +135,34 @@ def test_tv_episode_ranking_exact_release_group():
 
     ranked = rank_subtitles([sub_hdtv, sub_exact], video_file, smart_ranking=True, preferred_languages=["en"])
     assert ranked[0]["id"] == "exact", "Exact BluRay-ROVERS release must rank #1 over generic HDTV release"
+
+
+
+def test_dev_toggle_blocks_title_fallback():
+    """test_disable_query_fallback ON: empty id-search stays empty, no query retry."""
+    from unittest.mock import patch
+    import xbmcaddon
+    from resources.lib.subtitle_downloader import SubtitleDownloader
+
+    addon = xbmcaddon.Addon()
+    fallbacks = [{"query": "Nirvanna", "year": "2026", "imdb_id": None}]
+
+    calls = []
+    def fake_search(self, query):
+        calls.append(dict(query))
+        return [], True
+
+    downloader = SubtitleDownloader.__new__(SubtitleDownloader)
+    downloader.query = {"imdb_id": 35522483, "languages": "cs,sk"}
+
+    addon.setSetting("test_disable_query_fallback", "true")
+    with patch.object(SubtitleDownloader, "_search_subtitles", autospec=True, side_effect=fake_search):
+        downloader._run_search_attempts(fallbacks)
+    assert len(calls) == 1, f"fallback fired despite dev toggle: {calls}"
+
+    calls.clear()
+    addon.setSetting("test_disable_query_fallback", "false")
+    with patch.object(SubtitleDownloader, "_search_subtitles", autospec=True, side_effect=fake_search):
+        downloader._run_search_attempts(fallbacks)
+    assert len(calls) == 2 and calls[1]["query"] == "Nirvanna"
+    assert downloader.search_attempts == calls

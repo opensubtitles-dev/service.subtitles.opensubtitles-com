@@ -155,6 +155,23 @@ def parse_release_tokens(text):
     return tokens
 
 
+def is_on_demand_translation(attributes):
+    """True when the entry is an AI translation that does NOT exist yet - the
+    server creates it at download time (20s+ hold, consumes AI credits).
+
+    Detection (per API team guidance, 2026-08-20):
+    - synthetic file_id longer than 10 digits (real ids look like 11827675,
+      on-demand pseudo-ids like 1246448409911500000000000000000000), or
+    - the server's marker sentence in the comments field.
+    """
+    comments = str((attributes or {}).get("comments") or "")
+    if "will be created on demand" in comments.lower():
+        return True
+    files = (attributes or {}).get("files") or []
+    file_id = str(files[0].get("file_id", "")) if files else ""
+    return file_id.isdigit() and len(file_id) > 10
+
+
 def calculate_match_score(subtitle, video_filename, guessit_data=None, prefer_hearing_impaired=False):
     """
     Calculates a precision match score (0 - 15000+) between a subtitle item and the playing video.
@@ -254,7 +271,19 @@ def calculate_match_score(subtitle, video_filename, guessit_data=None, prefer_he
         else:
             score -= 150.0  # De-prioritize non-HI when user prefers HI
 
-    # 6. Reputation & Community Quality Bonuses (Tie Breakers)
+    # 6. Translation Provenance (human > AI > machine)
+    # An AI-translated subtitle with a perfect release match must not outrank a real
+    # human translation, even one made for a noticeably different cut of the release
+    # (exact-filename AI: 5000 + ~700 tokens - 3500 ≈ 1200, below the ~1350 a human
+    # upload for a related-but-different release earns). AI still beats human uploads
+    # that would actively desync (CAM vs digital scores negative). Machine
+    # translations sink harder and remain excludable via the filter setting.
+    if attributes.get("machine_translated"):
+        score -= 5000.0
+    elif attributes.get("ai_translated"):
+        score -= 3500.0
+
+    # 7. Reputation & Community Quality Bonuses (Tie Breakers)
     if attributes.get("from_trusted"):
         score += 100.0
 

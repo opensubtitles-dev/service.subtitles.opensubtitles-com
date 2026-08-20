@@ -6,6 +6,8 @@ import requests
 import xbmc
 import xbmcgui
 import xbmcaddon
+
+from resources.lib.utilities import get_user_agent
 import xbmcvfs
 import os
 
@@ -42,7 +44,7 @@ def extract_remote_version(xml_content):
 
 def fetch_latest_remote_version():
     """Queries remote repositories and returns latest remote version string or None."""
-    headers = {"User-Agent": "Kodi/OpenSubtitles.com-Updater"}
+    headers = {"User-Agent": get_user_agent()}
     for url in REMOTE_MANIFEST_URLS:
         try:
             resp = requests.get(url, headers=headers, timeout=6)
@@ -56,7 +58,7 @@ def fetch_latest_remote_version():
 
 
 def check_updates():
-    current_version = __addon__.getAddonInfo("version") or "1.0.15"
+    current_version = __addon__.getAddonInfo("version") or "2.0.0"
     dialog = xbmcgui.Dialog()
 
     try:
@@ -65,7 +67,7 @@ def check_updates():
         latest_version = None
 
     if not latest_version:
-        dialog.ok(__addon_name__, f"{__language__(32219)}: v{current_version}\n\nCould not connect to update server. Please check your network connection.")
+        dialog.ok(__addon_name__, f"{__language__(32219)}: v{current_version}\nCould not connect to update server. Check your network connection.")
         return
 
     curr_tuple = parse_version_tuple(current_version)
@@ -74,9 +76,9 @@ def check_updates():
     if latest_tuple > curr_tuple:
         # Update available
         msg = (
-            f"A new version of OpenSubtitles.com is available!\n\n"
+            f"A new version of OpenSubtitles.com is available!\n"
             f"• Installed Version: v{current_version}\n"
-            f"• Latest Version: v{latest_version}\n\n"
+            f"• Latest Version: v{latest_version}\n"
             f"Check Kodi repository for updates now?"
         )
         if dialog.yesno(__addon_name__, msg):
@@ -85,7 +87,7 @@ def check_updates():
             dialog.notification(__addon_name__, "Checking repository for updates...", icon_path, 4000)
     else:
         # Up to date
-        dialog.ok(__addon_name__, f"OpenSubtitles.com is up to date!\n\n• Installed Version: v{current_version} (Latest)")
+        dialog.ok(__addon_name__, f"OpenSubtitles.com is up to date!\n• Installed Version: v{current_version} (Latest)")
 
 
 if __name__ == "__main__":

@@ -200,3 +200,68 @@ def test_multi_language_top_picks_and_grouping():
     actual_ids = [s["id"] for s in ranked]
 
     assert actual_ids == expected_ids
+
+
+def _provenance_sub(sub_id, release, ai=False, machine=False):
+    return {"id": sub_id, "attributes": {
+        "language": "es", "release": release, "ratings": 0.0, "votes": 0,
+        "download_count": 100, "from_trusted": False, "moviehash_match": False,
+        "hearing_impaired": False, "ai_translated": ai, "machine_translated": machine,
+        "foreign_parts_only": False, "files": [{"file_id": 1}],
+        "feature_details": {"title": "Obsession", "movie_name": "Obsession"}}}
+
+
+def test_human_translation_outranks_ai_with_better_filename_match():
+    """Regression: exact-release AI subtitle topped the list over real translations."""
+    video = "Obsession.2025.1080p.MA.WEB-DL.DDP5.1.Atmos.H.264-BYNDR.mp4"
+    ai_exact = _provenance_sub("ai", "Obsession.2025.1080p.MA.WEB-DL.DDP5.1.Atmos.H.264", ai=True)
+    human_close = _provenance_sub("human", "Obsession.2025.1080p.WEB-DL")
+
+    ranked = rank_subtitles([ai_exact, human_close], video, preferred_languages=["es"])
+
+    assert ranked[0]["id"] == "human", \
+        f"human should win: human={human_close['_match_score']}, ai={ai_exact['_match_score']}"
+
+
+def test_provenance_order_human_then_ai_then_machine_on_equal_releases():
+    video = "Obsession.2025.1080p.MA.WEB-DL.DDP5.1.Atmos.H.264-BYNDR.mp4"
+    release = "Obsession.2025.1080p.MA.WEB-DL.DDP5.1.Atmos.H.264"
+    human = _provenance_sub("human", release)
+    ai = _provenance_sub("ai", release, ai=True)
+    machine = _provenance_sub("machine", release, machine=True)
+
+    ranked = rank_subtitles([machine, ai, human], video, preferred_languages=["es"])
+
+    assert [s["id"] for s in ranked] == ["human", "ai", "machine"]
+
+
+def test_ai_penalty_does_not_resurrect_cam_desync_garbage():
+    """AI for the right release must still beat a human CAM rip subtitle."""
+    video = "Obsession.2025.1080p.MA.WEB-DL.DDP5.1.Atmos.H.264-BYNDR.mp4"
+    ai_exact = _provenance_sub("ai", "Obsession.2025.1080p.MA.WEB-DL.DDP5.1.Atmos.H.264", ai=True)
+    human_cam = _provenance_sub("human_cam", "Obsession.2025.CAM.XviD")
+
+    ranked = rank_subtitles([human_cam, ai_exact], video, preferred_languages=["es"])
+
+    assert ranked[0]["id"] == "ai"
+
+
+def test_on_demand_detection_via_comment_marker():
+    from resources.lib.matcher import is_on_demand_translation
+    assert is_on_demand_translation({
+        "comments": "This subtitle file will be created on demand in czech language as AI translation from polish language.",
+        "files": [{"file_id": 11827675}]})
+
+
+def test_on_demand_detection_via_synthetic_file_id():
+    from resources.lib.matcher import is_on_demand_translation
+    assert is_on_demand_translation({
+        "comments": "", "files": [{"file_id": "1246448409911500000000000000000000"}]})
+
+
+def test_real_uploaded_ai_subtitle_is_not_on_demand():
+    from resources.lib.matcher import is_on_demand_translation
+    assert not is_on_demand_translation({
+        "comments": "retail subs compatible with WEB-DL", "ai_translated": True,
+        "files": [{"file_id": 11827675}]})
+    assert not is_on_demand_translation({"comments": "", "files": []})
