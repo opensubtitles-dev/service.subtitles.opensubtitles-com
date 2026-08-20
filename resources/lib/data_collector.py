@@ -832,10 +832,24 @@ def get_media_data():
             item["search_fallbacks"] = [title_attempt]
             log(__name__, "Episode-level ID search: dropped query/year/season/episode (kept for retry)")
         elif item.get("parent_imdb_id") or item.get("parent_tmdb_id"):
-            # Show ID + season/episode: drop redundant query and year
+            # Show ID + season/episode: drop redundant query and year.
+            # A parent id from the library is usually right, but a mis-scraped show yields
+            # one OS.com has never seen and the search returns nothing - so keep the episode
+            # id the player gave us as a second attempt rather than discarding it. Seen in a
+            # user log: a library "imdbnumber" that was not an IMDb id at all went out as
+            # parent_imdb_id (0 results) while the episode's own id matched 10 subtitles.
             item["query"] = ""
             item["year"] = None
-            item["search_fallbacks"] = [title_attempt]
+            fallbacks = []
+            if episode_ids.get("imdb_id") or episode_ids.get("tmdb_id"):
+                fallbacks.append({"parent_imdb_id": None, "parent_tmdb_id": None,
+                                  "imdb_id": episode_ids.get("imdb_id"),
+                                  "tmdb_id": episode_ids.get("tmdb_id"),
+                                  "query": "", "season_number": None, "episode_number": None})
+                log(__name__, f"Show-level ID search, keeping episode ID "
+                              f"{episode_ids.get('imdb_id') or episode_ids.get('tmdb_id')} as a fallback")
+            fallbacks.append(title_attempt)
+            item["search_fallbacks"] = fallbacks
             log(__name__, "Show-level ID search: dropped redundant query and year (kept for retry)")
     else:
         # Movie search: If unique IMDb/TMDb ID is present, drop query and year from primary request
@@ -847,24 +861,38 @@ def get_media_data():
             item["search_fallbacks"] = [title_attempt]
             log(__name__, "Movie ID search: dropped redundant query and year (kept for retry)")
 
-        elif item.get("parent_imdb_id") or item.get("parent_tmdb_id"):
-            # A parent id from the library won. It is usually right, but a mis-scraped show
-            # yields a parent id OS.com has never seen and the search returns nothing - so
-            # keep the episode id the player gave us as a second attempt rather than
-            # discarding it. Seen in a user log: a library "imdbnumber" that was not an IMDb
-            # id at all went out as parent_imdb_id (0 results) while the episode's own id
-            # would have matched 10 subtitles.
-            fallbacks = []
-            if episode_ids.get("imdb_id") or episode_ids.get("tmdb_id"):
-                episode_attempt = {"parent_imdb_id": None, "parent_tmdb_id": None,
-                                   "imdb_id": episode_ids.get("imdb_id"),
-                                   "tmdb_id": episode_ids.get("tmdb_id"),
-                                   "query": "", "season_number": None, "episode_number": None}
-                fallbacks.append(episode_attempt)
-                log(__name__, f"Parent ID search, keeping episode ID "
-                              f"{episode_ids.get('imdb_id') or episode_ids.get('tmdb_id')} as a fallback")
-            fallbacks.append(title_attempt)
-            item["search_fallbacks"] = fallbacks
+        # NB: no parent_* branch here. Movies never carry a parent id (those are set only in
+        # the TV block above), and the episode-id fallback that used to live here referenced
+        # `episode_ids`, which is not bound on this path - it was unreachable dead code that
+        # would have raised NameError if it ever ran. The real logic is in the TV branch.
+
+    # ---------- Tier 4: the raw release filename, as a last resort ----------
+    # Everything above searches by id or by a cleaned-up title. When all of those miss - a
+    # mis-scraped library, an unusual release, a feature OS.com files under something else -
+    # the release filename itself sometimes matches, because uploaders name subtitles after
+    # it. Only reached when every earlier attempt returned nothing, so it costs a request
+    # exactly when we would otherwise show the user nothing at all.
+    # Skipped for streams: there the "filename" is a CDN path with no release info in it,
+    # which is what the extension check below screens out.
+    try:
+        # both are only imported inside other branches of this module, so bind them here
+        import os
+        import re
+
+        playing_file = get_file_path()
+        basename = os.path.basename(playing_file) if playing_file else ""
+        stem = re.sub(r"\.(mkv|mp4|avi|m4v|ts|mov|wmv|iso|m2ts|flv|webm)$", "", basename,
+                      flags=re.IGNORECASE)
+        # stem != basename means a real video extension was stripped, i.e. this looks like a
+        # release filename rather than a CDN URL or an opaque id
+        if stem and stem != basename and stem.lower() != (fallback_title or "").lower():
+            item.setdefault("search_fallbacks", []).append(
+                {"query": stem, "year": None, "season_number": None, "episode_number": None,
+                 "imdb_id": None, "tmdb_id": None,
+                 "parent_imdb_id": None, "parent_tmdb_id": None})
+            log(__name__, f"Added filename fallback: '{stem}'")
+    except Exception as e:
+        log(__name__, f"Could not build the filename fallback: {e}")
 
     # Remove internal-only key
     if "tvshowid" in item:
