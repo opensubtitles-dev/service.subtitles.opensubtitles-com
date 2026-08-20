@@ -239,7 +239,13 @@ def build_index_html(addons_info):
 <body>
     <div class="container">
         <div class="header">
-            <img class="logo" src="zips/repository.opensubtitles-com/icon.png" alt="OpenSubtitles Logo">
+            <svg class="logo" width="84" height="84" viewBox="0 0 96 96" fill="none" aria-label="OpenSubtitles" role="img">
+                <rect x="8" y="14" width="80" height="58" rx="14" stroke="currentColor" stroke-width="7"/>
+                <path d="M34 72 L30 86 L48 72 Z" fill="currentColor"/>
+                <rect x="22" y="44" width="34" height="7" rx="3.5" fill="currentColor"/>
+                <rect x="60" y="44" width="14" height="7" rx="3.5" fill="currentColor"/>
+                <rect x="22" y="56" width="52" height="7" rx="3.5" fill="currentColor"/>
+            </svg>
             <h1>OpenSubtitles.com Repository</h1>
             <p class="subtitle">Official Fast-Track Update Repository for Kodi</p>
         </div>
@@ -292,6 +298,15 @@ def build_index_html(addons_info):
         </div>
 
         <div class="card">
+            <h3>🔗 Project Links</h3>
+            <p>
+                <a href="https://github.com/opensubtitles-dev/service.subtitles.opensubtitles-com">Source on GitHub</a> ·
+                <a href="https://github.com/opensubtitles-dev/service.subtitles.opensubtitles-com/issues">Report an issue</a> ·
+                <a href="https://forum.opensubtitles.com/t/new-opensubtitles-com-kodi-subtitles-addon/1673">Forum thread</a> ·
+                <a href="https://opensubtitles.stoplight.io/">API documentation</a> ·
+                <a href="https://www.opensubtitles.com">OpenSubtitles.com</a>
+            </p>
+
             <h3>📦 Available Packages</h3>
 """
     for addon_id, ver in addons_info:
