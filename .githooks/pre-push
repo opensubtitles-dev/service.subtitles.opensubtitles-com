@@ -1,0 +1,5 @@
+#!/bin/sh
+# Release gate before anything leaves this machine (see scripts/preflight.py).
+# Skip deliberately with: git push --no-verify
+echo "pre-push: running preflight gate..."
+exec python3 "$(git rev-parse --show-toplevel)/scripts/preflight.py" --fast

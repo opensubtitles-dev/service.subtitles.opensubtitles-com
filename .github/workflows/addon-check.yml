@@ -29,6 +29,10 @@ jobs:
         run: |
           python -m pytest
 
+      - name: Preflight gate (version consistency + shipped-zip inspection)
+        run: |
+          python scripts/preflight.py --fast
+
   kodi-addon-checker:
     name: Kodi Validator (${{ matrix.kodi-version }})
     runs-on: ubuntu-latest
