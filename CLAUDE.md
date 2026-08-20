@@ -68,6 +68,8 @@ Kodi modules (`xbmc`, `xbmcgui`, `xbmcaddon`, `xbmcvfs`, `xbmcplugin`) exist onl
 
 ## Critical Constraints (never break)
 
+- **Git remotes are named backwards from intuition** — `fork` = github.com/opensubtitles (the workbench; `develop` tracks `fork/develop`, routine pushes go here). `origin` = github.com/opensubtitles-dev (the MAIN repo). **Pushing to `origin` master is a LIVE action**: its CI rebuilds gh-pages and publishes to `kodi.opensubtitles.com`, where users update from. Only push `origin` master on Brano's explicit release instruction.
+
 - **Never invent REST API endpoints.** Every method in `resources/lib/osclient/provider.py` must exist in the official OpenAPI spec: `https://stoplight.io/api/v1/projects/opensubtitles/opensubtitles-api/nodes/open_api.json`. Endpoints designed ahead of the spec (e.g. `rate_subtitle`) must be marked PROPOSED in their docstring with the agreed contract and handle 404 as "not deployed yet".
 
 - **No `print()`** — use `xbmc.log()` via the logging helper in `resources/lib/utilities.py`. `print()` breaks Kodi.

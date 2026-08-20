@@ -7,8 +7,9 @@ This file provides a complete technical handover for Claude / next AI agent taki
 ## 1. 📍 Repository & Branch Overview
 
 * **Repository Directory**: `/data/www/opensubtitles.org/public_html/github/service.subtitles.opensubtitles-com`
-* **Upstream**: `opensubtitles-dev/service.subtitles.opensubtitles-com`
-* **Fork Remote**: `fork` (`https://github.com/opensubtitles/service.subtitles.opensubtitles-com.git`)
+* **Remote naming wrinkle (memorize)**: local names are inverted from intuition.
+  * `fork` = `opensubtitles/service.subtitles.opensubtitles-com` - the WORKBENCH. `develop` tracks `fork/develop`; all routine pushes land here (pre-push preflight gate). Users never see it.
+  * `origin` = `opensubtitles-dev/service.subtitles.opensubtitles-com` - the MAIN repo (issues, CI, releases). Its master is a LIVE TRIGGER: every push auto-rebuilds gh-pages via `deploy-repository.yml` and publishes to `https://kodi.opensubtitles.com` (the URL baked into every installed repository add-on). Push `origin` master only as a deliberate release act.
 * **Branch Strategy**:
   * **`v1.0.15`**: **FROZEN**. Pull Request [#42](https://github.com/opensubtitles-dev/service.subtitles.opensubtitles-com/pull/42) submitted upstream. Do not modify.
   * **`develop`**: **ACTIVE**. Current version is bumped to `2.0.0` (NEW GENERATION release). All new features (service monitor, badges, interceptor, auto-download, rating) are developed here.
