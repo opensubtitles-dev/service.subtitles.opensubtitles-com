@@ -306,8 +306,7 @@ def build_index_html(addons_info):
             <p>
                 <a href="https://github.com/opensubtitles-dev/service.subtitles.opensubtitles-com">Source on GitHub</a> ·
                 <a href="https://github.com/opensubtitles-dev/service.subtitles.opensubtitles-com/issues">Report an issue</a> ·
-                <a href="https://forum.opensubtitles.com/t/new-opensubtitles-com-kodi-subtitles-addon/1673">Forum thread</a> ·
-                <a href="https://opensubtitles.stoplight.io/">API documentation</a> ·
+                <a href="https://api.opensubtitles.com">API documentation</a> ·
                 <a href="https://www.opensubtitles.com">OpenSubtitles.com</a>
             </p>
 
