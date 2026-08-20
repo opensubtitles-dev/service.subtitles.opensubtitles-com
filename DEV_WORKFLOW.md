@@ -34,7 +34,7 @@ Keep a terminal open to monitor live logs and debug output while testing inside 
 
 ```bash
 # Run the included helper script:
-./scripts/stream_kodi_logs.sh
+bash scripts/stream_kodi_logs.sh
 ```
 
 Or manually:

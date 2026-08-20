@@ -35,14 +35,35 @@ python3 scripts/generate_repo.py
 * **Zero-Hang Shutdown Guarantee**:
   * The main loop uses `while not monitor.abortRequested(): monitor.waitForAbort(1)`.
   * Background threads check `monitor.abortRequested()` before network calls to prevent Kodi exit delays.
-* **Background Account & Quota Refresh**:
-  * Runs on startup and periodically to fetch VIP status and remaining quota from `/api/v1/infos/user`.
-  * Protected by `_refresh_lock = threading.Lock()` with non-blocking acquire to prevent multiple simultaneous requests on rapid setting changes.
-  * Currently in dev mode (refreshes immediately on startup so UI changes can be verified; restore 12h age check before final release).
-* **Silent Auto-Download on Video Playback**:
-  * In `OpenSubtitlesPlayer.onAVStarted()`, auto-downloads matching subtitles if enabled in settings (`auto_download`).
+* **Account state: SINGLE WRITER architecture (v2.0.0 decision, 2026-08-20)**:
+  * The service does NOT validate credentials or write account settings. `test_connection.py`
+    ("TEST CONNECTION" button) is the only writer of `account_*` / `ai_credits` settings and
+    of the authoritative `account_state.json` (addon profile). Rationale: the settings dialog
+    saves a full snapshot on close (also across RunScript), the plugin runs in a separate
+    process, and concurrent writers tore each other's values live. Never reintroduce a
+    service-side account refresh.
+  * The service's only account job is `_reconcile_account_display()`: on every
+    `onSettingsChanged`, wait for the dialog to close, then restore any settings fields a
+    dialog snapshot reverted, from `account_state.json`. Read-only against the API.
+* **Daily update check** (`check_for_update_silently`): hourly probe, 24h spacing persisted
+  in `update_check.json` (own file - settings snapshots cannot clobber it); result shown in
+  the read-only "Update last checked" row (Expert level).
+* **Multi-language Auto-Download on Video Playback**:
+  * `OpenSubtitlesPlayer.onAVStarted()` → background thread: JSON-RPC probe for an actively
+    displayed subtitle, standdown when Kodi's own `subtitles.downloadfirst` is enabled, one
+    search across all of Kodi's preferred subtitle languages, best pick per language
+    (max 5), primary applied via `setSubtitles()`, others added via JSON-RPC
+    `Player.AddSubtitle`. Files stored per Kodi's `subtitles.storagemode` with Kodi naming
+    (`<video>.<lang>.srt`). On-demand AI entries are always skipped (they cost credits).
 * **Post-Playback Rating Prompt**:
-  * In `OpenSubtitlesPlayer.onPlayBackEnded()` / `onPlayBackStopped()`, prompts user to rate/vote downloaded subtitles via `/api/v1/subtitles/vote`.
+  * `_prompt_rating()`: 1-5 star `select()` + in-sync `yesnocustom()` (autoclose, dismiss
+    sends nothing), submitted via `provider.rate_subtitle(subtitle_id, rating, sync=)` to
+    the PROPOSED `POST /subtitles/rate` endpoint (404-tolerant until the API ships it).
+* **Auto-Upload dry run** (dev toggle `auto_upload_subtitles`): per-session eligibility
+  resume logged via `resources/lib/upload_eligibility.py` - nothing uploads yet.
+* **API ground truth**: every REST call must exist in the official OpenAPI spec (see
+  CLAUDE.md critical constraints). `rate_subtitle` and the upload flow are PROPOSED and
+  documented as such in their docstrings.
 
 ### B. Kodi UI Font & Glyph Compatibility (`docs/kodi_ui_font_compatibility.md`)
 * **Supported & Verified in Kodi Skins**:

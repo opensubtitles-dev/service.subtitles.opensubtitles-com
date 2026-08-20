@@ -12,6 +12,7 @@ import xbmcaddon
 import xbmcgui
 import xbmcvfs
 
+from resources.lib.browser import can_open_browser, open_url
 from resources.lib.qr import generate_qr_png
 from resources.lib.utilities import log
 
@@ -26,10 +27,15 @@ QR_SIZE = 420  # px in the 1280x720 skin grid
 
 
 class QRWindow(xbmcgui.WindowDialog):
-    """Centered QR image with a heading above and the raw URL below."""
+    """Centered QR image with a heading above and the raw URL below.
 
-    def __init__(self, png_path, heading, caption):
+    On platforms with a browser (desktop, Android), OK/Select also opens the
+    URL directly; on browserless boxes the QR is the only path and the hint
+    says so."""
+
+    def __init__(self, png_path, heading, caption, url=""):
         super().__init__()
+        self.url = url
         x = (1280 - QR_SIZE) // 2
         y = (720 - QR_SIZE) // 2
 
@@ -47,13 +53,19 @@ class QRWindow(xbmcgui.WindowDialog):
         self.addControl(xbmcgui.ControlLabel(
             0, y + QR_SIZE + 20, 1280, 36, caption, textColor="0xFFAAAAAA",
             alignment=2, font="font12"))
+        hint = ("Press OK to open in browser  -  BACK to close"
+                if (url and can_open_browser()) else "Press BACK or OK to close")
         self.addControl(xbmcgui.ControlLabel(
-            0, y + QR_SIZE + 56, 1280, 30, "Press BACK or OK to close",
+            0, y + QR_SIZE + 56, 1280, 30, hint,
             textColor="0xFF666666", alignment=2, font="font10"))
 
     def onAction(self, action):
-        if action.getId() in (ACTION_PREVIOUS_MENU, ACTION_NAV_BACK,
-                              ACTION_SELECT_ITEM, ACTION_STOP):
+        action_id = action.getId()
+        if action_id == ACTION_SELECT_ITEM and self.url and open_url(self.url):
+            self.close()
+            return
+        if action_id in (ACTION_PREVIOUS_MENU, ACTION_NAV_BACK,
+                         ACTION_SELECT_ITEM, ACTION_STOP):
             self.close()
 
 
@@ -75,6 +87,6 @@ def show_qr(url, heading):
         return
 
     log(__name__, f"Showing QR dialog for {url}")
-    window = QRWindow(png_path, heading, url)
+    window = QRWindow(png_path, heading, url, url=url)
     window.doModal()
     del window

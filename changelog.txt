@@ -1,15 +1,19 @@
-v2.0.0 (2026-08-19)
+v2.0.0 (2026-08-20)
 NEW GENERATION RELEASE - rebuilt around the background service
 - added multi-language auto-download: top-ranked subtitle for every preferred Kodi subtitle language; primary plays, others selectable in the stream list
 - added subtitle storage honoring Kodi's own settings (movie folder / custom path / temp) with Kodi-convention naming (<video>.<lang>.srt) so future plays auto-detect them
 - added post-playback rating dialog: 1-5 stars (bad/poor/okay/good/excellent) plus in-sync yes/no, submitted with subtitle_id over JWT (endpoint PROPOSED)
-- added background account status refresh with actionable alerts (missing credentials, wrong password, email-as-username) - transient server errors stay silent
-- added sign-in confirmation on newly entered credentials; repeated-nag protection via credential fingerprint (SHA-256, no plaintext stored)
+- added single-writer account architecture: TEST CONNECTION validates and refreshes everything (login, quota, VIP, AI credits); the service only re-syncs display fields from a state file after dialog snapshot saves
+- added account problem alerts during playback flows (missing credentials, wrong password, email-as-username) - transient server errors stay silent
 - added daily silent update check with read-only "Update last checked" row; schedule stamp in its own race-free state file
 - added QR code dialog (zero-dependency PNG renderer) with registration link from settings
 - added detection of Kodi's native "Auto download first subtitle": add-on stands down to avoid double downloads and quota burn
 - added AI/machine translation ranking penalty: human translations outrank AI (-3500) and machine (-5000) uploads
-- added Development settings tab (Expert-only, last): mock search interceptor and rating dialog preview
+- added AI credits row with live Buy AI credits flow (packages fetched per click, QR checkout)
+- added Buy VIP one-line upsell for logged-in free accounts; Register shown only while sign-in is broken
+- added on-demand AI translation support: [AI on demand] badge, patient downloads (timeout/redirect retries), zero-credit dialog naming the real cause
+- added QR dialogs: registration, VIP purchase, AI credit checkout; OK opens the platform browser where one exists (desktop/Android)
+- added dev toolbox (Expert-only Development tab, stripped from release builds): mock glyph harness, rating-dialog preview, nocache=1, language override, search-debug row, title-fallback gate
 - added subtitle delay + watched-position sampling during playback (groundwork for community auto-upload)
 - changed [Trusted] badge to green bold check mark; all UI glyphs verified against Kodi font matrix
 - changed User-Agent unified everywhere to "Opensubtitles.com Kodi plugin v<version>"

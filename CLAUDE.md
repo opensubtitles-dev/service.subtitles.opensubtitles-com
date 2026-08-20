@@ -35,7 +35,7 @@ python3 scripts/build_release_zip.py
 python3 scripts/generate_repo.py
 
 # Stream live Kodi logs while testing in Kodi (enable debug logging in Kodi first)
-./scripts/stream_kodi_logs.sh
+bash scripts/stream_kodi_logs.sh
 ```
 
 ### Development in Kodi
