@@ -55,12 +55,23 @@ def get_file_path():
 
 # ---------- Small helpers ----------
 
-def _strip_imdb_tt(value):
+def _strip_imdb_tt(value, require_tt=False):
+    """Return the digits of an IMDb id, or None.
+
+    Set require_tt when the value comes from Kodi's `imdbnumber` field. That field holds
+    whatever the scraper treats as the item's primary id, which for a TVDB- or TMDb-scraped
+    show is *not* an IMDb id - and once you look only at the digits, a foreign id is
+    indistinguishable from a real one. Sending one as imdb_id/parent_imdb_id matches nothing:
+    a user log had Succession's library id 338186 go out as parent_imdb_id (0 results) while
+    the correct episode id was discarded. So only accept an explicit "tt" prefix there.
+    """
     if not value:
         return None
     s = str(value).strip()
     if s.startswith("tt"):
         s = s[2:]
+    elif require_tt:
+        return None
     return s if s.isdigit() else None
 
 
@@ -184,9 +195,12 @@ def _extract_movie_ids(movie):
     movie_tmdb = None
     file_path = movie.get('file', '')
 
-    # IMDb ID extraction
-    imdb_raw = movie.get("imdbnumber", "")
-    imdb_digits = _strip_imdb_tt(imdb_raw)
+    # IMDb ID extraction: prefer the explicitly typed uniqueid; "imdbnumber" is only the
+    # scraper's primary id and may hold a TVDB/TMDb one (see _strip_imdb_tt)
+    uniqueids = movie.get("uniqueid") or {}
+    imdb_digits = _strip_imdb_tt(uniqueids.get("imdb") if isinstance(uniqueids, dict) else None)
+    if not imdb_digits:
+        imdb_digits = _strip_imdb_tt(movie.get("imdbnumber"), require_tt=True)
     if imdb_digits and 6 <= len(imdb_digits) <= 8:
         movie_imdb = int(imdb_digits)
         log(__name__, f"Found Movie IMDb: {movie_imdb}")
@@ -282,9 +296,12 @@ def _extract_show_ids(tvshow):
     parent_tmdb = None
     tvshow_id = tvshow.get('tvshowid')
 
-    # IMDb ID
-    imdb_raw = tvshow.get("imdbnumber", "")
-    imdb_digits = _strip_imdb_tt(imdb_raw)
+    # IMDb ID: prefer the explicitly typed uniqueid; "imdbnumber" is only the scraper's
+    # primary id and may hold a TVDB/TMDb one (see _strip_imdb_tt)
+    uniqueids = tvshow.get("uniqueid") or {}
+    imdb_digits = _strip_imdb_tt(uniqueids.get("imdb") if isinstance(uniqueids, dict) else None)
+    if not imdb_digits:
+        imdb_digits = _strip_imdb_tt(tvshow.get("imdbnumber"), require_tt=True)
     if imdb_digits and 6 <= len(imdb_digits) <= 8:
         parent_imdb = int(imdb_digits)
         log(__name__, f"Found Parent IMDb: {parent_imdb}")
@@ -563,23 +580,32 @@ def get_media_data():
                         item["query"] = original_show_title
                         log(__name__, f"Using show original title for query: '{original_show_title}'")
 
-                    # parent IMDb
+                    uniqueids = tvshow_details.get("uniqueid", {})
+                    if not isinstance(uniqueids, dict):
+                        uniqueids = {}
+
+                    # parent IMDb: uniqueid["imdb"] is explicitly typed, so trust it first.
+                    # "imdbnumber" is only the scraper's primary id and may be a TVDB/TMDb
+                    # one, hence require_tt (see _strip_imdb_tt).
                     if not item["parent_imdb_id"]:
-                        imdb_raw = str(tvshow_details.get("imdbnumber") or "")
-                        imdb_digits = _strip_imdb_tt(imdb_raw)
+                        imdb_digits = _strip_imdb_tt(uniqueids.get("imdb"))
+                        source = "uniqueid"
+                        if not imdb_digits:
+                            imdb_digits = _strip_imdb_tt(tvshow_details.get("imdbnumber"), require_tt=True)
+                            source = "imdbnumber"
                         if imdb_digits and 6 <= len(imdb_digits) <= 8:
                             item["parent_imdb_id"] = int(imdb_digits)
-                            log(__name__, f"Parent IMDb via JSON-RPC: {item['parent_imdb_id']}")
+                            log(__name__, f"Parent IMDb via JSON-RPC ({source}): {item['parent_imdb_id']}")
+                        elif tvshow_details.get("imdbnumber"):
+                            log(__name__, "Library imdbnumber is not an IMDb id (no 'tt' prefix), ignoring it")
 
                     # parent TMDb (first try uniqueid, then episodeguide fallback)
                     if not item["parent_tmdb_id"]:
                         # Method 1: Try uniqueid field first (more reliable)
-                        uniqueids = tvshow_details.get("uniqueid", {})
-                        if isinstance(uniqueids, dict):
-                            tmdb_raw = uniqueids.get("tmdb", "")
-                            if tmdb_raw and str(tmdb_raw).isdigit():
-                                item["parent_tmdb_id"] = int(tmdb_raw)
-                                log(__name__, f"Parent TMDb via JSON-RPC (uniqueid): {item['parent_tmdb_id']}")
+                        tmdb_raw = uniqueids.get("tmdb", "")
+                        if tmdb_raw and str(tmdb_raw).isdigit():
+                            item["parent_tmdb_id"] = int(tmdb_raw)
+                            log(__name__, f"Parent TMDb via JSON-RPC (uniqueid): {item['parent_tmdb_id']}")
 
                         # Method 2: Fallback to episodeguide if uniqueid didn't work
                         if not item["parent_tmdb_id"]:
@@ -679,6 +705,12 @@ def get_media_data():
     # ---------- Final ID Strategy Selection (TV Episodes Only) ----------
     # Ensure we only use ONE strategy: parent IDs + season/episode OR episode-specific IDs
     if item.get("tv_show_title"):
+        # Keep whatever the player gave us before the parent strategies clear it: a parent id
+        # can be wrong (a mis-scraped library, or a foreign id), and then the episode id is
+        # the only thing left that identifies the episode. Used as a last attempt below.
+        item["_player_episode_ids"] = {"imdb_id": item.get("imdb_id"),
+                                       "tmdb_id": item.get("tmdb_id")}
+
         if item.get("parent_imdb_id"):
             # Strategy: Use parent IMDb ID with season/episode
             item["parent_tmdb_id"] = None  # Clear conflicting parent ID
@@ -764,6 +796,7 @@ def get_media_data():
                          "imdb_id": None, "tmdb_id": None,
                          "parent_imdb_id": None, "parent_tmdb_id": None}
         role_unknown = item.pop("_player_id_role_unknown", False)
+        episode_ids = item.pop("_player_episode_ids", None) or {}
 
         if role_unknown and (item.get("imdb_id") or item.get("tmdb_id")):
             # Read it as the show's id first: that keeps season/episode in play, and it is
@@ -793,6 +826,25 @@ def get_media_data():
             item["episode_number"] = None
             item["search_fallbacks"] = [title_attempt]
             log(__name__, "Episode-level ID search: dropped query/season/episode (kept for retry)")
+
+        elif item.get("parent_imdb_id") or item.get("parent_tmdb_id"):
+            # A parent id from the library won. It is usually right, but a mis-scraped show
+            # yields a parent id OS.com has never seen and the search returns nothing - so
+            # keep the episode id the player gave us as a second attempt rather than
+            # discarding it. Seen in a user log: a library "imdbnumber" that was not an IMDb
+            # id at all went out as parent_imdb_id (0 results) while the episode's own id
+            # would have matched 10 subtitles.
+            fallbacks = []
+            if episode_ids.get("imdb_id") or episode_ids.get("tmdb_id"):
+                episode_attempt = {"parent_imdb_id": None, "parent_tmdb_id": None,
+                                   "imdb_id": episode_ids.get("imdb_id"),
+                                   "tmdb_id": episode_ids.get("tmdb_id"),
+                                   "query": "", "season_number": None, "episode_number": None}
+                fallbacks.append(episode_attempt)
+                log(__name__, f"Parent ID search, keeping episode ID "
+                              f"{episode_ids.get('imdb_id') or episode_ids.get('tmdb_id')} as a fallback")
+            fallbacks.append(title_attempt)
+            item["search_fallbacks"] = fallbacks
 
     # Remove internal-only key
     if "tvshowid" in item:
