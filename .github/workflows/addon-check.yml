@@ -59,4 +59,14 @@ jobs:
 
       - name: Validate Add-on with kodi-addon-checker
         run: |
-          kodi-addon-checker --branch ${{ matrix.kodi-version }} --allow-folder-id-mismatch /tmp/clean_addon/service.subtitles.opensubtitles-com
+          # The checker downloads mirrors.kodi.tv repo indexes; a slow mirror makes it
+          # crash internally (AttributeError: 'Repository' object has no attribute
+          # 'addons'). That is their flake, not our add-on - retry up to 3 times.
+          for attempt in 1 2 3; do
+            if kodi-addon-checker --branch ${{ matrix.kodi-version }} --allow-folder-id-mismatch /tmp/clean_addon/service.subtitles.opensubtitles-com; then
+              exit 0
+            fi
+            echo "kodi-addon-checker attempt $attempt failed (mirror flake?), retrying in 30s..."
+            sleep 30
+          done
+          exit 1
