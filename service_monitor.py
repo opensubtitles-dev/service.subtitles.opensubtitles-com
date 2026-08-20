@@ -23,59 +23,78 @@ __addon_name__ = __addon__.getAddonInfo("name")
 __language__ = __addon__.getLocalizedString
 
 
+_refresh_lock = threading.Lock()
+
+
 def check_and_refresh_account_status(force=False):
     """
     Silently checks and refreshes account status in background with a short timeout.
     Updates quota and VIP info if stale (> 12 hours) or forced on settings change.
     """
-    username = __addon__.getSetting("OSuser")
-    password = __addon__.getSetting("OSpass")
-    api_key = __addon__.getSetting("APIKey")
-
-    if not username or not password:
+    if not _refresh_lock.acquire(blocking=force, timeout=2 if force else -1):
+        log(__name__, "Account refresh already in progress, skipping duplicate call")
         return
 
-    verified_at = __addon__.getSetting("account_verified_at")
     try:
-        age = time.time() - float(verified_at) if verified_at and verified_at != "0" else 9999999
-    except (ValueError, TypeError):
-        age = 9999999
+        addon = xbmcaddon.Addon("service.subtitles.opensubtitles-com")
+        username = addon.getSetting("OSuser")
+        password = addon.getSetting("OSpass")
+        api_key = addon.getSetting("APIKey")
 
-    # DEV TESTING MODE: Always refresh on startup/call so user can verify immediately
-    # (Will restore 12h age check before production release)
-    log(__name__, "🔄 Background Service: Checking & refreshing account status (dev mode)...")
-    try:
-        from datetime import datetime
-        provider = OpenSubtitlesProvider(api_key, username, password)
-        provider.login()
-        user_info = provider.get_user_info()
+        if not username or not password:
+            return
 
-        now = datetime.now()
-        now_str = now.strftime("%Y-%m-%d %H:%M")
-        now_epoch = int(now.timestamp())
+        verified_at = addon.getSetting("account_verified_at")
+        try:
+            age = time.time() - float(verified_at) if verified_at and verified_at != "0" else 9999999
+        except (ValueError, TypeError):
+            age = 9999999
 
-        level = user_info.get("level", "User")
-        remaining = user_info.get("remaining_downloads", "N/A")
-        allowed = user_info.get("allowed_downloads", "N/A")
-        vip_badge = "VIP" if user_info.get("vip") else "Free User"
+        monitor = xbmc.Monitor()
+        if monitor.abortRequested():
+            return
 
-        __addon__.setSetting("account_status", f"OK ({vip_badge})")
-        __addon__.setSetting("account_details", f"Quota: {remaining}/{allowed} left | Level: {level}")
-        __addon__.setSetting("account_checked_at", now_str)
-        __addon__.setSetting("account_verified_at", str(now_epoch))
-        log(__name__, f"✅ Background account refresh complete: {vip_badge} ({remaining}/{allowed} left)")
-    except AuthenticationError:
-        __addon__.setSetting("account_status", "Error 401 (Invalid credentials)")
-        __addon__.setSetting("account_details", "Check username and password")
-    except BadUsernameError:
-        __addon__.setSetting("account_status", "Error 400 (Bad username)")
-        __addon__.setSetting("account_details", "Use username, not email address")
-    except Exception as e:
-        log(__name__, f"Background account refresh skipped/failed: {e}")
-        if age > 86400:
-            last_checked = __addon__.getSetting("account_checked_at")
-            if last_checked:
-                __addon__.setSetting("account_status", "Active (Offline / Cached)")
+        # DEV TESTING MODE: Always refresh on startup/call so user can verify immediately
+        # (Will restore 12h age check before production release)
+        log(__name__, "🔄 Background Service: Checking & refreshing account status (dev mode)...")
+        try:
+            from datetime import datetime
+            if monitor.abortRequested():
+                return
+            provider = OpenSubtitlesProvider(api_key, username, password)
+            provider.login()
+            if monitor.abortRequested():
+                return
+            user_info = provider.get_user_info()
+
+            now = datetime.now()
+            now_str = now.strftime("%Y-%m-%d %H:%M")
+            now_epoch = int(now.timestamp())
+
+            level = user_info.get("level", "User")
+            remaining = user_info.get("remaining_downloads", "N/A")
+            allowed = user_info.get("allowed_downloads", "N/A")
+            vip_badge = "VIP" if user_info.get("vip") else "Free User"
+
+            addon.setSetting("account_status", f"OK ({vip_badge})")
+            addon.setSetting("account_details", f"Quota: {remaining}/{allowed} left | Level: {level}")
+            addon.setSetting("account_checked_at", now_str)
+            addon.setSetting("account_verified_at", str(now_epoch))
+            log(__name__, f"✅ Background account refresh complete: {vip_badge} ({remaining}/{allowed} left)")
+        except AuthenticationError:
+            addon.setSetting("account_status", "Error 401 (Invalid credentials)")
+            addon.setSetting("account_details", "Check username and password")
+        except BadUsernameError:
+            addon.setSetting("account_status", "Error 400 (Bad username)")
+            addon.setSetting("account_details", "Use username, not email address")
+        except Exception as e:
+            log(__name__, f"Background account refresh skipped/failed: {e}")
+            if age > 86400:
+                last_checked = addon.getSetting("account_checked_at")
+                if last_checked:
+                    addon.setSetting("account_status", "Active (Offline / Cached)")
+    finally:
+        _refresh_lock.release()
 
 
 class OpenSubtitlesMonitor(xbmc.Monitor):

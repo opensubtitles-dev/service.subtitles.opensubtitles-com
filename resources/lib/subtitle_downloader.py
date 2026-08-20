@@ -212,16 +212,16 @@ class SubtitleDownloader:
             log(__name__, "No subtitle found")
 
     def _inject_test_flag_subtitles(self):
-        """Injects test subtitles demonstrating all flag types for UI inspection."""
+        """Injects test subtitles demonstrating all flag types, UTF-8, symbols, and formatting."""
         test_lang = (self.preferred_languages[0] if getattr(self, "preferred_languages", None) else "en")
         return [
             {
-                "id": "mock_trusted_hash",
+                "id": "mock_ok_checks",
                 "_match_score": 10500.0,
                 "attributes": {
                     "language": test_lang,
-                    "release": "Example.Movie.2024.1080p.BluRay.x264-FLUX",
-                    "ratings": 9.5,
+                    "release": "Movie.2024.1080p.BluRay.x264 [COLOR green]✓ OK1[/COLOR] [COLOR green]✔ OK2[/COLOR] [COLOR green]☑ OK3[/COLOR] [COLOR green]√ OK4[/COLOR]",
+                    "ratings": 9.8,
                     "votes": 120,
                     "download_count": 4500,
                     "from_trusted": True,
@@ -232,58 +232,18 @@ class SubtitleDownloader:
                     "foreign_parts_only": False,
                     "hd": True,
                     "files": [{"file_id": 999001}],
-                    "feature_details": {"title": "Example Movie 2024", "movie_name": "Example Movie 2024"}
+                    "feature_details": {"title": "Movie 2024", "movie_name": "Movie 2024"}
                 }
             },
             {
-                "id": "mock_ai",
+                "id": "mock_bad_crosses",
                 "_match_score": 4500.0,
                 "attributes": {
                     "language": test_lang,
-                    "release": "Example.Movie.2024.1080p.BluRay.x264-FLUX",
-                    "ratings": 8.0,
-                    "votes": 45,
-                    "download_count": 1200,
-                    "from_trusted": False,
-                    "moviehash_match": False,
-                    "hearing_impaired": False,
-                    "ai_translated": True,
-                    "machine_translated": False,
-                    "foreign_parts_only": False,
-                    "hd": False,
-                    "files": [{"file_id": 999002}],
-                    "feature_details": {"title": "Example Movie 2024", "movie_name": "Example Movie 2024"}
-                }
-            },
-            {
-                "id": "mock_sdh",
-                "_match_score": 4200.0,
-                "attributes": {
-                    "language": test_lang,
-                    "release": "Example.Movie.2024.1080p.WEB-DL.DDP5.1.H.264-FLUX",
-                    "ratings": 9.0,
-                    "votes": 80,
-                    "download_count": 2300,
-                    "from_trusted": True,
-                    "moviehash_match": False,
-                    "hearing_impaired": True,
-                    "ai_translated": False,
-                    "machine_translated": False,
-                    "foreign_parts_only": False,
-                    "hd": True,
-                    "files": [{"file_id": 999003}],
-                    "feature_details": {"title": "Example Movie 2024", "movie_name": "Example Movie 2024"}
-                }
-            },
-            {
-                "id": "mock_machine",
-                "_match_score": 3000.0,
-                "attributes": {
-                    "language": test_lang,
-                    "release": "Example.Movie.2024.720p.HDTV.x264-MT",
-                    "ratings": 5.0,
-                    "votes": 12,
-                    "download_count": 450,
+                    "release": "Movie.2024.1080p.BluRay.x264 [COLOR red]✗ Bad1[/COLOR] [COLOR red]✘ Bad2[/COLOR] [COLOR red]✕ Bad3[/COLOR] [COLOR red]✖ Bad4[/COLOR] [COLOR red]☒ Bad5[/COLOR]",
+                    "ratings": 4.5,
+                    "votes": 15,
+                    "download_count": 300,
                     "from_trusted": False,
                     "moviehash_match": False,
                     "hearing_impaired": False,
@@ -291,16 +251,56 @@ class SubtitleDownloader:
                     "machine_translated": True,
                     "foreign_parts_only": False,
                     "hd": False,
-                    "files": [{"file_id": 999004}],
-                    "feature_details": {"title": "Example Movie 2024", "movie_name": "Example Movie 2024"}
+                    "files": [{"file_id": 999002}],
+                    "feature_details": {"title": "Movie 2024", "movie_name": "Movie 2024"}
                 }
             },
             {
-                "id": "mock_forced",
+                "id": "mock_warnings_lightning",
+                "_match_score": 4200.0,
+                "attributes": {
+                    "language": test_lang,
+                    "release": "Movie.2024.1080p.WEB-DL [COLOR yellow]⚠ Warning[/COLOR] [COLOR yellow]⚡ Sync[/COLOR] [COLOR yellow]⚡ Fast[/COLOR]",
+                    "ratings": 8.0,
+                    "votes": 50,
+                    "download_count": 1800,
+                    "from_trusted": False,
+                    "moviehash_match": False,
+                    "hearing_impaired": True,
+                    "ai_translated": True,
+                    "machine_translated": False,
+                    "foreign_parts_only": False,
+                    "hd": True,
+                    "files": [{"file_id": 999003}],
+                    "feature_details": {"title": "Movie 2024", "movie_name": "Movie 2024"}
+                }
+            },
+            {
+                "id": "mock_stars_ratings",
+                "_match_score": 4000.0,
+                "attributes": {
+                    "language": test_lang,
+                    "release": "Movie.2024.1080p.BluRay [COLOR gold]★ 9.8[/COLOR] [COLOR gold]☆ 4/5[/COLOR] [COLOR gold]✪ Top[/COLOR] [COLOR gold]✦ HQ[/COLOR]",
+                    "ratings": 9.8,
+                    "votes": 250,
+                    "download_count": 5200,
+                    "from_trusted": True,
+                    "moviehash_match": False,
+                    "hearing_impaired": False,
+                    "ai_translated": False,
+                    "machine_translated": False,
+                    "foreign_parts_only": False,
+                    "hd": True,
+                    "files": [{"file_id": 999004}],
+                    "feature_details": {"title": "Movie 2024", "movie_name": "Movie 2024"}
+                }
+            },
+            {
+                "id": "mock_dots_diamonds",
                 "_match_score": 3800.0,
                 "attributes": {
                     "language": test_lang,
-                    "release": "Example.Movie.2024.1080p.BluRay.x264",
+                    "release": "Movie.2024.1080p.WEB [COLOR lightblue]● Dot1[/COLOR] [COLOR lightblue]○ Dot2[/COLOR] [COLOR lightblue]• Bullet[/COLOR] [COLOR lightblue]◆ Diamond[/COLOR]",
                     "ratings": 8.5,
                     "votes": 60,
                     "download_count": 1800,
@@ -312,27 +312,107 @@ class SubtitleDownloader:
                     "foreign_parts_only": True,
                     "hd": True,
                     "files": [{"file_id": 999005}],
-                    "feature_details": {"title": "Example Movie 2024", "movie_name": "Example Movie 2024"}
+                    "feature_details": {"title": "Movie 2024", "movie_name": "Movie 2024"}
                 }
             },
             {
-                "id": "mock_combo",
-                "_match_score": 3500.0,
+                "id": "mock_arrows_pointers",
+                "_match_score": 3600.0,
                 "attributes": {
                     "language": test_lang,
-                    "release": "Example.Movie.2024.2160p.UHD.HDR",
+                    "release": "Movie.2024.1080p.BluRay [COLOR white]► Play[/COLOR] [COLOR white]▶ Arrow[/COLOR] [COLOR white]» Next[/COLOR] [COLOR grey]│[/COLOR] [COLOR white]DTS-HD[/COLOR]",
                     "ratings": 7.5,
                     "votes": 25,
                     "download_count": 900,
                     "from_trusted": False,
                     "moviehash_match": False,
-                    "hearing_impaired": True,
+                    "hearing_impaired": False,
                     "ai_translated": True,
                     "machine_translated": False,
                     "foreign_parts_only": False,
                     "hd": True,
                     "files": [{"file_id": 999006}],
-                    "feature_details": {"title": "Example Movie 2024", "movie_name": "Example Movie 2024"}
+                    "feature_details": {"title": "Movie 2024", "movie_name": "Movie 2024"}
+                }
+            },
+            {
+                "id": "mock_triangles_quality",
+                "_match_score": 3400.0,
+                "attributes": {
+                    "language": test_lang,
+                    "release": "Movie.2024.2160p.HDR [COLOR green]▲ High[/COLOR] [COLOR red]▼ Low[/COLOR] [COLOR cyan]■ Square[/COLOR] [COLOR yellow]❖ Badge[/COLOR]",
+                    "ratings": 8.0,
+                    "votes": 40,
+                    "download_count": 1100,
+                    "from_trusted": True,
+                    "moviehash_match": False,
+                    "hearing_impaired": False,
+                    "ai_translated": False,
+                    "machine_translated": False,
+                    "foreign_parts_only": False,
+                    "hd": True,
+                    "files": [{"file_id": 999007}],
+                    "feature_details": {"title": "Movie 2024", "movie_name": "Movie 2024"}
+                }
+            },
+            {
+                "id": "mock_bracket_badges",
+                "_match_score": 3200.0,
+                "attributes": {
+                    "language": test_lang,
+                    "release": "Movie.2024.1080p.BluRay.x264-FLUX [COLOR green][✔ Trusted][/COLOR] [COLOR cyan][✦ AI][/COLOR] [COLOR gold][★ 9.5][/COLOR]",
+                    "ratings": 9.5,
+                    "votes": 110,
+                    "download_count": 3500,
+                    "from_trusted": False,
+                    "moviehash_match": False,
+                    "hearing_impaired": False,
+                    "ai_translated": False,
+                    "machine_translated": False,
+                    "foreign_parts_only": False,
+                    "hd": True,
+                    "files": [{"file_id": 999008}],
+                    "feature_details": {"title": "Movie 2024", "movie_name": "Movie 2024"}
+                }
+            },
+            {
+                "id": "mock_czech_slovak_glyphs",
+                "_match_score": 3000.0,
+                "attributes": {
+                    "language": test_lang,
+                    "release": "Film.2024.Slovenské.a.České.Znaky.ľščťžýáíéôäň [COLOR green]✔ Overené[/COLOR] [COLOR gold]★ 9.9[/COLOR]",
+                    "ratings": 9.9,
+                    "votes": 180,
+                    "download_count": 4200,
+                    "from_trusted": True,
+                    "moviehash_match": False,
+                    "hearing_impaired": False,
+                    "ai_translated": False,
+                    "machine_translated": False,
+                    "foreign_parts_only": False,
+                    "hd": True,
+                    "files": [{"file_id": 999009}],
+                    "feature_details": {"title": "Movie 2024", "movie_name": "Movie 2024"}
+                }
+            },
+            {
+                "id": "mock_cyrillic_glyphs",
+                "_match_score": 2800.0,
+                "attributes": {
+                    "language": test_lang,
+                    "release": "Фильм.2024.1080p.Русские.Субтитры.Проверено [COLOR green]✔ Проверено[/COLOR] [COLOR gold]★ 9.4[/COLOR]",
+                    "ratings": 9.4,
+                    "votes": 90,
+                    "download_count": 2100,
+                    "from_trusted": True,
+                    "moviehash_match": False,
+                    "hearing_impaired": False,
+                    "ai_translated": False,
+                    "machine_translated": False,
+                    "foreign_parts_only": False,
+                    "hd": True,
+                    "files": [{"file_id": 999010}],
+                    "feature_details": {"title": "Movie 2024", "movie_name": "Movie 2024"}
                 }
             }
         ]
@@ -530,6 +610,7 @@ class SubtitleDownloader:
                                                         attributes["feature_details"]["movie_name"])
                 
                 # Build visual attribute badges and append at the END of the line
+                # (SDH and Hash are handled natively by Kodi dialog icons: hearing_imp and sync)
                 badges = []
                 if attributes.get("from_trusted"):
                     badges.append("[COLOR green][Trusted][/COLOR]")
@@ -539,12 +620,8 @@ class SubtitleDownloader:
                     badges.append("[COLOR orange][Machine][/COLOR]")
                 if attributes.get("foreign_parts_only"):
                     badges.append("[COLOR yellow][Forced][/COLOR]")
-                if attributes.get("hearing_impaired"):
-                    badges.append("[COLOR yellow][SDH][/COLOR]")
-                if attributes.get("hd"):
-                    badges.append("[COLOR lightblue][HD][/COLOR]")
 
-                # Append yellow match badge to label2 (e.g. (+95) or (Hash))
+                # Append yellow match badge to label2 (e.g. (+95), omits (Hash) since sync icon is active)
                 if smart_ranking:
                     match_tag = get_match_display_tag(subtitle)
                     if match_tag:

@@ -154,8 +154,9 @@ def test_legacy_ranking_with_preferred_languages_grouping():
 def test_get_match_display_tag():
     from resources.lib.matcher import get_match_display_tag
 
+    # Exact moviehash match returns empty tag string since Kodi renders the native SYNC icon
     sub_hash = {"attributes": {"moviehash_match": True}}
-    assert get_match_display_tag(sub_hash) == "[COLOR yellow](Hash)[/COLOR]"
+    assert get_match_display_tag(sub_hash) == ""
 
     sub_high = {"_match_score": 6000.0, "attributes": {}}
     assert get_match_display_tag(sub_high) == "[COLOR yellow](+99)[/COLOR]"

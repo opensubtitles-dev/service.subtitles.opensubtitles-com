@@ -278,10 +278,11 @@ def calculate_match_score(subtitle, video_filename, guessit_data=None, prefer_he
 def get_match_display_tag(subtitle):
     """
     Returns a clean, colorized Kodi match badge string for display in the subtitle list (e.g. [COLOR yellow](+95)[/COLOR]).
+    Omits text tag for exact moviehash matches as Kodi natively renders the SYNC icon.
     """
     attributes = subtitle.get("attributes", {})
     if attributes.get("moviehash_match"):
-        return "[COLOR yellow](Hash)[/COLOR]"
+        return ""
 
     score = subtitle.get("_match_score", 0.0)
     
