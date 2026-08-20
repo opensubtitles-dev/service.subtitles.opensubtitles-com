@@ -52,11 +52,13 @@ def check_version_consistency():
     if f"v{version}" not in changelog_head:
         fail(f"changelog.txt first line ({changelog_head.strip()!r}) is not v{version}")
 
+    # No translation string may hardcode a version number (1.0.16 shipped a row
+    # saying "Version 1.0.15" because the .po was forgotten at bump time).
     po = open(os.path.join(REPO, "resources/language/resource.language.en_GB/strings.po"),
               encoding="utf-8").read()
-    m = re.search(r'msgctxt "#32219"\nmsgid "Version ([\d.]+)', po)
-    if not m or m.group(1) != version:
-        fail(f"settings version row (#32219) says {m.group(1) if m else 'nothing'}, addon.xml says {version}")
+    hardcoded = re.findall(r'msgid "[^"]*\b\d+\.\d+\.\d+[^"]*"', po)
+    if hardcoded:
+        fail(f"version number hardcoded in translation strings: {hardcoded}")
 
     news = re.search(r"<news>(.*?)</news>", addon_xml, re.DOTALL).group(1)
     if len(news) >= 1500:

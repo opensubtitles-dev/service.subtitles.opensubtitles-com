@@ -125,7 +125,7 @@ msgid "Search cache cleared successfully."
 msgstr ""
 
 msgctxt "#32219"
-msgid "Version 2.0.0 (Click to check for updates)"
+msgid "Check for updates"
 msgstr ""
 
 msgctxt "#32220"
