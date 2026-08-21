@@ -279,7 +279,7 @@ def calculate_match_score(subtitle, video_filename, guessit_data=None, prefer_he
     # Andromeda Strain movie, feature 517086). The video filename tells us the
     # target is not an episode; a release that IS one belongs at the bottom.
     episode_pattern = re.compile(r"\bS\d{1,2}E\d{1,3}\b|\[\s*\d{1,2}x\d{1,3}\s*\]|\b\d{1,2}x\d{1,3}\b", re.IGNORECASE)
-    if episode_pattern.search(sub_release) and not episode_pattern.search(video_filename or ""):
+    if episode_pattern.search(str(sub_release)) and not episode_pattern.search(str(video_filename or "")):
         score -= 1500.0
 
     # 6. Translation Provenance (human > AI > machine)
