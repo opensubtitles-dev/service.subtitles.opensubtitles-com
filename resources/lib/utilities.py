@@ -13,6 +13,15 @@ __addon_name__ = __addon__.getAddonInfo("name")
 __language__ = __addon__.getLocalizedString
 
 
+def get_user_agent():
+    """The ONE User-Agent for every outbound request (API, guessit, GitHub).
+
+    Policy: a single identity everywhere - "Opensubtitles.com Kodi plugin v<version>".
+    tests/test_utilities.py fails the suite if any file hardcodes its own.
+    """
+    return f"Opensubtitles.com Kodi plugin v{__addon__.getAddonInfo('version')}"
+
+
 def log(module, msg):
     xbmc.log(f"### [{__addon_name__}:{module}] - {msg}", level=xbmc.LOGDEBUG)
 

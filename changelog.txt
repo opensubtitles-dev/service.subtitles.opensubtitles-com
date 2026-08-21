@@ -1,4 +1,3 @@
-
 v1.0.16 (2026-08-20)
 - fixed Test Connection failing with "ModuleNotFoundError: No module named 'resources.lib.osclient'" when another installed add-on ships its own top-level 'resources' folder. The import-path guard added in 1.0.11 was lost when test_connection.py was rewritten for 1.0.15; it is restored, extended to Clear Cache and Check for Updates, and a test now fails if it ever goes missing again (issue #39)
 - fixed TV episode searches returning nothing when the Kodi library holds a non-IMDb id in its imdbnumber field. That field contains whatever the scraper treats as the item's primary id, which for a TVDB-scraped show is not an IMDb id: it was sent as parent_imdb_id and matched nothing, while the episode's own id was discarded. The field is now only trusted with a 'tt' prefix, uniqueid is preferred, and the episode id is kept as a fallback attempt

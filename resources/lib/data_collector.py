@@ -6,7 +6,7 @@ import xml.etree.ElementTree as ET
 import xbmc
 import xbmcaddon
 
-from resources.lib.utilities import log, normalize_string
+from resources.lib.utilities import log, normalize_string, get_user_agent
 
 # Simple cache for library queries to avoid repeated calls
 _library_cache = {}
@@ -365,7 +365,7 @@ def _call_guessit_api(filename):
         # Create request with headers
         req = urllib.request.Request(url)
         req.add_header("Api-Key", api_key)
-        req.add_header("User-Agent", f"service.subtitles.opensubtitles-com v{__addon__.getAddonInfo('version')}")
+        req.add_header("User-Agent", get_user_agent())
         req.add_header("Accept", "application/json")
 
         log(__name__, f"🔍 Calling guessit API for: {clean_filename}")

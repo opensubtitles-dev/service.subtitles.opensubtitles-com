@@ -26,6 +26,8 @@ if _res is not None and not any(os.path.normpath(p).startswith(_addon_path)
         del sys.modules[_module]
 # -----------------------------------------------------------------------------------
 
+from resources.lib.utilities import get_user_agent
+
 __addon__ = xbmcaddon.Addon("service.subtitles.opensubtitles-com")
 __addon_name__ = __addon__.getAddonInfo("name")
 __language__ = __addon__.getLocalizedString
@@ -59,7 +61,7 @@ def extract_remote_version(xml_content):
 
 def fetch_latest_remote_version():
     """Queries remote repositories and returns latest remote version string or None."""
-    headers = {"User-Agent": "Kodi/OpenSubtitles.com-Updater"}
+    headers = {"User-Agent": get_user_agent()}
     for url in REMOTE_MANIFEST_URLS:
         try:
             resp = requests.get(url, headers=headers, timeout=6)
