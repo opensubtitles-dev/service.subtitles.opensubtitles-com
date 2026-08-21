@@ -265,3 +265,22 @@ def test_real_uploaded_ai_subtitle_is_not_on_demand():
         "comments": "retail subs compatible with WEB-DL", "ai_translated": True,
         "files": [{"file_id": 11827675}]})
     assert not is_on_demand_translation({"comments": "", "files": []})
+
+
+def test_episode_subtitle_sinks_when_target_is_a_movie():
+    """Live catalog mislink: TV episode subs attached to the 1971 movie feature."""
+    video = "The.Andromeda.Strain.1971.mp4"
+    episode_sub = _provenance_sub("episode", "Andromeda - [1x07] - The Ties That Blind")
+    movie_sub = _provenance_sub("movie", "The Andromeda Strain 1971")
+
+    ranked = rank_subtitles([episode_sub, movie_sub], video, preferred_languages=["es"])
+    assert ranked[0]["id"] == "movie"
+
+
+def test_episode_subtitle_not_penalized_when_target_is_an_episode():
+    from resources.lib.matcher import calculate_match_score
+    sub = _provenance_sub("ep", "Show.S04E01.1080p.WEB.H264-GROUP")
+    score_for_episode = calculate_match_score(sub, "Show.S04E01.1080p.WEB.mkv")
+    sub2 = _provenance_sub("ep2", "Show.S04E01.1080p.WEB.H264-GROUP")
+    score_for_movie = calculate_match_score(sub2, "Some.Movie.2024.1080p.mkv")
+    assert score_for_episode > score_for_movie
