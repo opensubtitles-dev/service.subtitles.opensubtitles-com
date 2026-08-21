@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenSubtitles.com Kodi Repository</title>
+    <style>
+        :root {
+            --primary: #0284c7;
+            --primary-dark: #0369a1;
+            --bg: #0f172a;
+            --card-bg: #1e293b;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --border: #334155;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 2rem 1rem;
+            display: flex;
+            justify-content: center;
+        }
+        .container {
+            max-width: 720px;
+            width: 100%;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 2.5rem;
+        }
+        .logo {
+            width: 96px;
+            height: 96px;
+            margin-bottom: 1rem;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+        }
+        h1 {
+            margin: 0 0 0.5rem 0;
+            font-size: 2rem;
+            font-weight: 700;
+        }
+        p.subtitle {
+            color: var(--text-muted);
+            margin: 0;
+            font-size: 1.1rem;
+        }
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+        }
+        .btn {
+            display: inline-block;
+            background-color: var(--primary);
+            color: #ffffff;
+            font-weight: 600;
+            padding: 0.875rem 1.75rem;
+            border-radius: 8px;
+            text-decoration: none;
+            transition: background-color 0.2s ease;
+            text-align: center;
+            font-size: 1.1rem;
+            margin: 1rem 0;
+        }
+        .btn:hover {
+            background-color: var(--primary-dark);
+        }
+        ol {
+            padding-left: 1.25rem;
+            line-height: 1.7;
+            color: var(--text);
+        }
+        code {
+            background: #0f172a;
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-size: 0.9em;
+            color: #38bdf8;
+        }
+        .url-box {
+            background: #0b1329;
+            border: 1px solid #0284c7;
+            padding: 0.85rem 1rem;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 1.05rem;
+            color: #38bdf8;
+            word-break: break-all;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin: 0.75rem 0 1.25rem 0;
+        }
+        .copy-btn {
+            background: #0284c7;
+            color: #ffffff;
+            border: none;
+            border-radius: 6px;
+            padding: 0.4rem 0.8rem;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-left: 0.5rem;
+            white-space: nowrap;
+        }
+        .copy-btn:hover {
+            background: #0369a1;
+        }
+        .method-tag {
+            display: inline-block;
+            background: #15803d;
+            color: #ffffff;
+            font-size: 0.75rem;
+            font-weight: 700;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.5rem;
+        }
+        .addon-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid var(--border);
+        }
+        .addon-item:last-child {
+            border-bottom: none;
+        }
+        .badge {
+            background: #0369a1;
+            padding: 0.25rem 0.5rem;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <svg class="logo" width="88" height="88" viewBox="0 0 512 512" fill="currentColor" aria-label="OpenSubtitles" role="img">
+                <path fill-rule="evenodd" clip-rule="evenodd" d="M256 26C129 26 26 129 26 256s103 230 230 230 230-103 230-230S383 26 256 26Zm0 102c62 0 113 2 136 5 24 3 38 17 41 41 2 20 4 49 4 82s-2 62-4 82c-3 24-17 38-41 41-23 3-74 5-136 5s-113-2-136-5c-24-3-38-17-41-41-2-20-4-49-4-82s2-62 4-82c3-24 17-38 41-41 23-3 74-5 136-5Z"/>
+                <rect x="120" y="300" width="272" height="22" rx="10"/>
+                <rect x="163" y="338" width="186" height="20" rx="10"/>
+            </svg>
+            <h1>OpenSubtitles.com Repository</h1>
+            <p class="subtitle">Official Fast-Track Update Repository for Kodi</p>
+        </div>
+
+        <div class="card">
+            <span class="method-tag">Recommended for Smart TVs, FireStick, Android TV & PC</span>
+            <h2 style="margin-top: 0.25rem;">📱 Method 1: Install Directly in Kodi (File Manager)</h2>
+            <p style="color: var(--text-muted); margin-bottom: 0.5rem;">No web browser or USB drive needed. Type or paste this URL into Kodi:</p>
+            
+            <div class="url-box">
+                <span id="repoUrl">https://kodi.opensubtitles.com</span>
+                <button class="copy-btn" onclick="navigator.clipboard.writeText(document.getElementById('repoUrl').innerText); this.innerText='Copied!'; setTimeout(()=>this.innerText='Copy', 2000)">Copy</button>
+            </div>
+
+            <ol>
+                <li>In Kodi, enable <strong>Unknown sources</strong> under <strong>Settings (⚙️) ➔ System ➔ Add-ons</strong>.</li>
+                <li>Go to <strong>Settings (⚙️) ➔ File manager ➔ Add source</strong>.</li>
+                <li>Click <code>&lt;None&gt;</code> and enter the URL above: <code>https://kodi.opensubtitles.com</code></li>
+                <li>Set the media source name to: <strong><code>OpenSubtitles-repo</code></strong> and click <strong>OK</strong>.</li>
+                <li>Go to <strong>Add-ons ➔ Install from zip file ➔ OpenSubtitles-repo</strong>.</li>
+                <li>Select <strong><code>repository.opensubtitles-com.zip</code></strong> and wait for installation confirmation.</li>
+                <li>Go to <strong>Install from repository ➔ OpenSubtitles.com Official Repository ➔ Subtitles ➔ OpenSubtitles.com</strong> and click <strong>Install</strong>.</li>
+            </ol>
+        </div>
+
+        <div class="card">
+            <h2 style="margin-top: 0.25rem;">💻 Method 2: Direct Zip Download</h2>
+            <p style="color: var(--text-muted);">For offline installation, or devices that cannot reach the repository directly:</p>
+            <div style="text-align: center;">
+                <a class="btn" href="repository.opensubtitles-com.zip">⬇️ Download repository.opensubtitles-com.zip</a>
+            </div>
+            <ol>
+                <li>In Kodi, go to <strong>Add-ons ➔ Install from zip file</strong> and select the downloaded file.</li>
+                <li>Then choose <strong>Install from repository ➔ OpenSubtitles.com Official Repository ➔ Subtitles ➔ OpenSubtitles.com</strong>.</li>
+            </ol>
+        </div>
+
+        <div class="card">
+            <h3>⚙️ Configuration</h3>
+            <ol>
+                <li>Open add-on <strong>Settings</strong>:
+                    <ul>
+                        <li>Enter your OpenSubtitles.com <strong>Username</strong> and <strong>Password</strong>.</li>
+                        <li>Click <strong>Test Connection</strong> to verify your account and daily quota.</li>
+                    </ul>
+                </li>
+                <li>In Kodi <strong>Settings ➔ Player ➔ Language ➔ Subtitle Services</strong>, set both <em>Default movie service</em> and <em>Default TV show service</em> to <strong>OpenSubtitles.com</strong>.</li>
+                <li>Recommended: in the same <strong>Language</strong> screen, pick your <em>Languages to download subtitles for</em> - with nothing selected, searches return subtitles in <strong>all</strong> languages.</li>
+            </ol>
+        </div>
+
+        <div class="card">
+            <h3>🔗 Project Links</h3>
+            <p>
+                <a href="https://github.com/opensubtitles-dev/service.subtitles.opensubtitles-com">Source on GitHub</a> ·
+                <a href="https://github.com/opensubtitles-dev/service.subtitles.opensubtitles-com/issues">Report an issue</a> ·
+                <a href="https://api.opensubtitles.com">API documentation</a> ·
+                <a href="https://www.opensubtitles.com">OpenSubtitles.com</a>
+            </p>
+
+            <h3>📦 Available Packages</h3>
+            <div class="addon-item">
+                <div>
+                    <strong>service.subtitles.opensubtitles-com</strong>
+                </div>
+                <span class="badge">v1.0.16</span>
+            </div>
+            <div class="addon-item">
+                <div>
+                    <strong>repository.opensubtitles-com</strong>
+                </div>
+                <span class="badge">v1.1.0</span>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
