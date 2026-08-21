@@ -69,26 +69,34 @@ def inspect_built_zip():
     gate("built-zip inspection (the artifact users actually get)")
     sys.path.insert(0, os.path.join(REPO, "scripts"))
     from addon_manifest import iter_addon_files
-    from release_lib import DEV_SETTING_IDS, strip_development_settings
+    try:
+        # Only branches with a Development settings tab carry release_lib
+        from release_lib import DEV_SETTING_IDS, strip_development_settings
+    except ImportError:
+        DEV_SETTING_IDS, strip_development_settings = (), None
 
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as z:
         for full_path, rel_path in iter_addon_files(REPO, on_missing=lambda e: fail(f"manifest entry missing on disk: {e}")):
-            if rel_path.replace(os.sep, "/") == "resources/settings.xml":
+            if strip_development_settings and rel_path.replace(os.sep, "/") == "resources/settings.xml":
                 z.writestr(rel_path, strip_development_settings(open(full_path, encoding="utf-8").read()))
             else:
                 z.write(full_path, rel_path)
     z = zipfile.ZipFile(io.BytesIO(buf.getvalue()))
     names = z.namelist()
 
-    # Every RunScript target + the service must ship, each with the #39 guard
-    for entry in ("service.py", "service_monitor.py", "test_connection.py",
-                  "clear_cache.py", "check_updates.py", "show_qr.py", "buy_credits.py"):
+    # Derive entry points from the truth: settings.xml RunScript targets and
+    # the extension libraries declared in addon.xml. Every one must ship, and
+    # every RunScript target must carry the #39 import guard.
+    settings_src = open(os.path.join(REPO, "resources/settings.xml"), encoding="utf-8").read()
+    runscript_targets = set(re.findall(r"RunScript\([^,)]*/([A-Za-z0-9_]+\.py)", settings_src))
+    addon_xml_src = open(os.path.join(REPO, "addon.xml"), encoding="utf-8").read()
+    libraries = set(re.findall(r'library="([^"]+\.py)"', addon_xml_src))
+    for entry in sorted(runscript_targets | libraries):
         if entry not in names:
             fail(f"{entry} missing from shipped zip")
-        elif entry != "service.py" and entry != "service_monitor.py":
-            if "_addon_path" not in z.read(entry).decode():
-                fail(f"{entry} ships without the RunScript import guard (issue #39)")
+        elif entry in runscript_targets and "_addon_path" not in z.read(entry).decode():
+            fail(f"{entry} ships without the RunScript import guard (issue #39)")
 
     # Nothing internal may reach users
     for banned in ("AGENT_INSTRUCTIONS", "DEV_WORKFLOW", "KODI_STANDARDS", "TODO.md",
@@ -97,7 +105,7 @@ def inspect_built_zip():
         if hits:
             fail(f"internal file shipped: {hits[:3]}")
 
-    # Development settings must be stripped
+    # Development settings must be stripped (when this branch has any)
     settings = z.read("resources/settings.xml").decode()
     for dev_id in DEV_SETTING_IDS:
         if dev_id in settings:
