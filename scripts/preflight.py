@@ -125,13 +125,30 @@ def run_addon_checker():
     if not shutil_which("kodi-addon-checker"):
         fail("kodi-addon-checker not installed (pipx install kodi-addon-checker)")
         return
-    for branch in ("matrix", "omega"):
-        r = subprocess.run(["kodi-addon-checker", "--branch", branch, "."],
-                           cwd=REPO, capture_output=True, text=True)
-        tail = (r.stdout + r.stderr).strip().splitlines()[-1:]
-        print(f"  {branch}: {tail[0] if tail else '?'}")
-        if "we found no problems" not in (r.stdout + r.stderr).lower():
-            fail(f"kodi-addon-checker ({branch}) reports problems")
+
+    # Check the SHIPPED file set, staged under the addon's real id - running on
+    # the raw repo trips on the checkout dir name, git hooks and dev scripts
+    # that never reach users (same staging CI uses).
+    import shutil
+    import stat
+    import tempfile
+    from addon_manifest import iter_addon_files
+
+    with tempfile.TemporaryDirectory() as tmp:
+        staged = os.path.join(tmp, "service.subtitles.opensubtitles-com")
+        for full_path, rel_path in iter_addon_files(REPO):
+            dest = os.path.join(staged, rel_path)
+            os.makedirs(os.path.dirname(dest), exist_ok=True)
+            shutil.copy(full_path, dest)
+            os.chmod(dest, os.stat(dest).st_mode & ~stat.S_IXUSR & ~stat.S_IXGRP & ~stat.S_IXOTH)
+
+        for branch in ("matrix", "omega"):
+            r = subprocess.run(["kodi-addon-checker", "--branch", branch, staged],
+                               capture_output=True, text=True)
+            tail = (r.stdout + r.stderr).strip().splitlines()[-1:]
+            print(f"  {branch}: {tail[0] if tail else '?'}")
+            if "we found no problems" not in (r.stdout + r.stderr).lower():
+                fail(f"kodi-addon-checker ({branch}) reports problems")
 
 
 def shutil_which(cmd):
