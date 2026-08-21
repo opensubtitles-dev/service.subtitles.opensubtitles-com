@@ -52,3 +52,15 @@ def test_call_guessit_api_caching():
         res2 = _call_guessit_api("Parasite.2019.1080p.BluRay.mkv")
         assert res2["title"] == "Parasite"
         assert mock_urlopen.call_count == 1
+
+
+def test_preferred_language_is_converted_not_seeded_raw():
+    """Regression: wire carried ',Slovak,sl,sk' - leading comma + raw English name."""
+    from resources.lib.data_collector import get_language_data
+
+    data = get_language_data({"languages": "Slovenian,Slovak", "preferredlanguage": "Slovak"})
+
+    assert not data["languages"].startswith(","), "leading comma leaked again"
+    assert "Slovak" not in data["languages"], "raw language name leaked again"
+    parts = data["languages"].split(",")
+    assert "sl" in parts and "sk" in parts

@@ -924,8 +924,10 @@ def get_language_data(params):
     preferred_language = params.get("preferredlanguage")
 
     if preferred_language and preferred_language not in search_languages and preferred_language != "Unknown" and preferred_language != "Undetermined":
+        # Only queue the name for conversion below - seeding the string with the
+        # raw English name put ",Slovak,sl,sk" on the wire (leading comma + a
+        # value the API cannot parse as a language code). Backport of the 2.0.0 fix.
         search_languages.append(preferred_language)
-        search_languages_str = search_languages_str + "," + preferred_language
 
     for language in search_languages:
         lang = convert_language(language)
