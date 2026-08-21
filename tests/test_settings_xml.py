@@ -113,3 +113,29 @@ def test_settings_labels_exist_in_strings_po():
             
     for label_id in label_ids:
         assert label_id in po_ids, f"String ID #{label_id} used in settings.xml is missing from en_GB strings.po"
+
+
+def test_every_option_has_a_non_empty_value():
+    """Kodi SIGSEGVs (CSettingString::Deserialize null deref) on <option></option>
+    with no text - crashed the whole app at startup (found on the 2.0.0 branch)."""
+    tree = ET.parse(SETTINGS_XML_PATH)
+    for option in tree.getroot().findall(".//option"):
+        assert option.text and option.text.strip(), \
+            f"empty option value under label={option.attrib.get('label')!r} - crashes Kodi"
+
+
+def test_dependency_targets_are_defined_before_their_dependents():
+    """Kodi resolves setting dependencies in definition order: a condition that
+    references a LATER-defined setting silently evaluates against its default
+    (found on the 2.0.0 branch: rows behaved as logged-out despite stored true)."""
+    tree = ET.parse(SETTINGS_XML_PATH)
+    settings = tree.getroot().findall(".//setting")
+    order = {s.attrib.get("id"): i for i, s in enumerate(settings)}
+
+    for setting in settings:
+        sid = setting.attrib.get("id")
+        for dep in setting.findall(".//dependency") + setting.findall(".//condition"):
+            target = dep.attrib.get("setting")
+            if target and target != sid:
+                assert order[target] < order[sid], \
+                    f"'{sid}' depends on '{target}' which is defined later"
