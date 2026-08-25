@@ -322,11 +322,50 @@ def build_index_html(addons_info):
 
     html += """        </div>
     </div>
+    <!-- Kodi's HTTP file browser (CHTTPDirectory) discovers files by parsing
+         plain anchors whose text equals the href, one per line. It reads raw
+         lines, so even anchor markup inside an HTML comment shows up as a
+         phantom entry - keep this comment free of literal anchors.
+         GitHub Pages has no server-side autoindex, so without this block
+         "Install from zip file" over this source lists an empty folder.
+         Invisible to humans, load-bearing for Kodi - do not remove. -->
+    <div style="display:none">
+<a href="zips/">zips/</a>
+<a href="addons.xml">addons.xml</a>
+<a href="addons.xml.md5">addons.xml.md5</a>
+<a href="addons.xml.sha256">addons.xml.sha256</a>
+<a href="repository.opensubtitles-com.zip">repository.opensubtitles-com.zip</a>
+    </div>
 </body>
 </html>
 """
     with open(os.path.join(OUTPUT_DIR, "index.html"), "w", encoding="utf-8") as f:
         f.write(html)
+
+
+def build_autoindex_pages():
+    """Write nginx-style directory listings for every directory below OUTPUT_DIR.
+
+    GitHub Pages serves no autoindex, and Kodi's file browser needs one to
+    enumerate files when users add https://kodi.opensubtitles.com as a
+    file-manager source (the site's own Method 1 instructions). Anchor text
+    must equal the href - that is the only shape Kodi's parser recognizes.
+    The root directory keeps the human portal page; its hidden anchor block
+    covers Kodi there.
+    """
+    for dirpath, dirnames, filenames in os.walk(OUTPUT_DIR):
+        if os.path.abspath(dirpath) == os.path.abspath(OUTPUT_DIR):
+            continue
+        rel = os.path.relpath(dirpath, OUTPUT_DIR).replace(os.sep, "/")
+        entries = [f'<a href="{d}/">{d}/</a>' for d in sorted(dirnames)]
+        entries += [f'<a href="{f}">{f}</a>' for f in sorted(filenames) if f != "index.html"]
+        listing = "\n".join(entries)
+        page = (f"<html><head><title>Index of /{rel}/</title></head><body>"
+                f"<h1>Index of /{rel}/</h1><hr><pre>\n"
+                f'<a href="../">../</a>\n{listing}\n'
+                f"</pre><hr></body></html>\n")
+        with open(os.path.join(dirpath, "index.html"), "w", encoding="utf-8") as f:
+            f.write(page)
 
 def main():
     print("=" * 60)
@@ -439,6 +478,10 @@ def main():
     # 5. Generate index.html portal
     build_index_html(addons_info)
     print("🌐 Generated web download portal (index.html)")
+
+    # 6. Autoindex pages so Kodi can browse the source over HTTP
+    build_autoindex_pages()
+    print("🗂️  Generated Kodi-browsable directory listings (zips/**/index.html)")
 
     print("\n✅ Repository build complete in 'repo_output/'")
 
