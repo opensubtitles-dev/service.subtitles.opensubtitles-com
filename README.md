@@ -82,8 +82,10 @@
 
 ## 🆕 What's New — everything since the official Kodi repo version (v1.0.9)
 
-The official Kodi repository still ships **v1.0.9**. The current release is **v1.0.28** —
-nineteen releases of work. If you are coming from the Kodi repo version, this is
+The official Kodi repository still ships **v1.0.9**; the fast-track repository
+serves **v1.0.36** — twenty-seven releases of work. This branch is the upcoming
+**v2.0.0** NEW GENERATION release (background service, auto-download, rating,
+AI features) built on top of all of it. If you are coming from the Kodi repo version, this is
 effectively a new add-on:
 
 ### 🔍 Search & matching
