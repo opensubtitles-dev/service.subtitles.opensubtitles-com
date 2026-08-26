@@ -1,3 +1,6 @@
+v1.0.20 (2026-08-25)
+- Check for Updates now reports the actual result: after Yes, a cancellable progress dialog polls the add-on database for up to 60 seconds and confirms "Updated to vX.Y.Z" once Kodi finishes the background install; on timeout or cancel it says the install may still land and where to check. Previously the update installed silently and the new version was only visible by leaving settings and opening the add-on list
+
 v1.0.19 (2026-08-25)
 - compact Check for Updates dialogs: the update prompt shows old → new version on one line plus the question, and the up-to-date / connection-error results fit without scrolling (the dialog scrolls past ~3 lines and cannot be resized)
 
