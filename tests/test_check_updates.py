@@ -235,3 +235,15 @@ def test_zip_and_own_origins_stay_eligible():
 
             assert "different repository" not in str(dialog_inst.ok.call_args), origin
             assert "New version available" in dialog_inst.yesno.call_args[0][1], origin
+
+
+def test_manifest_with_doctype_or_entity_is_rejected():
+    # Billion-laughs hardening: manifests never legitimately carry DOCTYPE or
+    # ENTITY declarations - drop hostile bodies before xml.etree sees them.
+    from check_updates import extract_remote_version
+    bomb = ('<?xml version="1.0"?><!DOCTYPE a [<!ENTITY x "yyyy">'
+            '<!ENTITY x2 "&x;&x;&x;">]><addons><addon id="service.subtitles.'
+            'opensubtitles-com" version="&x2;"/></addons>')
+    assert extract_remote_version(bomb) is None
+    clean = '<addon id="service.subtitles.opensubtitles-com" version="1.0.40"/>'
+    assert extract_remote_version(clean) == "1.0.40"
