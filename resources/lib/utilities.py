@@ -1,4 +1,6 @@
 
+import os
+import re
 import sys
 import unicodedata
 
@@ -34,6 +36,42 @@ def get_user_agent():
 
 def log(module, msg):
     xbmc.log(f"### [{__addon_name__}:{module}] - {msg}", level=xbmc.LOGDEBUG)
+
+
+_install_origin = None
+
+
+def get_install_origin():
+    """Repository id that installed this add-on, for the X-Kodi-Origin-Repo header.
+
+    Kodi records the installing repository per add-on but exposes it nowhere in
+    the Python API - only the addon database has it (installed.origin). Values:
+    a repository id ('repository.opensubtitles-com', 'repository.xbmc.org'),
+    'zip' for a manual zip install (empty origin in the DB), or 'unknown' when
+    the DB cannot be read. Cached per process; read-only connection so we can
+    never touch Kodi's DB state.
+    """
+    global _install_origin
+    if _install_origin is None:
+        _install_origin = "unknown"
+        try:
+            import glob
+            import sqlite3
+            import xbmcvfs
+            db_dir = xbmcvfs.translatePath("special://database/")
+            dbs = glob.glob(os.path.join(db_dir, "Addons*.db"))
+            if dbs:
+                # highest schema number = the database this Kodi actually uses
+                newest = max(dbs, key=lambda p: int(re.sub(r"\D", "", os.path.basename(p)) or 0))
+                con = sqlite3.connect(f"file:{newest}?mode=ro", uri=True)
+                row = con.execute("SELECT origin FROM installed WHERE addonID = ?",
+                                  (__addon__.getAddonInfo("id"),)).fetchone()
+                con.close()
+                if row is not None:
+                    _install_origin = row[0] or "zip"
+        except Exception:
+            pass
+    return _install_origin
 
 
 # prints out msg to log and gives Kodi message with msg_id to user if msg_id provided
