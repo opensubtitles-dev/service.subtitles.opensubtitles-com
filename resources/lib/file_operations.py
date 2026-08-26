@@ -32,8 +32,6 @@ def get_file_data(file_original_path):
         item["temp"] = True
 
     elif file_original_path.find("rar://") > -1:
-    #    item["rar"] = True
-    #    item["file_original_path"] = os.path.dirname(file_original_path[6:])
         item["rar"] = True
         item["file_original_path"] = os.path.dirname(file_original_path[6:])
         item["basename"] = os.path.basename(file_original_path)
@@ -50,7 +48,12 @@ def get_file_data(file_original_path):
         # The rar branch above already set its basename from the vfs path.
         if "basename" not in item:
             item["basename"] = os.path.basename(item["file_original_path"])
-        item["file_size"], item["moviehash"] = hash_file(item["file_original_path"], item["rar"])
+        # Hashing is an enhancer, never a gate: a rar probe error or vfs
+        # hiccup must degrade to a hashless name/id search, not abort it.
+        try:
+            item["file_size"], item["moviehash"] = hash_file(item["file_original_path"], item["rar"])
+        except Exception as e:
+            log(__name__, f"Hashing failed ({e!r}), continuing without moviehash")
     return item
 
 
@@ -70,7 +73,12 @@ def hash_file(file_path, rar):
         hash_ = file_size
 
         if file_size < 65536 * 2:
-            return "SizeError"
+            # Too small for the OpenSubtitles hash (needs a 64KiB head + tail).
+            # Return the (size, hash) shape the caller unpacks - the old scalar
+            # "SizeError" sentinel raised ValueError there and killed the whole
+            # search instead of letting it fall back to a name/id lookup.
+            log(__name__, f"File too small for moviehash ({file_size} bytes), continuing without hash")
+            return file_size, ""
 
         buffer = f.readBytes(65536)
         f.seek(max(0, file_size - 65536), 0)
@@ -121,34 +129,6 @@ def hash_rar(first_rar_file):
         seek += size
     
     raise Exception("ERROR: Not Body part in rar file.")
-
-def hash_rar_orig(first_rar_file):
-    log(__name__, "Hash Rar file")
-    f = xbmcvfs.File(first_rar_file)
-    a = f.readBytes(4)
-    if a != "Rar!":
-        raise Exception("ERROR: This is not rar file.")
-    seek = 0
-    for i in range(4):
-        f.seek(max(0, seek), 0)
-        a = f.readBytes(100)
-        type_, flag, size = struct.unpack("<BHH", a[2:2 + 5])
-        if 0x74 == type_:
-            if 0x30 != struct.unpack("<B", a[25:25 + 1])[0]:
-                raise Exception("Bad compression method! Work only for 'store'.")
-            s_divide_body_start = seek + size
-            s_divide_body, s_unpack_size = struct.unpack("<II", a[7:7 + 2 * 4])
-            if flag & 0x0100:
-                s_unpack_size = (struct.unpack("<I", a[36:36 + 4])[0] << 32) + s_unpack_size
-                log(__name__, "Hash untested for files bigger that 2gb. May work or may generate bad hash.")
-            last_rar_file = get_last_split(first_rar_file, (s_unpack_size - 1) / s_divide_body)
-            hash_ = add_file_hash(first_rar_file, s_unpack_size, s_divide_body_start)
-            hash_ = add_file_hash(last_rar_file, hash_, (s_unpack_size % s_divide_body) + s_divide_body_start - 65536)
-            f.close()
-            return s_unpack_size, "%016x" % hash_
-        seek += size
-    raise Exception("ERROR: Not Body part in rar file.")
-
 
 def get_last_split(first_rar_file, x):
     if first_rar_file[-3:] == "001":
