@@ -170,6 +170,22 @@ def build_index_html(addons_info):
         .btn:hover {{
             background-color: var(--primary-dark);
         }}
+        /* Browser default link colors (blue / purple-visited) are unreadable on the
+           dark background; visited must not differ - a:visited outranks .btn on
+           specificity, so the button is re-pinned white explicitly. */
+        a {{
+            color: #38bdf8;
+        }}
+        a:visited {{
+            color: #38bdf8;
+        }}
+        a:hover {{
+            color: #7dd3fc;
+        }}
+        .btn,
+        .btn:visited {{
+            color: #ffffff;
+        }}
         ol {{
             padding-left: 1.25rem;
             line-height: 1.7;
