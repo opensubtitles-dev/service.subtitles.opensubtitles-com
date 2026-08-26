@@ -1,0 +1,265 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: XBMC Main Translation Project (Frodo)\n"
+"Report-Msgid-Bugs-To: http://trac.xbmc.org/\n"
+"POT-Creation-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: XBMC Translation Team\n"
+"Language-Team: English (http://www.transifex.com/projects/p/XBMC-Main-Frodo/language/en/)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: en\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgctxt "#32001"
+msgid "Error searching for subtitles"
+msgstr ""
+
+msgctxt "#32002"
+msgid "Plugin is not properly configured, insert valid OpenSubtitles.com username and password."
+msgstr ""
+
+msgctxt "#32003"
+msgid "Unable to authenticate. Check your OpenSubtitles.com username and password."
+msgstr ""
+
+msgctxt "#32004"
+msgid "You have reached OpenSubtitles.com download limit. Get a VIP subscription or try again tomorrow."
+msgstr ""
+
+msgctxt "#32006"
+msgid "You have reached OpenSubtitles.com download limit for unauthenticated users. Create an account on opensubtitles.com and enter your credentials in addon settings, or try again tomorrow."
+msgstr ""
+
+msgctxt "#32007"
+msgid "Too many requests to OpenSubtitles.com. Please wait a moment and try again."
+msgstr ""
+
+msgctxt "#32008"
+msgid "OpenSubtitles.com is currently unavailable. Please try again later."
+msgstr ""
+
+msgctxt "#32009"
+msgid "Unexpected error while searching for subtitles."
+msgstr ""
+
+msgctxt "#32010"
+msgid "[ TEST CONNECTION ]"
+msgstr ""
+
+msgctxt "#32011"
+msgid "Connection Successful"
+msgstr ""
+
+msgctxt "#32012"
+msgid "Please enter your username and password first."
+msgstr ""
+
+msgctxt "#32101"
+msgid "Login Details"
+msgstr ""
+
+msgctxt "#32201"
+msgid "Username"
+msgstr ""
+
+msgctxt "#32202"
+msgid "Password"
+msgstr ""
+
+msgctxt "#32203"
+msgid "API Key"
+msgstr ""
+
+msgctxt "#32204"
+msgid "Account Status"
+msgstr ""
+
+msgctxt "#32205"
+msgid "Quota & Details"
+msgstr ""
+
+msgctxt "#32206"
+msgid "Last Checked"
+msgstr ""
+
+msgctxt "#32102"
+msgid "Subtitle Options"
+msgstr ""
+
+msgctxt "#32211"
+msgid "Hearing Impaired"
+msgstr ""
+
+msgctxt "#32212"
+msgid "Foreign Parts Only"
+msgstr ""
+
+msgctxt "#32213"
+msgid "Machine Translated"
+msgstr ""
+
+msgctxt "#32214"
+msgid "Bad username. Make sure you have entered your username and not your email in the username field."
+msgstr ""
+
+msgctxt "#32215"
+msgid "AI Translated"
+msgstr ""
+
+msgctxt "#32216"
+msgid "Search cache duration [minutes]"
+msgstr ""
+
+msgctxt "#32103"
+msgid "Debug & Advanced"
+msgstr ""
+
+msgctxt "#32217"
+msgid "Clear search cache"
+msgstr ""
+
+msgctxt "#32218"
+msgid "Search cache cleared successfully."
+msgstr ""
+
+msgctxt "#32219"
+msgid "Check for updates"
+msgstr ""
+
+msgctxt "#32220"
+msgid "Current Cache Size"
+msgstr ""
+
+msgctxt "#32221"
+msgid "Smart Release & Subtitle Matching"
+msgstr ""
+
+msgctxt "#32240"
+msgid "Automation & Service"
+msgstr ""
+
+msgctxt "#32241"
+msgid "Auto-download top subtitle on playback"
+msgstr ""
+
+msgctxt "#32242"
+msgid "Show notification when subtitle auto-loaded"
+msgstr ""
+
+msgctxt "#32243"
+msgid "Prompt to rate subtitle sync after playback"
+msgstr ""
+
+msgctxt "#32244"
+msgid "Auto-loaded subtitle"
+msgstr ""
+
+msgctxt "#32245"
+msgid "Did the subtitles sync well?"
+msgstr ""
+
+msgctxt "#32246"
+msgid "Thank you for your rating!"
+msgstr ""
+
+msgctxt "#32250"
+msgid "Test Interceptor: Inject sample flag subtitles in searches"
+msgstr ""
+
+msgctxt "#32251"
+msgid "OpenSubtitles.com account"
+msgstr ""
+
+msgctxt "#32252"
+msgid "Sign in to download subtitles: add your username and password in the add-on settings."
+msgstr ""
+
+msgctxt "#32253"
+msgid "Wrong username or password. Please update them in the add-on settings."
+msgstr ""
+
+msgctxt "#32254"
+msgid "Use your OpenSubtitles.com username, not your email address."
+msgstr ""
+
+msgctxt "#32255"
+msgid "Signed in to OpenSubtitles.com"
+msgstr ""
+
+msgctxt "#32256"
+msgid "Update last checked"
+msgstr ""
+
+msgctxt "#32257"
+msgid "New version available"
+msgstr ""
+
+msgctxt "#32258"
+msgid "Register"
+msgstr ""
+
+msgctxt "#32259"
+msgid "Scan with your phone to open OpenSubtitles.com"
+msgstr ""
+
+msgctxt "#32260"
+msgid "Kodi's own 'Auto download first subtitle' is active - add-on auto-download is standing by. Disable Kodi's to get multi-language auto-download."
+msgstr ""
+
+msgctxt "#32261"
+msgid "Test: Preview rating dialog 5 seconds into playback"
+msgstr ""
+
+msgctxt "#32262"
+msgid "Development"
+msgstr ""
+
+msgctxt "#32263"
+msgid "Test: Auto-upload subtitles (dry run - logs eligibility only)"
+msgstr ""
+
+msgctxt "#32264"
+msgid "Account: Free - Buy VIP"
+msgstr ""
+
+msgctxt "#32265"
+msgid "AI Credits"
+msgstr ""
+
+msgctxt "#32266"
+msgid "Buy AI credits"
+msgstr ""
+
+msgctxt "#32267"
+msgid "Select a credit package"
+msgstr ""
+
+msgctxt "#32268"
+msgid "Test: Disable caches (adds nocache=1 to API searches)"
+msgstr ""
+
+msgctxt "#32269"
+msgid "Test: Disable title-search fallback (id/hash searches only)"
+msgstr ""
+
+msgctxt "#32270"
+msgid "Test: Show executed search as first result row"
+msgstr ""
+
+msgctxt "#32271"
+msgid "Test: Override subtitle language (all searches)"
+msgstr ""
+
+msgctxt "#32272"
+msgid "This subtitle is an on-demand AI translation and needs AI credits - your balance is 0. Use 'Buy AI credits' in the add-on settings, then try again."
+msgstr ""
+
+msgctxt "#32273"
+msgid "AI transcription: offer generating subtitles when searching (experimental, uses AI credits)"
+msgstr ""
+
+msgctxt "#32274"
+msgid "Test: Mock transcription server (pipeline runs without network)"
+msgstr ""
