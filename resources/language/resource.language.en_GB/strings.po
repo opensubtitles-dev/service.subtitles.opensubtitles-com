@@ -255,3 +255,11 @@ msgstr ""
 msgctxt "#32272"
 msgid "This subtitle is an on-demand AI translation and needs AI credits - your balance is 0. Use 'Buy AI credits' in the add-on settings, then try again."
 msgstr ""
+
+msgctxt "#32273"
+msgid "AI transcription: offer generating subtitles when searching (experimental, uses AI credits)"
+msgstr ""
+
+msgctxt "#32274"
+msgid "Test: Mock transcription server (pipeline runs without network)"
+msgstr ""
