@@ -150,3 +150,14 @@ def test_redact_path_strips_tokens_and_credentials():
     assert "cdn.example.com/movie.mkv" in r and "redacted" in r
     assert redact_path("/local/path/movie.mkv") == "/local/path/movie.mkv"
     assert redact_path("smb://server/share/file.mkv") == "smb://server/share/file.mkv"
+
+
+def test_media_data_filename_derivation_strips_url_query():
+    # basename of a raw URL keeps "?token=..." glued to the name - both a
+    # credential leak in logs and garbage for guessit (full-codebase review).
+    from urllib.parse import urlsplit, unquote
+    import os
+    url = "https://cdn.example.com/path/My.Movie.2024.mkv?token=SECRET123"
+    filename = os.path.basename(unquote(urlsplit(url).path))
+    assert filename == "My.Movie.2024.mkv"
+    assert "SECRET" not in filename
