@@ -646,7 +646,9 @@ def get_media_data():
                                     episodeguide = ET.fromstring(episodeguideXML)
                                     if episodeguide.text:
                                         guide_json = json.loads(episodeguide.text)
-                                        tmdb = guide_json.get("tmdb")
+                                        # valid JSON is not necessarily an object -
+                                        # a bare string/number must not abort the search
+                                        tmdb = guide_json.get("tmdb") if isinstance(guide_json, dict) else None
                                         if tmdb and str(tmdb).isdigit():
                                             item["parent_tmdb_id"] = int(tmdb)
                                             log(__name__, f"Parent TMDb via JSON-RPC (episodeguide): {item['parent_tmdb_id']}")
