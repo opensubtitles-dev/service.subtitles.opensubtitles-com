@@ -9,8 +9,16 @@ on:
 
 jobs:
   test:
-    name: Pytest Test Suite
+    name: Pytest (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Kodi embeds different Pythons per release: Matrix (19) ~3.8,
+        # Nexus (20) ~3.8/3.11, Omega (21) ~3.11, Piers (22) ~3.12+.
+        # A 3.8-incompatible construct would pass a 3.11-only CI and crash
+        # every Matrix user - the full spread keeps us honest.
+        python-version: ["3.8", "3.9", "3.11", "3.12", "3.13"]
     steps:
       - name: Checkout Code
         uses: actions/checkout@v7
@@ -18,7 +26,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python-version }}
 
       - name: Install Dependencies
         run: |
@@ -32,6 +40,20 @@ jobs:
       - name: Preflight gate (version consistency + shipped-zip inspection)
         run: |
           python scripts/preflight.py --fast
+
+      - name: Shipped-code minimum Python audit (vermin)
+        # Guards the real Kodi Matrix floor - the Matrix-era containers run
+        # Python 3.6.9 (Ubuntu 18.04 system python), older than CI can execute,
+        # so the floor is enforced statically. Shipped files only; tests and
+        # dev scripts may use newer Python freely. vendor_qrcodegen.py is the
+        # one sanctioned 3.7 file: qr_dialog imports it lazily and falls back
+        # to a plain URL dialog on 3.6.
+        if: matrix.python-version == '3.11'
+        run: |
+          pip install vermin
+          vermin --no-tips --violations -t=3.6- \
+            $(git ls-files '*.py' \
+              | grep -v -e '^tests/' -e '^scripts/' -e 'vendor_qrcodegen')
 
   kodi-addon-checker:
     name: Kodi Validator (${{ matrix.kodi-version }})

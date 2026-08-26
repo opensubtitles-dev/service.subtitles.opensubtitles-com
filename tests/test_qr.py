@@ -70,7 +70,9 @@ def test_show_qr_falls_back_to_text_dialog_when_generation_fails():
     from resources.lib import qr_dialog
 
     dialog = MagicMock()
-    with patch("resources.lib.qr_dialog.generate_qr_png", side_effect=OSError("disk full")), \
+    # generate_qr_png is imported lazily inside show_qr (Python 3.6 fallback),
+    # so the patch target is its home module, not qr_dialog.
+    with patch("resources.lib.qr.generate_qr_png", side_effect=OSError("disk full")), \
          patch("resources.lib.qr_dialog.xbmcgui.Dialog", return_value=dialog), \
          patch("resources.lib.qr_dialog.QRWindow") as window:
         qr_dialog.show_qr("https://www.opensubtitles.com", "Heading")

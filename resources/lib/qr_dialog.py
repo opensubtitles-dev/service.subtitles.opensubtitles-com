@@ -13,7 +13,6 @@ import xbmcgui
 import xbmcvfs
 
 from resources.lib.browser import can_open_browser, open_url
-from resources.lib.qr import generate_qr_png
 from resources.lib.utilities import log
 
 __addon__ = xbmcaddon.Addon("service.subtitles.opensubtitles-com")
@@ -79,6 +78,11 @@ def show_qr(url, heading):
     profile = xbmcvfs.translatePath(__addon__.getAddonInfo("profile"))
     png_path = os.path.join(profile, "temp", "qr.png")
     try:
+        # Lazy import: the vendored qrcodegen needs Python 3.7+
+        # (`from __future__ import annotations`), while Matrix-era Linux Kodi
+        # runs 3.6 - importing here turns that SyntaxError into the same
+        # text-dialog fallback as any other QR failure.
+        from resources.lib.qr import generate_qr_png
         generate_qr_png(url, png_path)
     except Exception as e:
         # No picture is still better served than nothing: fall back to text.
