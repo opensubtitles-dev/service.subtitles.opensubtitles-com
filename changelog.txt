@@ -1,3 +1,7 @@
+v1.0.35 (2026-08-26)
+- security: playback URLs are redacted before reaching the debug log - stream and plugin URLs can carry access tokens or credentials, and debug logs are what users paste on forums
+- update checker streams its manifests and abandons anything over 512 KB instead of parsing an unbounded body
+
 v1.0.34 (2026-08-26)
 - a malformed /features response (valid JSON, wrong-shaped data payload) no longer aborts the subtitle search - the lookup degrades to unknown-id and the existing id/title fallbacks run
 
