@@ -194,3 +194,44 @@ def test_manifest_read_is_capped():
     assert _read_capped(resp) is None
     resp.iter_content.return_value = [b"<addons/>"]
     assert _read_capped(resp) == "<addons/>"
+
+
+def test_foreign_origin_blocks_fast_track_prompt():
+    # Origin pinning: installed from the official Kodi repo, our repo enabled -
+    # the update prompt would dead-end (internal review PR #43). Must show the
+    # reinstall hint instead of UpdateAddonRepos.
+    with patch("check_updates.fetch_latest_remote_version", return_value="1.0.99"), \
+         patch("check_updates.fetch_official_kodi_version", return_value=None), \
+         patch("check_updates.__addon__.getAddonInfo", return_value="1.0.35"), \
+         patch("check_updates.fast_track_repo_state", return_value="enabled"), \
+         patch("check_updates.get_install_origin", return_value="repository.xbmc.org"), \
+         patch("check_updates.xbmc.executebuiltin") as mock_builtin, \
+         patch("check_updates.xbmcgui.Dialog") as mock_dialog:
+        dialog_inst = MagicMock()
+        dialog_inst.yesno.return_value = True
+        mock_dialog.return_value = dialog_inst
+
+        check_updates()
+
+        mock_builtin.assert_not_called()
+        assert "different repository" in dialog_inst.ok.call_args[0][1]
+
+
+def test_zip_and_own_origins_stay_eligible():
+    for origin in ("zip", "unknown", "repository.opensubtitles-com"):
+        with patch("check_updates.fetch_latest_remote_version", return_value="1.0.99"), \
+             patch("check_updates.__addon__.getAddonInfo", return_value="1.0.35"), \
+             patch("check_updates.fast_track_repo_state", return_value="enabled"), \
+             patch("check_updates.get_install_origin", return_value=origin), \
+             patch("check_updates.xbmc.executebuiltin") as mock_builtin, \
+             patch("check_updates.xbmc.Monitor") as mock_mon, \
+             patch("check_updates.xbmcgui.Dialog") as mock_dialog, \
+             patch("check_updates.xbmcgui.DialogProgress") as mock_prog:
+            dialog_inst = MagicMock()
+            dialog_inst.yesno.return_value = False   # decline the update prompt
+            mock_dialog.return_value = dialog_inst
+
+            check_updates()
+
+            assert "different repository" not in str(dialog_inst.ok.call_args), origin
+            assert "New version available" in dialog_inst.yesno.call_args[0][1], origin

@@ -40,11 +40,17 @@ INCLUDE_ENTRIES = {
     "README.md",
 }
 
-# Junk that can appear *inside* an included directory.
+# Junk that can appear *inside* an included directory - plus sensitive
+# file classes that must never ride into a user-facing zip even if a build
+# workspace is dirty (env files, keys, certs, logs, editor droppings).
 EXCLUDE_PATTERNS = [
     r"__pycache__",
     r"\.py[cod]$",
     r"\.DS_Store$",
+    r"(^|/)\.env([./]|$)",
+    r"\.(log|key|pem|p12|pfx|crt|csr|sqlite|db)$",
+    r"(^|/)(secrets?|credentials?)(\.|/|$)",
+    r"\.(swp|swo|orig|rej|bak)$",
 ]
 
 

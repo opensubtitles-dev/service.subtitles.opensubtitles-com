@@ -74,3 +74,16 @@ def test_both_packaging_scripts_use_the_shared_manifest():
             f"scripts/{script} does not use the shared manifest, so the two packaging paths "
             f"can drift apart again - which is exactly how internal docs shipped in v1.0.15."
         )
+
+
+def test_sensitive_files_never_ship(tmp_path):
+    # A dirty build workspace must not leak env files, keys or logs into the
+    # zip (internal review PR #43, security hardening).
+    from scripts.addon_manifest import is_excluded
+    for bad in (".env", "resources/.env", "resources/secrets/token.txt",
+                "resources/api.key", "server.pem", "debug.log", "cache.sqlite",
+                "notes.bak", "credentials.json"):
+        assert is_excluded(bad), bad
+    for good in ("resources/settings.xml", "service.py", "resources/lib/cache.py",
+                 "resources/media/os_logo_512x512.png"):
+        assert not is_excluded(good), good
