@@ -2,6 +2,7 @@
 import os
 import shutil
 import sys
+import time
 import xbmc
 
 
@@ -27,13 +28,26 @@ __profile__ = xbmcvfs.translatePath(__addon__.getAddonInfo("profile"))
 __temp__ = xbmcvfs.translatePath(os.path.join(__profile__, "temp", ""))
 
 
+# Entries younger than this survive cleanup: overlapping invocations (manual
+# search during an auto-download, quick re-searches) must not delete each
+# other's freshly written subtitle out from under Kodi.
+TEMP_MAX_AGE_SECONDS = 3600
+
+
 def clean_temp_directory():
-    """Safely cleans stale temp files and ensures the add-on temp directory exists."""
+    """Removes STALE temp entries and ensures the add-on temp directory exists.
+
+    Only entries older than TEMP_MAX_AGE_SECONDS are deleted - a concurrent
+    invocation's fresh subtitle stays on disk.
+    """
     try:
         if os.path.exists(__temp__):
+            now = time.time()
             for entry in os.listdir(__temp__):
                 entry_path = os.path.join(__temp__, entry)
                 try:
+                    if now - os.path.getmtime(entry_path) < TEMP_MAX_AGE_SECONDS:
+                        continue
                     if os.path.isfile(entry_path) or os.path.islink(entry_path):
                         os.unlink(entry_path)
                     elif os.path.isdir(entry_path):
@@ -314,7 +328,9 @@ class SubtitleDownloader:
         elif self.params["language"].lower() == 'pt-pb':
             self.params["language"] = 'pb'
 
-        subtitle_path = os.path.join(dir_path, f"TempSubtitle.{self.params['language']}.{self.sub_format}")
+        # PID-unique name: overlapping invocations write distinct files instead
+        # of renaming over each other's subtitle mid-selection.
+        subtitle_path = os.path.join(dir_path, f"TempSubtitle.{os.getpid()}.{self.params['language']}.{self.sub_format}")
         tmp_path = subtitle_path + ".tmp"
         log(__name__, f"download subtitle_path: {subtitle_path}")
 

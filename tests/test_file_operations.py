@@ -62,3 +62,21 @@ def test_hash_failure_degrades_to_hashless_search():
         item = get_file_data("rar://%2fmovies%2ffoo.rar/The.Movie.2020.mkv")
     assert item["basename"] == "The.Movie.2020.mkv"
     assert "moviehash" not in item  # absent, falsy - search proceeds without it
+
+
+def test_clean_temp_directory_spares_fresh_files(tmp_path):
+    # Overlapping invocations must not delete each other's just-written
+    # subtitle; only stale entries go.
+    import time as _time
+    import resources.lib.subtitle_downloader as sd
+    fresh = tmp_path / "TempSubtitle.111.en.srt"
+    fresh.write_text("fresh")
+    stale = tmp_path / "TempSubtitle.222.de.srt"
+    stale.write_text("stale")
+    old = _time.time() - sd.TEMP_MAX_AGE_SECONDS - 60
+    import os as _os
+    _os.utime(stale, (old, old))
+    with patch.object(sd, "__temp__", str(tmp_path)):
+        sd.clean_temp_directory()
+    assert fresh.exists()
+    assert not stale.exists()
