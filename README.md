@@ -80,28 +80,34 @@
 
 ---
 
-## 🆕 What's New
+## 🆕 What's New — everything since the official Kodi repo version (v1.0.9)
 
-### v1.0.16 — reliability fixes
+The official Kodi repository still ships **v1.0.9**. The current release is **v1.0.28** —
+nineteen releases of work. If you are coming from the Kodi repo version, this is
+effectively a new add-on:
 
-- **Settings buttons work alongside other add-ons again.** Kodi runs the settings scripts "without an add-on", which lets another add-on's `resources` folder shadow ours — **Test Connection** then failed with `ModuleNotFoundError`. The guard that prevents this was lost during the v1.0.15 rewrite; it is restored and now also covers **Clear Cache** and **Check for Updates** (issue #39).
-- **TV episodes are found even when the library's id is wrong.** Kodi's `imdbnumber` field holds whatever the scraper used as the primary id — for a TVDB-scraped show that is *not* an IMDb id, and searching with it returned nothing. The add-on now only trusts an explicit `tt` id, and keeps the episode's own id as a second attempt.
-- **One odd result no longer hides all the others.** An unexpected field in the API response used to empty the whole subtitle list and leave the dialog hanging.
-- **Check for Updates** is now actually included in release zips.
+### 🔍 Search & matching
+- **Smart release matcher** — subtitles scored against your video: exact file hash first, then release group, source/cut, resolution, codec; best match on top with a score badge. Purely reordering, nothing hidden.
+- **Multi-language top picks** — the best match for each preferred language promoted first, rest grouped in your language order; **adaptive language memory** promotes the language you last downloaded.
+- **Hearing-impaired (SDH) sync** with Kodi's accessibility setting.
+- **TV episodes found reliably** — id type verified against the API instead of guessed, original titles used for localized libraries, non-IMDb library ids handled (fixes for Umbrella, POV and TVDB-scraped shows).
+- **Filename analysis** via the OpenSubtitles `guessit` service (30-day cache); gzip-compressed search cache with configurable duration, live statistics and a Clear Cache button.
+- **Robust results** — one malformed API entry no longer empties the list; atomic downloads, temp-file cleanup, timeouts on every request.
 
-### v1.0.15 — matching, ranking and account visibility
+### 🔒 Account & security
+- **No secrets in logs** — credentials, session tokens and API keys are never written to the Kodi debug log (the log users paste on forums).
+- **Sessions refresh automatically** when the server expires them; clear error dialogs for every HTTP failure mode.
+- **Account status at a glance** — status, quota, VIP and last-checked shown in settings; compact Test Connection dialog that works with credentials as typed.
 
-- **Smart release matching.** Subtitles are scored against your video's filename — exact file hash first, then release group, source/cut, resolution and codec — and the best match is listed first, with a yellow badge showing the score. Purely reordering: nothing is filtered out or hidden.
-- **Multi-language top picks.** The best match for each of your preferred languages is promoted to the top, then the rest follow grouped by language in your preferred order.
-- **Language memory.** The language you last downloaded is promoted to first place on later searches. Note this lasts for the current Kodi session only, and it only reorders languages you already have configured — it never adds or removes any.
-- **Hearing-impaired sync.** If Kodi's own accessibility setting asks for SDH subtitles, matching ones are boosted. Your explicit add-on setting still wins: set it to `exclude` and SDH is not preferred regardless.
-- **Faster repeat searches.** Cached API responses are gzip-compressed, and the cache duration is configurable (now 180 minutes by default, up to 24 hours). Settings show live cache statistics and a **Clear Cache** button.
-- **Account status at a glance.** Settings display your account status, remaining quota and when it was last checked, refreshed by **Test Connection** and re-verified every 24 hours.
-- **Check for updates.** The version row in Settings is clickable and compares against the published manifests. It only tells you an update exists and asks Kodi to refresh its repositories — it never downloads or runs code itself.
-- **Better filename parsing** via the OpenSubtitles `guessit` service, cached for 30 days.
-- **Automated tests and CI**, plus an official add-on repository published to GitHub Pages for faster updates than the Kodi mirror.
+### 🔄 Updates
+- **Check for Updates** with a progress dialog and a definitive "Updated to vX.Y.Z" confirmation.
+- **Fast-track repository awareness** — the add-on knows whether it can actually receive updates (Kodi only updates from the repository an add-on was installed from) and shows setup instructions when it cannot.
 
-See the [full changelog](CHANGELOG.md) for the complete history.
+### 🧪 Compatibility
+- **Verified on real Kodi 19–22** (Matrix through Piers beta) via an automated headless-Kodi test harness; shipped code held to the true Matrix floor of Python 3.6.
+- New icon matching Kodi's dark skins.
+
+See the [full changelog](CHANGELOG.md) for the complete release-by-release history.
 
 ---
 
