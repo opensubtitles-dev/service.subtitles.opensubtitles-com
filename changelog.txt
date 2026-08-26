@@ -1,3 +1,6 @@
+v1.0.24 (2026-08-25)
+- fixed the fast-track repository warning not firing when the repository is disabled: Kodi's System.HasAddon reports disabled add-ons as installed, so detection now uses JSON-RPC Addons.GetAddonDetails (enabled / disabled / missing). A disabled repository gets a one-step "enable it under My add-ons" hint instead of the full install walkthrough
+
 v1.0.23 (2026-08-25)
 - Check for Updates now warns on the up-to-date result too when the fast-track repository is missing or disabled: being current today does not mean the next update can arrive (Kodi only updates from the repository an add-on was installed from). Same instructions dialog offered from both paths
 
