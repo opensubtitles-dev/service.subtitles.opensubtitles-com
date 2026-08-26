@@ -518,7 +518,14 @@ def get_media_data():
     
     # ---------------- TV SHOW (Episode) ----------------
     if item["tv_show_title"]:
-        item["tvshowid"] = xbmc.getInfoLabel("VideoPlayer.TvShowDBID")
+        # VideoPlayer.TvShowDBID is empty for non-library playback; it must not
+        # clobber a tvshowid the filename->library lookup above already found -
+        # losing it skips the original-title / parent-id JSON-RPC refinement below.
+        player_tvshowid = xbmc.getInfoLabel("VideoPlayer.TvShowDBID")
+        if player_tvshowid:
+            item["tvshowid"] = player_tvshowid
+        else:
+            item.setdefault("tvshowid", "")
         item["query"] = item["tv_show_title"]
         item["year"] = None  # Safer for OS search
 
