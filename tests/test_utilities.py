@@ -55,3 +55,21 @@ def test_single_user_agent_policy():
             if "User-Agent" in line and "get_user_agent()" not in line and '"""' not in line:
                 offenders.append(f"{path}:{n}")
     assert not offenders, f"hardcoded User-Agent found: {offenders}"
+
+
+def test_get_install_origin_unknown_when_db_unreadable():
+    # Test environment has no Kodi addon database - helper must degrade to
+    # 'unknown' instead of raising, and never break a search.
+    import resources.lib.utilities as utilities
+    utilities._install_origin = None
+    assert utilities.get_install_origin() == "unknown"
+    utilities._install_origin = None
+
+
+def test_provider_sends_origin_header():
+    from unittest.mock import patch
+    with patch("resources.lib.osclient.provider.get_install_origin",
+               return_value="repository.opensubtitles-com"):
+        from resources.lib.osclient.provider import OpenSubtitlesProvider
+        p = OpenSubtitlesProvider(api_key="k", username="u", password="p")
+        assert p.request_headers["X-Kodi-Origin-Repo"] == "repository.opensubtitles-com"

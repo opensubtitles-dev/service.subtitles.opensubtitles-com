@@ -12,7 +12,7 @@ from resources.lib.osclient.model.request.download import OpenSubtitlesDownloadR
 from resources.lib.exceptions import AuthenticationError, ConfigurationError, DownloadLimitExceeded, ProviderError, \
     ServiceUnavailable, TooManyRequests, BadUsernameError
 from resources.lib.cache import Cache, sync_cache_stats_setting
-from resources.lib.utilities import log, get_user_agent, __addon__
+from resources.lib.utilities import log, get_user_agent, get_install_origin, __addon__
 
 API_URL = "https://api.opensubtitles.com/api/v1/"
 API_LOGIN = "login"
@@ -83,6 +83,9 @@ class OpenSubtitlesProvider:
 
         self.request_headers = {"Api-Key": self.api_key,
                                 "User-Agent": get_user_agent(),
+                                # install channel for server-side distribution stats:
+                                # repository id, 'zip' (manual install) or 'unknown'
+                                "X-Kodi-Origin-Repo": get_install_origin(),
                                 "Content-Type": CONTENT_TYPE, "Accept": CONTENT_TYPE}
 
         self.session = Session()
