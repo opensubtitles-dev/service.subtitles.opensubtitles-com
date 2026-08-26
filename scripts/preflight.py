@@ -52,6 +52,18 @@ def check_version_consistency():
     if f"v{version}" not in changelog_head:
         fail(f"changelog.txt first line ({changelog_head.strip()!r}) is not v{version}")
 
+    # The <news> body and README's What's New must name the CURRENT version -
+    # 1.0.35 shipped with a "LATEST (1.0.32)" callout and a README claiming
+    # v1.0.28, hiding that release's security fix from Kodi's update notes.
+    news = re.search(r"<news>(.*?)</news>", addon_xml, re.DOTALL)
+    if news and f"{version}" not in news.group(1):
+        fail(f"addon.xml <news> body never mentions the current version {version}")
+    readme_path = os.path.join(REPO, "README.md")
+    if os.path.exists(readme_path):
+        readme = open(readme_path, encoding="utf-8").read()
+        if "What's New" in readme and f"v{version}" not in readme:
+            fail(f"README.md What's New never mentions the current version v{version}")
+
     # No translation string may hardcode a version number (1.0.16 shipped a row
     # saying "Version 1.0.15" because the .po was forgotten at bump time).
     po = open(os.path.join(REPO, "resources/language/resource.language.en_GB/strings.po"),

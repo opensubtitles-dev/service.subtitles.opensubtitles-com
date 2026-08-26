@@ -26,7 +26,7 @@ if _res is not None and not any(os.path.normpath(p).startswith(_addon_path)
         del sys.modules[_module]
 # -----------------------------------------------------------------------------------
 
-from resources.lib.utilities import get_user_agent
+from resources.lib.utilities import get_user_agent, get_install_origin
 
 __addon__ = xbmcaddon.Addon("service.subtitles.opensubtitles-com")
 __addon_name__ = __addon__.getAddonInfo("name")
@@ -159,6 +159,15 @@ def fast_track_repo_state():
 
 
 def show_fast_track_instructions(dialog, repo_state):
+    if repo_state == "foreign-origin":
+        # Installed from another repository (typically the official Kodi one):
+        # reinstalling from ours is what re-points the update origin.
+        dialog.ok(__addon_name__,
+                  "This add-on was installed from a different repository, so Kodi "
+                  "will not deliver fast-track updates to it.\n"
+                  "Reinstall it via Install from repository > OpenSubtitles.com "
+                  "Official Repository to switch.")
+        return
     if repo_state == "disabled":
         # The repository is already there - re-enabling is one step, don't bury
         # it in the full install walkthrough.
@@ -195,12 +204,18 @@ def check_updates():
     curr_tuple = parse_version_tuple(current_version)
     latest_tuple = parse_version_tuple(latest_version)
 
-    # Without an ENABLED fast-track repository, Kodi's origin pinning means no
-    # update we advertise can actually be delivered - Kodi only updates an
-    # add-on from the repository it was installed from. Both the
-    # update-available and the up-to-date dialog must say so, or the user is
-    # left believing updates work.
+    # Kodi origin pinning: an add-on only auto-updates from the repository it
+    # was installed from. Eligibility for a fast-track update therefore needs
+    # BOTH an enabled fast-track repository AND a compatible install origin -
+    # an official-Kodi-repo origin stays pinned there even with our repository
+    # enabled, so advertising the update would dead-end (review: internal
+    # PR #43). Empty/zip origins are "unpinned" and any enabled repo may
+    # update them; 'unknown' (unreadable DB) is treated as eligible - worst
+    # case is the old behavior, not a new dead end.
     repo_state = fast_track_repo_state()
+    origin = get_install_origin()
+    if repo_state == "enabled" and origin not in (FAST_TRACK_REPO_ID, "zip", "unknown"):
+        repo_state = "foreign-origin"
 
     if latest_tuple > curr_tuple:
         if repo_state != "enabled":
@@ -266,7 +281,8 @@ def check_updates():
         # Up to date - but without an enabled fast-track repository the NEXT
         # update will never arrive; say so now instead of a clean bill of health.
         if repo_state != "enabled":
-            state_word = "disabled" if repo_state == "disabled" else "not installed"
+            state_word = {"disabled": "disabled",
+                          "foreign-origin": "not this install's update source"}.get(repo_state, "not installed")
             if dialog.yesno(__addon_name__,
                             f"Up to date - [B]v{current_version}[/B] is the latest version.\n"
                             f"Fast-track repository {state_word} - future updates will NOT arrive automatically.\n"
