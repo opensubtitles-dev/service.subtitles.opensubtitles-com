@@ -8,6 +8,10 @@ Mirrors `changelog.txt` (the copy Kodi ships); regenerate this file whenever tha
 
 ---
 
+## [v1.0.32] - 2026-08-26
+
+- downloaded subtitle temp names are unique per invocation (uuid): Kodi runs add-on scripts as sub-interpreters inside one process, so the process-id-based names from 1.0.31 could still collide when downloads overlap
+
 ## [v1.0.31] - 2026-08-26
 
 - fixed non-library playback of shows that ARE in the Kodi library: the empty player DBID overwrote the library id found via filename lookup, skipping the original-title and parent-id refinement that makes localized-title searches work
