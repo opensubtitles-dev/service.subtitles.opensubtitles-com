@@ -218,9 +218,13 @@ def check_updates():
             progress.close()
             if updated:
                 dialog.ok(__addon_name__, f"Updated to [B]v{installed}[/B].")
-                # The add-on info screen keeps showing the old version until its
-                # container reloads - nudge it so the user does not have to back
-                # out and re-enter to see the new number.
+                # The add-on info dialog behind us populates its labels once at
+                # open and no builtin repaints it - Container.Refresh only
+                # reaches the list underneath (verified live 2026-08-25: info
+                # screen kept showing the old version and icon). Close the stale
+                # modal so the user lands on the refreshed list; harmless no-op
+                # when no info dialog is open.
+                xbmc.executebuiltin("Dialog.Close(addoninformation)")
                 xbmc.executebuiltin("Container.Refresh")
             else:
                 # Timeout or cancel - the install may still land, or auto-update
