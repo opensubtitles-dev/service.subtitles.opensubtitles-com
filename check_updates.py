@@ -1,6 +1,7 @@
 import os
 import re
 import sys
+import json
 import xml.etree.ElementTree as ET
 import requests
 
@@ -106,7 +107,35 @@ def fetch_latest_remote_version():
     return None
 
 
-def show_fast_track_instructions(dialog):
+def fast_track_repo_state():
+    """'enabled', 'disabled', or 'missing' for the fast-track repository.
+
+    Deliberately JSON-RPC: System.HasAddon stays true for a DISABLED add-on
+    (verified live 2026-08-25), and a disabled repository serves no updates.
+    A missing add-on returns an error payload, so no "result" key.
+    """
+    try:
+        resp = json.loads(xbmc.executeJSONRPC(json.dumps({
+            "jsonrpc": "2.0", "id": 1,
+            "method": "Addons.GetAddonDetails",
+            "params": {"addonid": FAST_TRACK_REPO_ID, "properties": ["enabled"]},
+        })))
+        addon = resp.get("result", {}).get("addon")
+        if not addon:
+            return "missing"
+        return "enabled" if addon.get("enabled") else "disabled"
+    except Exception:
+        return "missing"
+
+
+def show_fast_track_instructions(dialog, repo_state):
+    if repo_state == "disabled":
+        # The repository is already there - re-enabling is one step, don't bury
+        # it in the full install walkthrough.
+        dialog.ok(__addon_name__,
+                  "The OpenSubtitles.com repository is installed but disabled.\n"
+                  "Enable it under Add-ons > My add-ons > Add-on repository to receive updates.")
+        return
     dialog.textviewer(
         f"{__addon_name__} - fast-track updates",
         "Kodi only updates an add-on from the repository it was installed from. "
@@ -136,15 +165,15 @@ def check_updates():
     curr_tuple = parse_version_tuple(current_version)
     latest_tuple = parse_version_tuple(latest_version)
 
-    # Without the fast-track repository (missing OR disabled - System.HasAddon is
-    # true only for enabled add-ons), Kodi's origin pinning means no update we
-    # advertise can actually be delivered - Kodi only updates an add-on from the
-    # repository it was installed from. Both the update-available and the
-    # up-to-date dialog must say so, or the user is left believing updates work.
-    has_fast_track = bool(xbmc.getCondVisibility(f"System.HasAddon({FAST_TRACK_REPO_ID})"))
+    # Without an ENABLED fast-track repository, Kodi's origin pinning means no
+    # update we advertise can actually be delivered - Kodi only updates an
+    # add-on from the repository it was installed from. Both the
+    # update-available and the up-to-date dialog must say so, or the user is
+    # left believing updates work.
+    repo_state = fast_track_repo_state()
 
     if latest_tuple > curr_tuple:
-        if not has_fast_track:
+        if repo_state != "enabled":
             official_version = fetch_official_kodi_version()
             official_part = f"v{official_version}" if official_version else "not yet available"
             msg = (
@@ -153,7 +182,7 @@ def check_updates():
                 f"Show how to enable fast-track updates?"
             )
             if dialog.yesno(__addon_name__, msg):
-                show_fast_track_instructions(dialog)
+                show_fast_track_instructions(dialog, repo_state)
             return
 
         # Update available. Compact on purpose: the dialog scrolls past ~3 lines
@@ -200,14 +229,15 @@ def check_updates():
                           "Update is still installing in the background.\n"
                           "If nothing happens, update from My add-ons or enable auto-updates.")
     else:
-        # Up to date - but without the fast-track repository the NEXT update will
-        # never arrive; say so now instead of a clean bill of health.
-        if not has_fast_track:
+        # Up to date - but without an enabled fast-track repository the NEXT
+        # update will never arrive; say so now instead of a clean bill of health.
+        if repo_state != "enabled":
+            state_word = "disabled" if repo_state == "disabled" else "not installed"
             if dialog.yesno(__addon_name__,
                             f"Up to date - [B]v{current_version}[/B] is the latest version.\n"
-                            f"Fast-track repository not installed - future updates will NOT arrive automatically.\n"
+                            f"Fast-track repository {state_word} - future updates will NOT arrive automatically.\n"
                             f"Show how to enable fast-track updates?"):
-                show_fast_track_instructions(dialog)
+                show_fast_track_instructions(dialog, repo_state)
         else:
             dialog.ok(__addon_name__, f"Up to date - [B]v{current_version}[/B] is the latest version.")
 

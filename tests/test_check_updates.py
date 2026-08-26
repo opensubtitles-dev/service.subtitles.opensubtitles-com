@@ -42,7 +42,7 @@ def test_check_updates_up_to_date():
     with patch("check_updates.fetch_latest_remote_version", return_value="1.0.15"), \
          patch.object(addon, "getAddonInfo", return_value="1.0.15"), \
          patch("check_updates.__addon__.getAddonInfo", return_value="1.0.15"), \
-         patch("check_updates.xbmc.getCondVisibility", return_value=True), \
+         patch("check_updates.fast_track_repo_state", return_value="enabled"), \
          patch("check_updates.xbmcgui.Dialog") as mock_dialog:
         dialog_inst = MagicMock()
         mock_dialog.return_value = dialog_inst
@@ -58,7 +58,7 @@ def test_check_updates_up_to_date_without_fast_track_repo_warns():
     # the dialog must warn and offer instructions instead of a clean bill of health.
     with patch("check_updates.fetch_latest_remote_version", return_value="1.0.15"), \
          patch("check_updates.__addon__.getAddonInfo", return_value="1.0.15"), \
-         patch("check_updates.xbmc.getCondVisibility", return_value=False), \
+         patch("check_updates.fast_track_repo_state", return_value="missing"), \
          patch("check_updates.xbmcgui.Dialog") as mock_dialog:
         dialog_inst = MagicMock()
         dialog_inst.yesno.return_value = True
@@ -78,7 +78,7 @@ def test_check_updates_newer_version_available():
     with patch("check_updates.fetch_latest_remote_version", return_value="1.0.16"), \
          patch.object(addon, "getAddonInfo", return_value="1.0.15"), \
          patch("check_updates.__addon__.getAddonInfo", return_value="1.0.15"), \
-         patch("check_updates.xbmc.getCondVisibility", return_value=True), \
+         patch("check_updates.fast_track_repo_state", return_value="enabled"), \
          patch("check_updates.xbmcgui.Dialog") as mock_dialog, \
          patch("check_updates.xbmc.executebuiltin") as mock_exec:
         dialog_inst = MagicMock()
@@ -114,7 +114,7 @@ def test_check_updates_without_fast_track_repo_shows_both_versions():
     with patch("check_updates.fetch_latest_remote_version", return_value="1.0.22"), \
          patch("check_updates.fetch_official_kodi_version", return_value="1.0.16"), \
          patch("check_updates.__addon__.getAddonInfo", return_value="1.0.21"), \
-         patch("check_updates.xbmc.getCondVisibility", return_value=False), \
+         patch("check_updates.fast_track_repo_state", return_value="missing"), \
          patch("check_updates.xbmc.executebuiltin") as mock_builtin, \
          patch("check_updates.xbmcgui.Dialog") as mock_dialog:
         dialog_inst = MagicMock()
@@ -133,7 +133,7 @@ def test_check_updates_without_fast_track_repo_not_in_official():
     with patch("check_updates.fetch_latest_remote_version", return_value="1.0.22"), \
          patch("check_updates.fetch_official_kodi_version", return_value=None), \
          patch("check_updates.__addon__.getAddonInfo", return_value="1.0.21"), \
-         patch("check_updates.xbmc.getCondVisibility", return_value=False), \
+         patch("check_updates.fast_track_repo_state", return_value="missing"), \
          patch("check_updates.xbmcgui.Dialog") as mock_dialog:
         dialog_inst = MagicMock()
         dialog_inst.yesno.return_value = True
@@ -143,3 +143,43 @@ def test_check_updates_without_fast_track_repo_not_in_official():
 
         assert "not yet available" in dialog_inst.yesno.call_args[0][1]
         dialog_inst.textviewer.assert_called_once()  # instructions on Yes
+
+
+def test_fast_track_repo_state_via_jsonrpc():
+    from check_updates import fast_track_repo_state
+    import json as _json
+
+    def rpc(payload):
+        assert _json.loads(payload)["method"] == "Addons.GetAddonDetails"
+        return _json.dumps({"id": 1, "jsonrpc": "2.0",
+                            "result": {"addon": {"addonid": "repository.opensubtitles-com",
+                                                 "enabled": False}}})
+
+    with patch("check_updates.xbmc.executeJSONRPC", side_effect=rpc):
+        assert fast_track_repo_state() == "disabled"
+
+    with patch("check_updates.xbmc.executeJSONRPC",
+               return_value=_json.dumps({"id": 1, "jsonrpc": "2.0",
+                                         "error": {"code": -32602, "message": "Invalid params."}})):
+        assert fast_track_repo_state() == "missing"
+
+    with patch("check_updates.xbmc.executeJSONRPC",
+               return_value=_json.dumps({"id": 1, "jsonrpc": "2.0",
+                                         "result": {"addon": {"enabled": True}}})):
+        assert fast_track_repo_state() == "enabled"
+
+
+def test_check_updates_disabled_repo_gets_enable_hint_not_install_steps():
+    with patch("check_updates.fetch_latest_remote_version", return_value="1.0.23"), \
+         patch("check_updates.__addon__.getAddonInfo", return_value="1.0.23"), \
+         patch("check_updates.fast_track_repo_state", return_value="disabled"), \
+         patch("check_updates.xbmcgui.Dialog") as mock_dialog:
+        dialog_inst = MagicMock()
+        dialog_inst.yesno.return_value = True
+        mock_dialog.return_value = dialog_inst
+
+        check_updates()
+
+        assert "disabled" in dialog_inst.yesno.call_args[0][1]
+        dialog_inst.ok.assert_called_once()          # enable hint is an ok-dialog
+        dialog_inst.textviewer.assert_not_called()   # no install walkthrough
