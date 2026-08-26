@@ -42,6 +42,7 @@ def test_check_updates_up_to_date():
     with patch("check_updates.fetch_latest_remote_version", return_value="1.0.15"), \
          patch.object(addon, "getAddonInfo", return_value="1.0.15"), \
          patch("check_updates.__addon__.getAddonInfo", return_value="1.0.15"), \
+         patch("check_updates.xbmc.getCondVisibility", return_value=True), \
          patch("check_updates.xbmcgui.Dialog") as mock_dialog:
         dialog_inst = MagicMock()
         mock_dialog.return_value = dialog_inst
@@ -50,6 +51,25 @@ def test_check_updates_up_to_date():
 
         dialog_inst.ok.assert_called_once()
         assert "up to date" in dialog_inst.ok.call_args[0][1].lower()
+
+
+def test_check_updates_up_to_date_without_fast_track_repo_warns():
+    # Up to date today, but without the repository the NEXT update never arrives -
+    # the dialog must warn and offer instructions instead of a clean bill of health.
+    with patch("check_updates.fetch_latest_remote_version", return_value="1.0.15"), \
+         patch("check_updates.__addon__.getAddonInfo", return_value="1.0.15"), \
+         patch("check_updates.xbmc.getCondVisibility", return_value=False), \
+         patch("check_updates.xbmcgui.Dialog") as mock_dialog:
+        dialog_inst = MagicMock()
+        dialog_inst.yesno.return_value = True
+        mock_dialog.return_value = dialog_inst
+
+        check_updates()
+
+        msg = dialog_inst.yesno.call_args[0][1]
+        assert "up to date" in msg.lower()
+        assert "not installed" in msg.lower()
+        dialog_inst.textviewer.assert_called_once()
 
 
 def test_check_updates_newer_version_available():

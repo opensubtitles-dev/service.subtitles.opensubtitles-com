@@ -106,6 +106,20 @@ def fetch_latest_remote_version():
     return None
 
 
+def show_fast_track_instructions(dialog):
+    dialog.textviewer(
+        f"{__addon_name__} - fast-track updates",
+        "Kodi only updates an add-on from the repository it was installed from. "
+        "To receive updates as soon as they are released, install the official "
+        "OpenSubtitles.com repository:\n\n"
+        "1. Settings > System > Add-ons: enable Unknown sources\n"
+        "2. Settings > File manager > Add source: https://kodi.opensubtitles.com\n"
+        "3. Add-ons > Install from zip file > that source > repository.opensubtitles-com.zip\n"
+        "4. Install from repository > OpenSubtitles.com Official Repository > "
+        "Subtitles > OpenSubtitles.com > Install\n\n"
+        "Full instructions with screenshots: https://kodi.opensubtitles.com")
+
+
 def check_updates():
     current_version = __addon__.getAddonInfo("version") or "1.0.15"
     dialog = xbmcgui.Dialog()
@@ -122,13 +136,15 @@ def check_updates():
     curr_tuple = parse_version_tuple(current_version)
     latest_tuple = parse_version_tuple(latest_version)
 
+    # Without the fast-track repository (missing OR disabled - System.HasAddon is
+    # true only for enabled add-ons), Kodi's origin pinning means no update we
+    # advertise can actually be delivered - Kodi only updates an add-on from the
+    # repository it was installed from. Both the update-available and the
+    # up-to-date dialog must say so, or the user is left believing updates work.
+    has_fast_track = bool(xbmc.getCondVisibility(f"System.HasAddon({FAST_TRACK_REPO_ID})"))
+
     if latest_tuple > curr_tuple:
-        # Without the fast-track repository, Kodi's origin pinning means the
-        # user cannot actually receive the version we just found - Kodi only
-        # updates from the repository the add-on was installed from. Show both
-        # versions and point at the repository instead of a prompt that would
-        # trigger nothing.
-        if not xbmc.getCondVisibility(f"System.HasAddon({FAST_TRACK_REPO_ID})"):
+        if not has_fast_track:
             official_version = fetch_official_kodi_version()
             official_part = f"v{official_version}" if official_version else "not yet available"
             msg = (
@@ -137,17 +153,7 @@ def check_updates():
                 f"Show how to enable fast-track updates?"
             )
             if dialog.yesno(__addon_name__, msg):
-                dialog.textviewer(
-                    f"{__addon_name__} - fast-track updates",
-                    "Kodi only updates an add-on from the repository it was installed from. "
-                    "To receive updates as soon as they are released, install the official "
-                    "OpenSubtitles.com repository:\n\n"
-                    "1. Settings > System > Add-ons: enable Unknown sources\n"
-                    "2. Settings > File manager > Add source: https://kodi.opensubtitles.com\n"
-                    "3. Add-ons > Install from zip file > that source > repository.opensubtitles-com.zip\n"
-                    "4. Install from repository > OpenSubtitles.com Official Repository > "
-                    "Subtitles > OpenSubtitles.com > Install\n\n"
-                    "Full instructions with screenshots: https://kodi.opensubtitles.com")
+                show_fast_track_instructions(dialog)
             return
 
         # Update available. Compact on purpose: the dialog scrolls past ~3 lines
@@ -194,8 +200,16 @@ def check_updates():
                           "Update is still installing in the background.\n"
                           "If nothing happens, update from My add-ons or enable auto-updates.")
     else:
-        # Up to date
-        dialog.ok(__addon_name__, f"Up to date - [B]v{current_version}[/B] is the latest version.")
+        # Up to date - but without the fast-track repository the NEXT update will
+        # never arrive; say so now instead of a clean bill of health.
+        if not has_fast_track:
+            if dialog.yesno(__addon_name__,
+                            f"Up to date - [B]v{current_version}[/B] is the latest version.\n"
+                            f"Fast-track repository not installed - future updates will NOT arrive automatically.\n"
+                            f"Show how to enable fast-track updates?"):
+                show_fast_track_instructions(dialog)
+        else:
+            dialog.ok(__addon_name__, f"Up to date - [B]v{current_version}[/B] is the latest version.")
 
 
 if __name__ == "__main__":
