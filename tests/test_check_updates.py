@@ -58,6 +58,7 @@ def test_check_updates_newer_version_available():
     with patch("check_updates.fetch_latest_remote_version", return_value="1.0.16"), \
          patch.object(addon, "getAddonInfo", return_value="1.0.15"), \
          patch("check_updates.__addon__.getAddonInfo", return_value="1.0.15"), \
+         patch("check_updates.xbmc.getCondVisibility", return_value=True), \
          patch("check_updates.xbmcgui.Dialog") as mock_dialog, \
          patch("check_updates.xbmc.executebuiltin") as mock_exec:
         dialog_inst = MagicMock()
@@ -84,3 +85,41 @@ def test_check_updates_network_failure():
 
         dialog_inst.ok.assert_called_once()
         assert "Could not connect" in dialog_inst.ok.call_args[0][1]
+
+
+def test_check_updates_without_fast_track_repo_shows_both_versions():
+    # Kodi origin pinning: without repository.opensubtitles-com the user cannot
+    # receive the fast-track version, so the dialog must show both versions and
+    # offer instructions instead of the update prompt.
+    with patch("check_updates.fetch_latest_remote_version", return_value="1.0.22"), \
+         patch("check_updates.fetch_official_kodi_version", return_value="1.0.16"), \
+         patch("check_updates.__addon__.getAddonInfo", return_value="1.0.21"), \
+         patch("check_updates.xbmc.getCondVisibility", return_value=False), \
+         patch("check_updates.xbmc.executebuiltin") as mock_builtin, \
+         patch("check_updates.xbmcgui.Dialog") as mock_dialog:
+        dialog_inst = MagicMock()
+        dialog_inst.yesno.return_value = False
+        mock_dialog.return_value = dialog_inst
+
+        check_updates()
+
+        msg = dialog_inst.yesno.call_args[0][1]
+        assert "1.0.22" in msg
+        assert "1.0.16" in msg
+        mock_builtin.assert_not_called()  # no UpdateAddonRepos without the repo
+
+
+def test_check_updates_without_fast_track_repo_not_in_official():
+    with patch("check_updates.fetch_latest_remote_version", return_value="1.0.22"), \
+         patch("check_updates.fetch_official_kodi_version", return_value=None), \
+         patch("check_updates.__addon__.getAddonInfo", return_value="1.0.21"), \
+         patch("check_updates.xbmc.getCondVisibility", return_value=False), \
+         patch("check_updates.xbmcgui.Dialog") as mock_dialog:
+        dialog_inst = MagicMock()
+        dialog_inst.yesno.return_value = True
+        mock_dialog.return_value = dialog_inst
+
+        check_updates()
+
+        assert "not yet available" in dialog_inst.yesno.call_args[0][1]
+        dialog_inst.textviewer.assert_called_once()  # instructions on Yes
