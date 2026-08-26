@@ -1,0 +1,36 @@
+name: Real-Kodi Smoke Test
+
+# Boots headless Kodi of every supported release in Docker, installs the add-on
+# plus its script.module.requests dependency chain from the official mirrors,
+# and asserts every shipped module imports inside that Kodi's actual embedded
+# Python (driver: scripts/kodi_smoke_test.sh, verdict logged by the
+# tests/smoke wrapper service). Catches runtime API drift that neither pytest
+# mocks nor kodi-addon-checker can see.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1"   # weekly, Monday 06:00 UTC
+  push:
+    branches: [master]
+    paths:
+      - "resources/lib/**"
+      - "service.py"
+      - "tests/smoke/**"
+      - "scripts/kodi_smoke_test.sh"
+
+jobs:
+  smoke:
+    name: Kodi ${{ matrix.kodi }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # matthuisman/kodi-headless tags per Kodi release
+        kodi: [Matrix, Nexus, Omega-21.3, Piers-22.0b1]
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v7
+
+      - name: Run smoke test in headless Kodi
+        run: bash scripts/kodi_smoke_test.sh ${{ matrix.kodi }}

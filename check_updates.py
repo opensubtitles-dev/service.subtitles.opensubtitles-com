@@ -54,9 +54,17 @@ def fetch_official_kodi_version():
     running Kodi major version. 404 simply means the add-on is not (yet) in the
     official repository for that release.
     """
-    try:
-        major = int(xbmc.getInfoLabel("System.BuildVersionShort").split(".")[0])
-    except (ValueError, AttributeError):
+    # System.BuildVersionShort is not present on every Kodi release;
+    # System.BuildVersion ("21.3 (21.3.0) Git:...") exists everywhere - parse
+    # whichever yields a leading major number.
+    major = None
+    for label in ("System.BuildVersionShort", "System.BuildVersion"):
+        try:
+            major = int(re.match(r"(\d+)", xbmc.getInfoLabel(label) or "").group(1))
+            break
+        except (ValueError, AttributeError):
+            continue
+    if major is None:
         return None
     branch = KODI_BRANCH_BY_MAJOR.get(major)
     if not branch:
