@@ -1,3 +1,7 @@
+v1.0.37 (2026-08-26)
+- security: the remaining playback-URL log sites are redacted (the non-library filename-parse branch still logged the raw path), and filenames derived from stream URLs no longer keep the query string glued on - tokens never reach logs or search queries
+- release infrastructure: write-privileged deploy actions pinned to reviewed commit SHAs; docs no longer instruct passing credentials on the command line
+
 v1.0.36 (2026-08-26)
 - Check for Updates verifies this install can actually receive fast-track updates: an add-on installed from a different repository (typically the official Kodi one) stays pinned there, so instead of a dead-end update prompt it now explains how to switch. Unpinned zip installs remain eligible
 - release packaging denies env files, keys, certificates, logs and editor droppings even from a dirty build workspace
