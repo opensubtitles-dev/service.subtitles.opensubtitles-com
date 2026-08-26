@@ -68,7 +68,7 @@ NEW GENERATION RELEASE
 		<website>https://www.opensubtitles.com</website>
 		<email>cto [at] opensubtitles {dot} org</email>
 		<assets>
-			<icon>resources/media/os_logo_512x512.png</icon>
+			<icon>resources/media/os_logo_512x512_inverted.png</icon>
 			<fanart>resources/media/os_fanart.jpg</fanart>
 			<screenshot>resources/media/screenshot_1.jpg</screenshot>
 			<screenshot>resources/media/screenshot_2.jpg</screenshot>
