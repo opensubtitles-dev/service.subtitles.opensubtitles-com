@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Official Kodi subtitle add-on (`service.subtitles.opensubtitles-com`) for OpenSubtitles.com, built on its REST API. Python 3 only, targets Kodi Matrix (19) through Piers (22). Licensed GPL-2.0.
 
-Companion docs (keep in sync when workflows change): `DEV_WORKFLOW.md` (dev/release workflow), `KODI_STANDARDS.md` (Kodi repo compliance), `AGENT_INSTRUCTIONS.md` (AI agent rules), `HANDOVER.md` (current branch state and in-flight features), `TODO.md` (roadmap), `docs/kodi_api_internals.md` (Kodi Python API ground truth: subtitle plugin contract, Player/Monitor semantics, JSON-RPC, gotchas — read before touching service.py or service_monitor.py), `docs/kodi_ui_font_compatibility.md` (glyph/emoji rendering matrix).
+Companion docs (keep in sync when workflows change): `docs/DEV_WORKFLOW.md` (dev/release workflow), `docs/KODI_STANDARDS.md` (Kodi repo compliance), `docs/AGENT_INSTRUCTIONS.md` (AI agent rules), `docs/HANDOVER.md` (current branch state and in-flight features), `docs/TODO.md` (roadmap), `docs/kodi_api_internals.md` (Kodi Python API ground truth: subtitle plugin contract, Player/Monitor semantics, JSON-RPC, gotchas — read before touching service.py or service_monitor.py), `docs/kodi_ui_font_compatibility.md` (glyph/emoji rendering matrix).
 
 ## Commands
 
@@ -80,7 +80,7 @@ Kodi modules (`xbmc`, `xbmcgui`, `xbmcaddon`, `xbmcvfs`, `xbmcplugin`) exist onl
 
 ## Kodi UI Gotchas
 
-- `resources/settings.xml`: `<control type="label">` is invalid and breaks settings loading. For read-only display rows use `<control type="edit" format="string">` with a permanently-false enable dependency (pattern in `KODI_STANDARDS.md`).
+- `resources/settings.xml`: `<control type="label">` is invalid and breaks settings loading. For read-only display rows use `<control type="edit" format="string">` with a permanently-false enable dependency (pattern in `docs/KODI_STANDARDS.md`).
 - Emojis render as blank boxes in default Kodi fonts. Use `[COLOR ...]`, `[B]`, BMP glyphs (`★ • ✔`) instead — full compatibility matrix in `docs/kodi_ui_font_compatibility.md`.
 - Don't duplicate native dialog icons in text: `sync="true"` already shows hash-match, `hearing_imp="true"` already shows SDH.
 - Visual badges go at the **end** of the release title (label2): `[Release Title] [Trusted] [AI] [Machine] [Forced] (+MatchScore)`.
@@ -88,6 +88,6 @@ Kodi modules (`xbmc`, `xbmcgui`, `xbmcaddon`, `xbmcvfs`, `xbmcplugin`) exist onl
 
 ## Release Process
 
-Full checklist in `DEV_WORKFLOW.md` §6. Summary: bump `version=` and `<news>` in `addon.xml` → update `changelog.txt` → `python3 -m pytest` + `kodi-addon-checker --branch omega .` → `python3 scripts/build_release_zip.py` → commit as `[service.subtitles.opensubtitles-com] x.y.z` → tag `vx.y.z` → push. Submissions to `xbmc/repo-plugins` require exactly one squashed commit with that title format.
+Full checklist in `docs/DEV_WORKFLOW.md` §6. Summary: bump `version=` and `<news>` in `addon.xml` → update `changelog.txt` → `python3 -m pytest` + `kodi-addon-checker --branch omega .` → `python3 scripts/build_release_zip.py` → commit as `[service.subtitles.opensubtitles-com] x.y.z` → tag `vx.y.z` → push. Submissions to `xbmc/repo-plugins` require exactly one squashed commit with that title format.
 
-Check `HANDOVER.md` before starting work — it records which branch is frozen (pending upstream PR) vs. active development.
+Check `docs/HANDOVER.md` before starting work — it records which branch is frozen (pending upstream PR) vs. active development.
