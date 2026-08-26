@@ -1,3 +1,6 @@
+v1.0.27 (2026-08-25)
+- every API request now carries an X-Kodi-Origin-Repo header with the install channel (repository id, "zip" for manual installs, "unknown" when undetectable), read once per process from Kodi's addon database - Kodi exposes the installing repository nowhere in its Python API. Server-side this gives real distribution statistics across fast-track repo / official Kodi repo / manual zips
+
 v1.0.26 (2026-08-25)
 - after a confirmed update the stale add-on info screen now closes automatically, dropping back to the refreshed add-on list. The info dialog populates its labels once at open and cannot be repainted in place, so it kept showing the old version and icon until manually reopened
 
