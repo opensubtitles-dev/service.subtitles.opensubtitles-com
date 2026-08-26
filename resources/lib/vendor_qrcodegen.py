@@ -24,7 +24,7 @@
 from __future__ import annotations
 import collections, itertools, re
 from collections.abc import Sequence
-from typing import Optional, Union
+from typing import List, Optional, Union
 
 
 # ---- QR Code symbol class ----
@@ -877,7 +877,10 @@ class QrSegment:
 
 # ---- Private helper class ----
 
-class _BitBuffer(list[int]):
+# typing.List, not list[int]: base classes are evaluated at class-creation time
+# even under `from __future__ import annotations`, and plain-list subscripting
+# needs Python 3.9 - Kodi Matrix/Nexus devices run 3.6-3.8.
+class _BitBuffer(List[int]):
 	"""An appendable sequence of bits (0s and 1s). Mainly used by QrSegment."""
 	
 	def append_bits(self, val: int, n: int) -> None:
