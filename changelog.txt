@@ -1,3 +1,6 @@
+v1.0.18 (2026-08-25)
+- compact Test Connection dialog (backported from the 2.0.0 branch): username, VIP flag and downloads today on two bold lines. "Remaining downloads" only restated what X / Y already shows, and the level line duplicated the VIP flag; the ok-dialog scrolls past ~3 lines and cannot be resized
+
 v1.0.17 (2026-08-25)
 - maintenance release verifying repository auto-update delivery end to end; the add-on code is identical to 1.0.16
 - fixed the repository source (kodi.opensubtitles.com) listing as an empty folder in Kodi's file manager: GitHub Pages serves no directory autoindex and Kodi's HTTP browser only recognizes plain anchors, so the portal now ships Kodi-parsable directory listings and the documented Install from zip file flow works

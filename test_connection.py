@@ -118,11 +118,12 @@ def test_connection():
     __addon__.setSetting("account_verified_at", str(now_epoch))
 
     version = __addon__.getAddonInfo("version")
+    # Compact on purpose (backported from 2.0.0): the ok-dialog shows ~3 lines
+    # before it scrolls and cannot be resized (skin-owned). "Remaining" is
+    # implied by X / Y, and the level line duplicated the VIP flag.
     info_text = (
-        f"Username: {username}\n"
-        f"Level: {level}  |  VIP: {vip}\n"
-        f"Downloads today: {downloads_count} / {allowed}\n"
-        f"Remaining downloads: {remaining}"
+        f"Username: [B]{username}[/B]  |  VIP: [B]{vip}[/B]\n"
+        f"Downloads today: [B]{downloads_count} / {allowed}[/B]"
     )
 
     xbmcgui.Dialog().ok(f"{__addon_name__} v{version}", info_text)
