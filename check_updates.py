@@ -7,7 +7,6 @@ import requests
 import xbmc
 import xbmcgui
 import xbmcaddon
-
 import xbmcvfs
 
 # --- addon import path guard (keep this above any `resources.*` import) ------------
@@ -76,7 +75,7 @@ def fetch_latest_remote_version():
 
 
 def check_updates():
-    current_version = __addon__.getAddonInfo("version") or "2.0.0"
+    current_version = __addon__.getAddonInfo("version") or "1.0.15"
     dialog = xbmcgui.Dialog()
 
     try:
@@ -85,18 +84,17 @@ def check_updates():
         latest_version = None
 
     if not latest_version:
-        dialog.ok(__addon_name__, f"Installed: v{current_version}\nCould not connect to update server. Check your network connection.")
+        dialog.ok(__addon_name__, f"Could not connect to update server (installed: v{current_version}).\nPlease check your network connection.")
         return
 
     curr_tuple = parse_version_tuple(current_version)
     latest_tuple = parse_version_tuple(latest_version)
 
     if latest_tuple > curr_tuple:
-        # Update available
+        # Update available. Compact on purpose: the dialog scrolls past ~3 lines
+        # and cannot be resized (skin-owned) - no blank lines, no bullet rows.
         msg = (
-            f"A new version of OpenSubtitles.com is available!\n"
-            f"• Installed Version: v{current_version}\n"
-            f"• Latest Version: v{latest_version}\n"
+            f"New version available: v{current_version} → [B]v{latest_version}[/B]\n"
             f"Check Kodi repository for updates now?"
         )
         if dialog.yesno(__addon_name__, msg):
@@ -105,7 +103,7 @@ def check_updates():
             dialog.notification(__addon_name__, "Checking repository for updates...", icon_path, 4000)
     else:
         # Up to date
-        dialog.ok(__addon_name__, f"OpenSubtitles.com is up to date!\n• Installed Version: v{current_version} (Latest)")
+        dialog.ok(__addon_name__, f"Up to date - [B]v{current_version}[/B] is the latest version.")
 
 
 if __name__ == "__main__":
