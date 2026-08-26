@@ -8,6 +8,11 @@ Mirrors `changelog.txt` (the copy Kodi ships); regenerate this file whenever tha
 
 ---
 
+## [v1.0.39] - 2026-08-26
+
+- security: the external-player integration path (videoinfo window properties) derives filenames from the URL path component only - closing the last spot where a stream token could reach the debug log or the search query
+- release pipeline: every GitHub Actions step is pinned to a reviewed commit SHA; secret-named files are denied from shipped zips regardless of extension
+
 ## [v1.0.38] - 2026-08-26
 
 - security: the last-resort title fallback no longer derives the search query from a raw stream URL - the query string is stripped everywhere a playback URL becomes a filename or log line
