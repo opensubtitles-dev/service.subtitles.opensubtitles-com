@@ -8,6 +8,10 @@ Mirrors `changelog.txt` (the copy Kodi ships); regenerate this file whenever tha
 
 ---
 
+## [v1.0.34] - 2026-08-26
+
+- a malformed /features response (valid JSON, wrong-shaped data payload) no longer aborts the subtitle search - the lookup degrades to unknown-id and the existing id/title fallbacks run
+
 ## [v1.0.33] - 2026-08-26
 
 - regression tests for every review fix from the Kodi repo submission rounds, with two behavior-neutral helper extractions to make them directly testable (player tvshowid guard, invocation-unique subtitle paths, Kodi version fallback)
