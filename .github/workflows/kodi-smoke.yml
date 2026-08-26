@@ -30,7 +30,7 @@ jobs:
         kodi: [Matrix, Nexus, Omega-21.3, Piers-22.0b1]
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7, SHA-pinned
 
       - name: Run smoke test in headless Kodi
         run: bash scripts/kodi_smoke_test.sh ${{ matrix.kodi }}

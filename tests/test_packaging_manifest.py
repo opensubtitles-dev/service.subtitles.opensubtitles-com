@@ -89,3 +89,13 @@ def test_sensitive_files_never_ship(tmp_path):
     for good in ("resources/settings.xml", "service.py", "resources/lib/cache.py",
                  "resources/media/os_logo_512x512.png"):
         assert not is_excluded(good), good
+
+
+def test_extensionless_and_binary_secret_names_excluded():
+    from scripts.addon_manifest import is_excluded
+    for bad in ("resources/account-credentials.dat", "resources/mysecret.bin",
+                "resources/secret", "resources/passwords.txt", "resources/apikey"):
+        assert is_excluded(bad), bad
+    # names that merely contain harmless words must still ship
+    for good in ("resources/lib/subtitle_downloader.py", "resources/settings.xml"):
+        assert not is_excluded(good), good
