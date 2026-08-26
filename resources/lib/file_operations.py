@@ -43,10 +43,14 @@ def get_file_data(file_original_path):
         item["file_original_path"] = stack_path[0][8:]
 
     if not item["temp"]:
-        item["basename"]=os.path.basename(file_original_path[6:])
+        # basename from the NORMALIZED path. The old unconditional [6:] slice
+        # (meant to drop a "rar://" prefix) ate the first six characters of
+        # every plain local path and mangled short ones ("/tv/E1.mkv" ->
+        # ".mkv"), degrading the fallback search query and smart ranking.
+        # The rar branch above already set its basename from the vfs path.
+        if "basename" not in item:
+            item["basename"] = os.path.basename(item["file_original_path"])
         item["file_size"], item["moviehash"] = hash_file(item["file_original_path"], item["rar"])
-    #else:
-    #    item["basename"]=os.path.basename(file_original_path[6:])
     return item
 
 
