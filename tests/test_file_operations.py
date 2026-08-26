@@ -40,3 +40,25 @@ def test_stack_path_uses_first_part():
         item = get_file_data("stack:///movies/part1.mkv , /movies/part2.mkv")
     assert item["file_original_path"] == "/movies/part1.mkv"
     assert item["basename"] == "part1.mkv"
+
+
+def test_small_file_returns_size_and_empty_hash():
+    # Files under 128 KiB cannot produce the OpenSubtitles hash; the search
+    # must continue hashless instead of dying on the old "SizeError" scalar.
+    from unittest.mock import MagicMock
+    small = MagicMock()
+    small.size.return_value = 1000
+    small.__enter__ = lambda s: small
+    small.__exit__ = lambda s, *a: False
+    with patch("resources.lib.file_operations.xbmcvfs.File", return_value=small):
+        item = get_file_data("/tv/E1.mkv")
+    assert item["basename"] == "E1.mkv"
+    assert item["file_size"] == 1000
+    assert item["moviehash"] == ""
+
+
+def test_hash_failure_degrades_to_hashless_search():
+    with patch("resources.lib.file_operations.hash_file", side_effect=Exception("bad rar")):
+        item = get_file_data("rar://%2fmovies%2ffoo.rar/The.Movie.2020.mkv")
+    assert item["basename"] == "The.Movie.2020.mkv"
+    assert "moviehash" not in item  # absent, falsy - search proceeds without it
