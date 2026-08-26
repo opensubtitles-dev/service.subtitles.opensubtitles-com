@@ -82,7 +82,9 @@ def test_sensitive_files_never_ship(tmp_path):
     from scripts.addon_manifest import is_excluded
     for bad in (".env", "resources/.env", "resources/secrets/token.txt",
                 "resources/api.key", "server.pem", "debug.log", "cache.sqlite",
-                "notes.bak", "credentials.json"):
+                "notes.bak", "credentials.json", "resources/config.secret",
+                "resources/token.json", "resources/lib/apikey.txt",
+                "resources/my_tokens.yaml"):
         assert is_excluded(bad), bad
     for good in ("resources/settings.xml", "service.py", "resources/lib/cache.py",
                  "resources/media/os_logo_512x512.png"):

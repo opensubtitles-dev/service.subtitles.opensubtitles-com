@@ -796,9 +796,12 @@ def get_media_data():
 
     fallback_title = item.get("query") or item.get("original_title") or normalize_string(xbmc.getInfoLabel("VideoPlayer.Title"))
     if not fallback_title:
-        # Last resort: use filename
+        # Last resort: use filename - path component only, a stream URL's
+        # '?token=...' must reach neither the search query nor the logs
         try:
             playing_file = get_file_path()
+            if playing_file and "://" in playing_file:
+                playing_file = unquote(urlsplit(playing_file).path)
             if playing_file:
                 import os
                 fallback_title = os.path.basename(playing_file)
