@@ -8,6 +8,10 @@ Mirrors `changelog.txt` (the copy Kodi ships); regenerate this file whenever tha
 
 ---
 
+## [v1.0.41] - 2026-08-26
+
+- security hardening: update manifests carrying DOCTYPE or ENTITY declarations are rejected before XML parsing (entity-expansion protection); legitimate manifests never contain them
+
 ## [v1.0.40] - 2026-08-26
 
 - fixed episode searches aborting when the /features endpoint returns a malformed (non-numeric) parent id: the lookup now falls through to searching the episode id alone
