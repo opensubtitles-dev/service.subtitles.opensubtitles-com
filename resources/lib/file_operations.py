@@ -5,7 +5,7 @@ import struct
 import xbmcvfs, xbmc
 
 from urllib.parse import unquote, urlsplit
-from resources.lib.utilities import log, redact_path
+from resources.lib.utilities import log, redact_path, safe_media_filename
 
 
 def get_file_data(file_original_path):
@@ -21,12 +21,9 @@ def get_file_data(file_original_path):
         orig_oshash = xbmc.getInfoLabel('Window(10000).Property(videoinfo.current_oshash)')
         if orig_path:
             orig_path = str(orig_path)
-            # basename of a raw URL keeps '?token=...' glued on - it would be
-            # logged AND sent as the search query. Path component only.
-            name_source = orig_path
-            if "://" in name_source:
-                name_source = unquote(urlsplit(name_source).path)
-            item["basename"] = os.path.basename(name_source)
+            # never derive a name straight from a URL - encoded '?token='
+            # survives one-layer stripping (utilities.safe_media_filename)
+            item["basename"] = safe_media_filename(orig_path)
             item["file_original_path"] = orig_path
         if orig_size:
             item["file_size"] = int(orig_size)

@@ -6,7 +6,7 @@ import xml.etree.ElementTree as ET
 import xbmc
 import xbmcaddon
 
-from resources.lib.utilities import log, normalize_string, get_user_agent, get_language_override, redact_path
+from resources.lib.utilities import log, normalize_string, get_user_agent, get_language_override, redact_path, safe_media_filename
 
 # Simple cache for library queries to avoid repeated calls
 _library_cache = {}
@@ -462,13 +462,7 @@ def get_media_data():
             if playing_file:
                 # redacted: plugin/stream URLs can carry access tokens
                 log(__name__, f"📁 Playing file path: {redact_path(playing_file)}")
-                import os
-                if "://" in playing_file:
-                    # basename of a URL would keep '?token=...' glued to the
-                    # name - parse (and log) only the path component
-                    filename = os.path.basename(unquote(urlsplit(playing_file).path))
-                else:
-                    filename = os.path.basename(playing_file)
+                filename = safe_media_filename(playing_file)
                 log(__name__, f"📝 Filename to parse: {filename}")
                 
                 # STEP 1: Try basic filename parsing for TV shows
@@ -799,12 +793,7 @@ def get_media_data():
         # Last resort: use filename - path component only, a stream URL's
         # '?token=...' must reach neither the search query nor the logs
         try:
-            playing_file = get_file_path()
-            if playing_file and "://" in playing_file:
-                playing_file = unquote(urlsplit(playing_file).path)
-            if playing_file:
-                import os
-                fallback_title = os.path.basename(playing_file)
+            fallback_title = safe_media_filename(get_file_path()) or "Unknown"
         except:
             fallback_title = "Unknown"
 
@@ -904,9 +893,7 @@ def get_media_data():
         import re
 
         playing_file = get_file_path()
-        if playing_file and "://" in playing_file:
-            playing_file = unquote(urlsplit(playing_file).path)   # never leak ?token=...
-        basename = os.path.basename(playing_file) if playing_file else ""
+        basename = safe_media_filename(playing_file) if playing_file else ""
         stem = re.sub(r"\.(mkv|mp4|avi|m4v|ts|mov|wmv|iso|m2ts|flv|webm)$", "", basename,
                       flags=re.IGNORECASE)
         # stem != basename means a real video extension was stripped, i.e. this looks like a
