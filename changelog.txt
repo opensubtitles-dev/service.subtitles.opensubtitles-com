@@ -1,3 +1,7 @@
+v1.0.22 (2026-08-25)
+- Check for Updates now respects Kodi's origin pinning: without the OpenSubtitles fast-track repository installed, Kodi would never deliver the advertised version (it only updates from the repository an add-on was installed from). The dialog now shows both the fast-track and the official-Kodi-repo version for the running Kodi release, and offers step-by-step instructions for enabling fast-track updates
+- after a confirmed update, the add-on info screen refreshes so the new version is visible without backing out and re-entering
+
 v1.0.21 (2026-08-25)
 - maintenance release exercising the 1.0.20 update flow end to end: progress dialog while Kodi installs the update in the background, then "Updated to vX.Y.Z" confirmation; no code changes
 
