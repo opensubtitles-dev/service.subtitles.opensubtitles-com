@@ -58,6 +58,7 @@ def test_check_updates_newer_version_available():
     with patch("check_updates.fetch_latest_remote_version", return_value="1.0.16"), \
          patch.object(addon, "getAddonInfo", return_value="1.0.15"), \
          patch("check_updates.__addon__.getAddonInfo", return_value="1.0.15"), \
+         patch("check_updates.xbmc.getCondVisibility", return_value=True), \
          patch("check_updates.xbmcgui.Dialog") as mock_dialog, \
          patch("check_updates.xbmc.executebuiltin") as mock_exec:
         dialog_inst = MagicMock()
