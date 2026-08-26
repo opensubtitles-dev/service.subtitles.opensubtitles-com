@@ -7,7 +7,6 @@ import requests
 import xbmc
 import xbmcgui
 import xbmcaddon
-import xbmcvfs
 
 # --- addon import path guard (keep this above any `resources.*` import) ------------
 # RunScript(<file path>) runs this "without an addon", so Kodi puts every installed
@@ -99,8 +98,37 @@ def check_updates():
         )
         if dialog.yesno(__addon_name__, msg):
             xbmc.executebuiltin("UpdateAddonRepos")
-            icon_path = xbmcvfs.translatePath(os.path.join(__addon__.getAddonInfo("path"), "resources", "media", "os_logo_512x512.png"))
-            dialog.notification(__addon_name__, "Checking repository for updates...", icon_path, 4000)
+            # Kodi refreshes repos and installs the update in the background with
+            # no feedback of its own - the user is left staring at settings while
+            # the add-on silently swaps underneath. Poll the add-on database until
+            # the installed version reaches the target so we can report a definitive
+            # result. Fresh Addon() each poll: long-lived instances serve a stale
+            # snapshot (docs/kodi_api_internals.md gotcha 12).
+            addon_id = __addon__.getAddonInfo("id")
+            monitor = xbmc.Monitor()
+            progress = xbmcgui.DialogProgress()
+            progress.create(__addon_name__, f"Updating to [B]v{latest_version}[/B]…")
+            updated = False
+            wait_seconds = 60
+            for elapsed in range(wait_seconds):
+                if monitor.abortRequested() or progress.iscanceled():
+                    break
+                progress.update(int(elapsed * 100 / wait_seconds))
+                if monitor.waitForAbort(1):
+                    break
+                installed = xbmcaddon.Addon(addon_id).getAddonInfo("version")
+                if parse_version_tuple(installed) >= latest_tuple:
+                    updated = True
+                    break
+            progress.close()
+            if updated:
+                dialog.ok(__addon_name__, f"Updated to [B]v{installed}[/B].")
+            else:
+                # Timeout or cancel - the install may still land, or auto-update
+                # may be disabled in Kodi. Say so instead of going silent.
+                dialog.ok(__addon_name__,
+                          "Update is still installing in the background.\n"
+                          "If nothing happens, update from My add-ons or enable auto-updates.")
     else:
         # Up to date
         dialog.ok(__addon_name__, f"Up to date - [B]v{current_version}[/B] is the latest version.")
