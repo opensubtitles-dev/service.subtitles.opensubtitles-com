@@ -37,7 +37,9 @@ jobs:
           python scripts/generate_repo.py
 
       - name: Deploy to gh-pages Branch
-        uses: peaceiris/actions-gh-pages@v4
+        # SHA-pinned: this step holds write access to gh-pages (the live user
+        # feed) - a hijacked upstream tag must not be able to ride in (v4)
+        uses: peaceiris/actions-gh-pages@84c30a85c19949d7eee79c4ff27748b70285e453
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./repo_output
@@ -50,7 +52,8 @@ jobs:
 
       - name: Create / Update GitHub Release (Tags only)
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v3
+        # SHA-pinned: publishes release artifacts users download (v3)
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228
         with:
           files: |
             repo_output/repository.opensubtitles-com.zip

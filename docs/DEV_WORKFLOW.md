@@ -60,11 +60,11 @@ You can simulate real user interactions (search, metadata feature lookups, and s
 # 1. Run full live simulation in terminal
 python3 scripts/live_test.py --query "The Matrix" --download
 
-# 2. Test authenticated flow with real credentials
-python3 scripts/live_test.py --user "MY_USER" --pass "MY_PASS" --download
-
-# 3. Or pass credentials via .env (automatically loaded and gitignored)
-echo "OPENSUBTITLES_USER=myuser\nOPENSUBTITLES_PASS=mypass" > .env
+# 2. Test authenticated flow - put credentials in the gitignored .env, never
+#    on the command line or in echo (both land in shell history and `ps`).
+#    Create .env in your editor with:
+#      OPENSUBTITLES_USER=myuser
+#      OPENSUBTITLES_PASS=mypass
 python3 scripts/live_test.py --download
 
 # 4. Run live pytest suite
