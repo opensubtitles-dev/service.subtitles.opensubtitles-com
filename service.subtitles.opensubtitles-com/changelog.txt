@@ -1,0 +1,170 @@
+v1.0.39 (2026-08-26)
+- security: the external-player integration path (videoinfo window properties) derives filenames from the URL path component only - closing the last spot where a stream token could reach the debug log or the search query
+- release pipeline: every GitHub Actions step is pinned to a reviewed commit SHA; secret-named files are denied from shipped zips regardless of extension
+
+v1.0.38 (2026-08-26)
+- security: the last-resort title fallback no longer derives the search query from a raw stream URL - the query string is stripped everywhere a playback URL becomes a filename or log line
+- release packaging denies .secret/.token suffixes and secret/token/apikey-named config files in any shipped directory
+
+v1.0.37 (2026-08-26)
+- security: the remaining playback-URL log sites are redacted (the non-library filename-parse branch still logged the raw path), and filenames derived from stream URLs no longer keep the query string glued on - tokens never reach logs or search queries
+- release infrastructure: write-privileged deploy actions pinned to reviewed commit SHAs; docs no longer instruct passing credentials on the command line
+
+v1.0.36 (2026-08-26)
+- Check for Updates verifies this install can actually receive fast-track updates: an add-on installed from a different repository (typically the official Kodi one) stays pinned there, so instead of a dead-end update prompt it now explains how to switch. Unpinned zip installs remain eligible
+- release packaging denies env files, keys, certificates, logs and editor droppings even from a dirty build workspace
+- release gate now fails when addon.xml news or the README What's New drift behind the current version
+
+v1.0.35 (2026-08-26)
+- security: playback URLs are redacted before reaching the debug log - stream and plugin URLs can carry access tokens or credentials, and debug logs are what users paste on forums
+- update checker streams its manifests and abandons anything over 512 KB instead of parsing an unbounded body
+
+v1.0.34 (2026-08-26)
+- a malformed /features response (valid JSON, wrong-shaped data payload) no longer aborts the subtitle search - the lookup degrades to unknown-id and the existing id/title fallbacks run
+
+v1.0.33 (2026-08-26)
+- regression tests for every review fix from the Kodi repo submission rounds, with two behavior-neutral helper extractions to make them directly testable (player tvshowid guard, invocation-unique subtitle paths, Kodi version fallback)
+
+v1.0.32 (2026-08-26)
+- downloaded subtitle temp names are unique per invocation (uuid): Kodi runs add-on scripts as sub-interpreters inside one process, so the process-id-based names from 1.0.31 could still collide when downloads overlap
+
+v1.0.31 (2026-08-26)
+- fixed non-library playback of shows that ARE in the Kodi library: the empty player DBID overwrote the library id found via filename lookup, skipping the original-title and parent-id refinement that makes localized-title searches work
+- downloaded subtitles use per-invocation unique temp names and cleanup spares files younger than an hour, so overlapping searches can no longer delete or overwrite each other's subtitle
+
+v1.0.30 (2026-08-26)
+- fixed subtitle search aborting for local files smaller than 128 KiB: the hasher returned a scalar sentinel where the caller expected (size, hash), raising ValueError before the name-search fallback could run. Small files now search hashless
+- any hashing failure (unsupported rar layout, vfs error) now degrades to a hashless search instead of aborting; removed a dead duplicate rar-hash implementation
+
+v1.0.29 (2026-08-25)
+- fixed filename (basename) detection mangling plain local paths: a leftover rar:// prefix slice removed six characters from every path, so short paths like /tv/E1.mkv searched as ".mkv" - degraded fallback search and smart ranking. Surfaced by review on the official Kodi repo submission
+
+v1.0.28 (2026-08-25)
+- Kodi version detection in Check for Updates falls back to System.BuildVersion when System.BuildVersionShort is absent (not universal across Kodi releases)
+- compatibility verified on real Kodi Matrix 19.5, Nexus 20.5, Omega 21.3 and Piers 22.0 beta via the new headless smoke-test harness; shipped code held to the true Matrix floor of Python 3.6 by a static gate; CI test matrix widened to Python 3.8-3.13
+
+v1.0.27 (2026-08-25)
+- every API request now carries an X-Kodi-Origin-Repo header with the install channel (repository id, "zip" for manual installs, "unknown" when undetectable), read once per process from Kodi's addon database - Kodi exposes the installing repository nowhere in its Python API. Server-side this gives real distribution statistics across fast-track repo / official Kodi repo / manual zips
+
+v1.0.26 (2026-08-25)
+- after a confirmed update the stale add-on info screen now closes automatically, dropping back to the refreshed add-on list. The info dialog populates its labels once at open and cannot be repainted in place, so it kept showing the old version and icon until manually reopened
+
+v1.0.25 (2026-08-25)
+- new add-on and repository icon: white logo on dark background (color-inverted) - the previous opaque white square glared on Kodi's dark skins. Repository add-on bumped to 1.2.1 to carry the same icon
+
+v1.0.24 (2026-08-25)
+- fixed the fast-track repository warning not firing when the repository is disabled: Kodi's System.HasAddon reports disabled add-ons as installed, so detection now uses JSON-RPC Addons.GetAddonDetails (enabled / disabled / missing). A disabled repository gets a one-step "enable it under My add-ons" hint instead of the full install walkthrough
+
+v1.0.23 (2026-08-25)
+- Check for Updates now warns on the up-to-date result too when the fast-track repository is missing or disabled: being current today does not mean the next update can arrive (Kodi only updates from the repository an add-on was installed from). Same instructions dialog offered from both paths
+
+v1.0.22 (2026-08-25)
+- Check for Updates now respects Kodi's origin pinning: without the OpenSubtitles fast-track repository installed, Kodi would never deliver the advertised version (it only updates from the repository an add-on was installed from). The dialog now shows both the fast-track and the official-Kodi-repo version for the running Kodi release, and offers step-by-step instructions for enabling fast-track updates
+- after a confirmed update, the add-on info screen refreshes so the new version is visible without backing out and re-entering
+
+v1.0.21 (2026-08-25)
+- maintenance release exercising the 1.0.20 update flow end to end: progress dialog while Kodi installs the update in the background, then "Updated to vX.Y.Z" confirmation; no code changes
+
+v1.0.20 (2026-08-25)
+- Check for Updates now reports the actual result: after Yes, a cancellable progress dialog polls the add-on database for up to 60 seconds and confirms "Updated to vX.Y.Z" once Kodi finishes the background install; on timeout or cancel it says the install may still land and where to check. Previously the update installed silently and the new version was only visible by leaving settings and opening the add-on list
+
+v1.0.19 (2026-08-25)
+- compact Check for Updates dialogs: the update prompt shows old → new version on one line plus the question, and the up-to-date / connection-error results fit without scrolling (the dialog scrolls past ~3 lines and cannot be resized)
+
+v1.0.18 (2026-08-25)
+- compact Test Connection dialog (backported from the 2.0.0 branch): username, VIP flag and downloads today on two bold lines. "Remaining downloads" only restated what X / Y already shows, and the level line duplicated the VIP flag; the ok-dialog scrolls past ~3 lines and cannot be resized
+
+v1.0.17 (2026-08-25)
+- maintenance release verifying repository auto-update delivery end to end; the add-on code is identical to 1.0.16
+- fixed the repository source (kodi.opensubtitles.com) listing as an empty folder in Kodi's file manager: GitHub Pages serves no directory autoindex and Kodi's HTTP browser only recognizes plain anchors, so the portal now ships Kodi-parsable directory listings and the documented Install from zip file flow works
+
+v1.0.16 (2026-08-20)
+- fixed Test Connection failing with "ModuleNotFoundError: No module named 'resources.lib.osclient'" when another installed add-on ships its own top-level 'resources' folder. The import-path guard added in 1.0.11 was lost when test_connection.py was rewritten for 1.0.15; it is restored, extended to Clear Cache and Check for Updates, and a test now fails if it ever goes missing again (issue #39)
+- fixed TV episode searches returning nothing when the Kodi library holds a non-IMDb id in its imdbnumber field. That field contains whatever the scraper treats as the item's primary id, which for a TVDB-scraped show is not an IMDb id: it was sent as parent_imdb_id and matched nothing, while the episode's own id was discarded. The field is now only trusted with a 'tt' prefix, uniqueid is preferred, and the episode id is kept as a fallback attempt
+- fixed a subtitle returned in an unexpected shape hiding every other result: ranking and rendering are now guarded per entry, so one odd item is skipped instead of emptying the list and leaving the subtitle dialog open with nothing in it
+- fixed Check for Updates being left out of release zips, which made the settings button do nothing
+
+v1.0.15 (2026-08-18)
+- added Smart Subtitle Matcher and precision ranking engine comparing video filename and Guessit metadata with release groups, sources, and cuts
+- added multi-language top-picks and grouped ranking by user preferred language order
+- added adaptive language memory: dynamically prioritizes last downloaded subtitle language
+- added Kodi Hearing Impaired (SDH) accessibility system reflection and score boost
+- added language grouping when smart matching is disabled, sorted by community popularity
+- added Gzip + Base64 cache compression, reducing memory cache footprint by 70%-85%
+- added selectable Add-on Version row in settings with one-click update check
+- added Smart Account Status display with 3 dedicated lines (Status, Quota & Details, Last Checked) and 24-hour verification expiration
+- added Guessit video filename analysis (/api/v1/utilities/guessit) with 30-day client-side caching
+- added live search cache metrics display (cache_stats) and configurable cache duration (up to 24 hours)
+- improved Test Connection dialog with comprehensive HTTP error handling (400, 401, 406, 429, 5xx)
+- fixed Unicode normalization (NFC) for search queries with diacritics and international titles
+- optimized ID search strategy: omits redundant query and year filters when unique IMDb/TMDb ID exists
+- added informative on-screen search toast displaying active search criteria and languages
+- implemented safe temp directory garbage collection and atomic subtitle download writes
+- added clear cache utility for clearing memory properties and orphaned subtitle files across all namespaces
+- added official OpenSubtitles Kodi repository package and automated GitHub Actions deployment
+- added comprehensive pytest test suite (62 unit, integration, and TV search tests) and GitHub Actions CI workflow
+
+v1.0.14 (2026-08-14)
+- security: stopped writing credentials, session tokens and API keys to the Kodi debug log. The log previously included the password when only one credential was filled in, the full login response (which contains the session token), and the request headers (which contain the API key) - and debug logs are exactly what users share on forums when asking for help
+- expired login sessions now refresh automatically: the cached session token outlives its server-side validity, so downloads on long-running devices failed with "login failed" until the cache expired. A rejected token is now refreshed once and the download retried
+- fixed subtitle list failing to build when a subtitle has no rating
+- failed downloads no longer hand Kodi a path to a subtitle file that was never written
+- added a timeout to the filename-analysis (guessit) request so playback can no longer hang on it
+- User-Agent now reports the real add-on version instead of a hardcoded string
+- fixed addon.xml source link (wrong GitHub organisation name) and the settings section id
+
+v1.0.13 (2026-08-10)
+- TV episode searches now ask OpenSubtitles.com what the id supplied by the video add-on actually refers to, instead of assuming. One cached /features lookup says whether it is a show or an episode, and for an episode it also returns the show's id and the real season/episode numbers, so the search is built correctly whatever the add-on reported
+- fixed TV episode searches for video add-ons that report the show's IMDb/TMDb id rather than the episode's (Umbrella, POV), which 1.0.11 broke by always treating the player's id as an episode id. Add-ons disagree about what they put in that field and nothing local tells the two apart, so the add-on no longer guesses: it tries the show reading first (id + season/episode), then the episode reading (id on its own), and only falls back to a title search if neither matches. That also stops the title fallback from surfacing subtitles for a different show with a similar name (thanks peno64)
+
+v1.0.12 (2026-08-07)
+- Test Connection now works with the credentials as typed: Kodi saves and closes the settings dialog before running the test, so you no longer have to press OK and reopen settings first. The settings reopen once you dismiss the result (thanks rosensama)
+
+v1.0.11 (2026-08-06)
+- fixed Test Connection failing with "ModuleNotFoundError: No module named 'resources.lib.osclient'" when another installed add-on ships its own top-level 'resources' package: the settings script now puts its own directory first on the import path (the v1.0.10 rename did not address this)
+- fixed TV episode searches returning nothing when only the episode's own IMDb/TMDb id is known: the id is now sent on its own instead of alongside query/season/episode, with an automatic title fallback if it finds nothing (thanks peno64)
+- fixed connection and timeout errors crashing with AttributeError instead of reporting the service as unavailable, during login, search and download
+
+v1.0.10 (2026-07-01)
+- fixed "ModuleNotFoundError: No module named 'resources.lib.os'" on some devices (notably Android): added package __init__.py files so imports no longer rely on implicit namespace packages, and renamed the internal 'os' package to 'osclient' to stop it shadowing Python's standard-library os module
+- fixed subtitle search for TV shows in non-English (localized) libraries by querying the show's original title from the Kodi library instead of the translated on-screen title (thanks notoco)
+
+v1.0.9 (2026-03-01)
+- added Test Connection button in settings to verify credentials and view account info
+- show specific error message when search or download fails (thanks wildsands)
+- added search results caching with configurable duration (thanks VipSaran)
+- fixed trailing slash on subdirectory folder path (thanks peno64)
+
+v1.0.8 (2025-10-07)
+- performs a query to kodi library if imdb or tmdb ID is missing (thanks you cvanderkam)
+
+v1.0.7 (2025-08-26)
+- added IMDB and TMDB collection on files for more accurate search to the API
+
+v1.0.6 (2024-11-29)
+- fixed issue with RAR archives (thanks ninjacarr)
+- handles default chinese language to zh-cn  (thanks ninjacarr)
+
+v1.0.5 (2024-07-30)
+- fixed issue with portuguese file names
+- added AI translated filter (thanks Kate6)
+
+v1.0.4 (2024-01-17)
+- Sanitize language query
+- Improved sorting
+- Improved error messages 
+- Improved usage of moviehash 
+
+v1.0.3 (2023-12-18)
+- Fixed issue with file path
+
+v1.0.2 (2023-08-28)
+- Update user agent header
+
+v1.0.1 (2023-07-28)
+- Remove limit of 10 subtitles for the returned values
+- Fix Portuguese and Brazilian flags
+
+1.0.0
+ Initial version, forked from https://github.com/juokelis/service.subtitles.opensubtitles
+ Search fixed and improved
