@@ -1,3 +1,6 @@
+v1.0.25 (2026-08-25)
+- new add-on and repository icon: white logo on dark background (color-inverted) - the previous opaque white square glared on Kodi's dark skins. Repository add-on bumped to 1.2.1 to carry the same icon
+
 v1.0.24 (2026-08-25)
 - fixed the fast-track repository warning not firing when the repository is disabled: Kodi's System.HasAddon reports disabled add-ons as installed, so detection now uses JSON-RPC Addons.GetAddonDetails (enabled / disabled / missing). A disabled repository gets a one-step "enable it under My add-ons" hint instead of the full install walkthrough
 
