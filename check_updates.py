@@ -92,6 +92,11 @@ def parse_version_tuple(v_str):
 
 def extract_remote_version(xml_content):
     """Extracts the version attribute for service.subtitles.opensubtitles-com from XML content."""
+    # xml.etree expands internal entities on every Kodi Python (billion-laughs
+    # class) - a legitimate manifest never carries a DOCTYPE or ENTITY, so a
+    # body that does is hostile and gets dropped before parsing.
+    if re.search(r"<!\s*(DOCTYPE|ENTITY)", xml_content, re.IGNORECASE):
+        return None
     root = ET.fromstring(xml_content)
     if root.tag == "addon" and root.attrib.get("id") == "service.subtitles.opensubtitles-com":
         return root.attrib.get("version")
