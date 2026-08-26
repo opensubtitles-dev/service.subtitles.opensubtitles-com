@@ -72,9 +72,11 @@ def fetch_official_kodi_version():
     url = (f"https://raw.githubusercontent.com/xbmc/repo-plugins/{branch}/"
            f"service.subtitles.opensubtitles-com/addon.xml")
     try:
-        resp = requests.get(url, headers={"User-Agent": get_user_agent()}, timeout=6)
+        resp = requests.get(url, headers={"User-Agent": get_user_agent()}, timeout=6, stream=True)
         if resp.status_code == 200:
-            return extract_remote_version(resp.text)
+            body = _read_capped(resp)
+            if body is not None:
+                return extract_remote_version(body)
     except Exception:
         pass
     return None
@@ -100,14 +102,34 @@ def extract_remote_version(xml_content):
     return None
 
 
+# A real addons.xml is a few KB; anything approaching this is not our manifest.
+# Capping the read keeps a hijacked/misconfigured host from stalling the
+# settings action with an unbounded download (review: PR #4814).
+MANIFEST_MAX_BYTES = 512 * 1024
+
+
+def _read_capped(resp, cap=MANIFEST_MAX_BYTES):
+    """Reads at most cap bytes of a streamed response; None when exceeded."""
+    chunks, total = [], 0
+    for chunk in resp.iter_content(chunk_size=65536):
+        total += len(chunk)
+        if total > cap:
+            return None
+        chunks.append(chunk)
+    return b"".join(chunks).decode("utf-8", errors="replace")
+
+
 def fetch_latest_remote_version():
     """Queries remote repositories and returns latest remote version string or None."""
     headers = {"User-Agent": get_user_agent()}
     for url in REMOTE_MANIFEST_URLS:
         try:
-            resp = requests.get(url, headers=headers, timeout=6)
+            resp = requests.get(url, headers=headers, timeout=6, stream=True)
             if resp.status_code == 200:
-                v = extract_remote_version(resp.text)
+                body = _read_capped(resp)
+                if body is None:
+                    continue
+                v = extract_remote_version(body)
                 if v:
                     return v
         except Exception:

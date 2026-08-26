@@ -24,6 +24,29 @@ def get_user_agent():
     return f"Opensubtitles.com Kodi plugin v{__addon__.getAddonInfo('version')}"
 
 
+def redact_path(path):
+    """A playback path safe for the debug log.
+
+    Streaming and plugin URLs routinely carry access tokens in the query
+    string or credentials in the userinfo part - and debug logs are exactly
+    what users paste on public forums. Local paths pass through untouched;
+    anything with a scheme loses query, fragment and userinfo.
+    """
+    try:
+        s = str(path)
+        if "://" not in s:
+            return s
+        from urllib.parse import urlsplit
+        parts = urlsplit(s)
+        host = parts.netloc.rsplit("@", 1)[-1]      # drop user:pass@
+        redacted = f"{parts.scheme}://{host}{parts.path}"
+        if parts.query or parts.fragment or "@" in parts.netloc:
+            redacted += "  [query/credentials redacted]"
+        return redacted
+    except Exception:
+        return "[unloggable path]"
+
+
 def log(module, msg):
     xbmc.log(f"### [{__addon_name__}:{module}] - {msg}", level=xbmc.LOGDEBUG)
 

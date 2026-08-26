@@ -122,7 +122,10 @@ def test_official_kodi_version_falls_back_to_buildversion():
 
     class Resp:
         status_code = 200
-        text = ('<addon id="service.subtitles.opensubtitles-com" version="1.0.9"/>')
+
+        @staticmethod
+        def iter_content(chunk_size=0):
+            return iter([b'<addon id="service.subtitles.opensubtitles-com" version="1.0.9"/>'])
 
     def fake_get(url, **kw):
         seen["url"] = url
@@ -136,3 +139,14 @@ def test_official_kodi_version_falls_back_to_buildversion():
     # Neither label parseable -> None, never an exception
     with patch("check_updates.xbmc.getInfoLabel", return_value=""):
         assert cu.fetch_official_kodi_version() is None
+
+
+def test_redact_path_strips_tokens_and_credentials():
+    # Debug logs are what users paste on forums - stream URLs with tokens or
+    # userinfo must never reach them raw (security finding, PR #4814).
+    from resources.lib.utilities import redact_path
+    r = redact_path("https://user:secret@cdn.example.com/movie.mkv?token=abc123#f")
+    assert "secret" not in r and "abc123" not in r and "user" not in r
+    assert "cdn.example.com/movie.mkv" in r and "redacted" in r
+    assert redact_path("/local/path/movie.mkv") == "/local/path/movie.mkv"
+    assert redact_path("smb://server/share/file.mkv") == "smb://server/share/file.mkv"
