@@ -8,6 +8,11 @@ Mirrors `changelog.txt` (the copy Kodi ships); regenerate this file whenever tha
 
 ---
 
+## [v1.0.38] - 2026-08-26
+
+- security: the last-resort title fallback no longer derives the search query from a raw stream URL - the query string is stripped everywhere a playback URL becomes a filename or log line
+- release packaging denies .secret/.token suffixes and secret/token/apikey-named config files in any shipped directory
+
 ## [v1.0.37] - 2026-08-26
 
 - security: the remaining playback-URL log sites are redacted (the non-library filename-parse branch still logged the raw path), and filenames derived from stream URLs no longer keep the query string glued on - tokens never reach logs or search queries
