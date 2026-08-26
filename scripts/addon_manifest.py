@@ -48,8 +48,9 @@ EXCLUDE_PATTERNS = [
     r"\.py[cod]$",
     r"\.DS_Store$",
     r"(^|/)\.env([./]|$)",
-    r"\.(log|key|pem|p12|pfx|crt|csr|sqlite|db)$",
-    r"(^|/)(secrets?|credentials?)(\.|/|$)",
+    r"\.(log|key|pem|p12|pfx|crt|csr|sqlite|db|secret|token)$",
+    r"(^|/)(secrets?|credentials?|tokens?)(\.|/|$)",
+    r"(^|/)[^/]*(secret|credential|token|apikey|api_key)[^/]*\.(json|ya?ml|ini|cfg|txt)$",
     r"\.(swp|swo|orig|rej|bak)$",
 ]
 
