@@ -41,6 +41,13 @@ jobs:
         run: |
           python scripts/preflight.py --fast
 
+      - name: Kodiai-equivalent gate (entry-point size, deps on mirrors)
+        # Team Kodi's Kodiai bot is a private app; these are its deterministic
+        # checks reproduced locally so upstream never sees them fail first.
+        if: matrix.python-version == '3.11'
+        run: |
+          python scripts/kodiai_gate.py
+
       - name: Shipped-code minimum Python audit (vermin)
         # Guards the real Kodi Matrix floor - the Matrix-era containers run
         # Python 3.6.9 (Ubuntu 18.04 system python), older than CI can execute,
