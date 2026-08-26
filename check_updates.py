@@ -37,6 +37,39 @@ REMOTE_MANIFEST_URLS = [
     "https://raw.githubusercontent.com/opensubtitles-dev/service.subtitles.opensubtitles-com/master/addon.xml",
 ]
 
+FAST_TRACK_REPO_ID = "repository.opensubtitles-com"
+
+# Kodi 19+ pins add-on updates to the repository the add-on was installed from
+# (its "origin"). Without our fast-track repository installed, Kodi will only
+# ever update this add-on from the official Kodi repository - telling the user a
+# newer fast-track version exists would just be a version they cannot receive.
+KODI_BRANCH_BY_MAJOR = {19: "matrix", 20: "nexus", 21: "omega", 22: "piers"}
+
+
+def fetch_official_kodi_version():
+    """Version in the official Kodi repository for this Kodi release, or None.
+
+    Reads the addon.xml straight from the xbmc/repo-plugins branch matching the
+    running Kodi major version. 404 simply means the add-on is not (yet) in the
+    official repository for that release.
+    """
+    try:
+        major = int(xbmc.getInfoLabel("System.BuildVersionShort").split(".")[0])
+    except (ValueError, AttributeError):
+        return None
+    branch = KODI_BRANCH_BY_MAJOR.get(major)
+    if not branch:
+        return None
+    url = (f"https://raw.githubusercontent.com/xbmc/repo-plugins/{branch}/"
+           f"service.subtitles.opensubtitles-com/addon.xml")
+    try:
+        resp = requests.get(url, headers={"User-Agent": get_user_agent()}, timeout=6)
+        if resp.status_code == 200:
+            return extract_remote_version(resp.text)
+    except Exception:
+        pass
+    return None
+
 
 def parse_version_tuple(v_str):
     """Converts version string (e.g. '1.0.15') into integer tuple for comparison."""
@@ -90,6 +123,33 @@ def check_updates():
     latest_tuple = parse_version_tuple(latest_version)
 
     if latest_tuple > curr_tuple:
+        # Without the fast-track repository, Kodi's origin pinning means the
+        # user cannot actually receive the version we just found - Kodi only
+        # updates from the repository the add-on was installed from. Show both
+        # versions and point at the repository instead of a prompt that would
+        # trigger nothing.
+        if not xbmc.getCondVisibility(f"System.HasAddon({FAST_TRACK_REPO_ID})"):
+            official_version = fetch_official_kodi_version()
+            official_part = f"v{official_version}" if official_version else "not yet available"
+            msg = (
+                f"Fast-track repo: [B]v{latest_version}[/B]  |  Official Kodi repo: {official_part}\n"
+                f"(installed: v{current_version})\n"
+                f"Show how to enable fast-track updates?"
+            )
+            if dialog.yesno(__addon_name__, msg):
+                dialog.textviewer(
+                    f"{__addon_name__} - fast-track updates",
+                    "Kodi only updates an add-on from the repository it was installed from. "
+                    "To receive updates as soon as they are released, install the official "
+                    "OpenSubtitles.com repository:\n\n"
+                    "1. Settings > System > Add-ons: enable Unknown sources\n"
+                    "2. Settings > File manager > Add source: https://kodi.opensubtitles.com\n"
+                    "3. Add-ons > Install from zip file > that source > repository.opensubtitles-com.zip\n"
+                    "4. Install from repository > OpenSubtitles.com Official Repository > "
+                    "Subtitles > OpenSubtitles.com > Install\n\n"
+                    "Full instructions with screenshots: https://kodi.opensubtitles.com")
+            return
+
         # Update available. Compact on purpose: the dialog scrolls past ~3 lines
         # and cannot be resized (skin-owned) - no blank lines, no bullet rows.
         msg = (
@@ -123,6 +183,10 @@ def check_updates():
             progress.close()
             if updated:
                 dialog.ok(__addon_name__, f"Updated to [B]v{installed}[/B].")
+                # The add-on info screen keeps showing the old version until its
+                # container reloads - nudge it so the user does not have to back
+                # out and re-enter to see the new number.
+                xbmc.executebuiltin("Container.Refresh")
             else:
                 # Timeout or cancel - the install may still land, or auto-update
                 # may be disabled in Kodi. Say so instead of going silent.
