@@ -40,7 +40,6 @@ INCLUDE_ENTRIES = {
     "resources",
     "icon.png",
     "fanart.jpg",
-    "logo.png",
     "LICENSE.txt",
     "changelog.txt",
     "README.md",
