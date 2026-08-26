@@ -1,3 +1,7 @@
+v1.0.30 (2026-08-26)
+- fixed subtitle search aborting for local files smaller than 128 KiB: the hasher returned a scalar sentinel where the caller expected (size, hash), raising ValueError before the name-search fallback could run. Small files now search hashless
+- any hashing failure (unsupported rar layout, vfs error) now degrades to a hashless search instead of aborting; removed a dead duplicate rar-hash implementation
+
 v1.0.29 (2026-08-25)
 - fixed filename (basename) detection mangling plain local paths: a leftover rar:// prefix slice removed six characters from every path, so short paths like /tv/E1.mkv searched as ".mkv" - degraded fallback search and smart ranking. Surfaced by review on the official Kodi repo submission
 
