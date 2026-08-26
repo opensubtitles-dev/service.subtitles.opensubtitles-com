@@ -53,19 +53,26 @@ Out of reach forever: DRM content, `pvr://` live TV.
   the job and toasts "AI subtitle ready" / it is simply present on next play.
   Mirrors the existing on-demand AI translation + credits UX.
 
-## 4. API contract (PROPOSED — spec-first per project rules; handle 404 as "not deployed")
+## 4. API contract (SPEC-VERIFIED — docs/opensubtitles_api_reference.html, 2026-08-26)
 
 ```
-POST /api/v1/ai/transcribe            multipart or JSON
-  { moviehash, file_size, duration, imdb_id/tmdb_id?, language_hint?,
-    source: {type: "upload"|"url", url?}, credits_ack: true }
-  -> 202 { job_id, credits_charged }   | 409 { subtitle_id }  (cache hit - free)
-PUT  /api/v1/ai/transcribe/{job_id}/audio     chunked upload (when type=upload)
-GET  /api/v1/ai/transcribe/{job_id}   -> { status: queued|processing|done|failed,
-                                           subtitle_id?, error? }
+GET  /api/v1/ai/info/transcription    Api-Key only
+  -> { data: [ { name, display_name, description, pricing, reliability,
+                 price (per second), languages_supported: [{language_code
+                 (incl "auto"), language_name}] } ] }        # e.g. "aws"
+POST /api/v1/ai/transcribe            Api-Key + Bearer
+  query: api (engine name), language (media language)  +  multipart file
+  HARD CAP: 100 MB per file  ->  { status: "CREATED", correlation_id }
+GET  /api/v1/ai/transcribe/{correlation_id}
+  -> status: CREATED | PENDING | COMPLETED | ERROR | TIMEOUT
+     (COMPLETED payload shape loose - client accepts url or inline text)
 ```
 
-Every endpoint: Api-Key + Bearer, X-Kodi-Origin-Repo rides along as everywhere.
+Consequences vs the earlier proposal: NO URL mode and NO chunked upload -
+the 100 MB cap makes local audio extraction the REQUIRED path for movies
+(2h @ 48k mono AAC ~= 42 MB fits); no moviehash cache-hit response yet
+(server-side dedup remains a wishlist item). X-Kodi-Origin-Repo rides along
+as everywhere.
 
 ## 5. Consent, cost, limits
 

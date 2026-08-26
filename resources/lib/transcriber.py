@@ -27,7 +27,14 @@ from resources.lib.utilities import log as _log, get_user_agent
 __addon__ = xbmcaddon.Addon("service.subtitles.opensubtitles-com")
 
 API_URL = "https://api.opensubtitles.com/api/v1/"
-API_TRANSCRIBE = "ai/transcribe"  # PROPOSED - handle 404 as "not deployed yet"
+# Spec-verified against docs/opensubtitles_api_reference.html:
+#   GET  /ai/info/transcription            Api-Key          - APIs + languages + price
+#   POST /ai/transcribe                    Api-Key + Bearer - multipart: api, language, file
+#                                          max file size 100 MB; -> {status: CREATED, correlation_id}
+#   GET  /ai/transcribe/{correlation_id}   Api-Key + Bearer - CREATED|PENDING|COMPLETED|ERROR|TIMEOUT
+API_TRANSCRIBE = "ai/transcribe"
+API_TRANSCRIBE_INFO = "ai/info/transcription"
+MAX_UPLOAD_BYTES = 100 * 1024 * 1024   # hard server-side cap per the spec
 
 CAPS_SCHEMA = 1
 BENCH_SECONDS_AUDIO = 30       # synthetic audio the encode benchmark processes
@@ -159,13 +166,18 @@ def get_capabilities():
 
 
 def choose_source(caps, file_path):
-    """Pick the best rung for this playback. Returns 'ffmpeg' | 'url' | 'upload'."""
-    if caps.get("ffmpeg") and (caps.get("encode_x_realtime") or 0) >= 2 \
-            and os.path.exists(file_path):
+    """Pick the rung for this playback: 'ffmpeg' | 'upload' | 'too_big'.
+
+    The real API accepts one multipart file of max 100 MB - no URL mode - so
+    for anything larger the local ffmpeg audio extraction is not an
+    optimization, it is the only way in (2h of 48k mono AAC ~= 42 MB, fits).
+    """
+    local = os.path.exists(file_path)
+    if caps.get("ffmpeg") and (caps.get("encode_x_realtime") or 0) >= 2 and local:
         return "ffmpeg"
-    if file_path.startswith(("http://", "https://")):
-        return "url"
-    return "upload"
+    if local and os.path.getsize(file_path) <= MAX_UPLOAD_BYTES:
+        return "upload"
+    return "too_big"
 
 
 def extract_audio(ffmpeg, file_path, progress=None):
@@ -204,7 +216,7 @@ class UserCancelled(TranscriptionError):
 
 
 class TranscriptionClient:
-    """PROPOSED /ai/transcribe endpoints (docs/ai_transcription_plan.md par.4)."""
+    """Spec-verified /ai/transcribe client (docs/opensubtitles_api_reference.html)."""
 
     def __init__(self, session, token):
         self.session = session
@@ -213,128 +225,175 @@ class TranscriptionClient:
 
     def _check(self, r):
         if r.status_code == 404:
-            raise NotDeployed("transcription API not deployed")
+            raise NotDeployed("transcription API not available on this server")
         r.raise_for_status()
         return r.json()
 
-    def create_job(self, meta):
-        r = self.session.post(API_URL + API_TRANSCRIBE, json=meta,
-                              headers=self.headers, timeout=30)
-        if r.status_code == 409:            # cache hit - subtitle already exists
-            return {"cache_hit": True, **r.json()}
+    def list_apis(self):
+        """GET /ai/info/transcription - engines, languages and per-second price."""
+        r = self.session.get(API_URL + API_TRANSCRIBE_INFO,
+                             headers={"User-Agent": get_user_agent()}, timeout=30)
+        return self._check(r).get("data") or []
+
+    def create_job(self, api_name, language, media_path, progress=None):
+        """POST /ai/transcribe - one multipart file (server cap 100 MB).
+
+        Returns {"status": "CREATED", "correlation_id": ...}.
+        """
+        size = os.path.getsize(media_path)
+        if size > MAX_UPLOAD_BYTES:
+            raise TranscriptionError(
+                f"file is {size // (1024 * 1024)} MB - the server accepts at most 100 MB")
+        if progress:
+            progress.update(20, f"Uploading {size // (1024 * 1024)} MB to the transcription service...")
+        with open(media_path, "rb") as f:
+            r = self.session.post(
+                API_URL + API_TRANSCRIBE,
+                params={"api": api_name, "language": language},
+                files={"file": (os.path.basename(media_path), f)},
+                headers=self.headers, timeout=600)
         return self._check(r)
 
-    def upload_audio(self, job_id, path, progress=None):
-        size = os.path.getsize(path)
-        sent = 0
-        with open(path, "rb") as f:
-            while True:
-                chunk = f.read(UPLOAD_CHUNK)
-                if not chunk:
-                    break
-                r = self.session.put(
-                    f"{API_URL}{API_TRANSCRIBE}/{job_id}/audio",
-                    data=chunk, headers={**self.headers,
-                                         "Content-Range": f"bytes {sent}-{sent + len(chunk) - 1}/{size}"},
-                    timeout=120)
-                self._check(r)
-                sent += len(chunk)
-                if progress:
-                    if progress.iscanceled():
-                        raise UserCancelled()
-                    progress.update(min(99, int(sent * 100 / size)),
-                                    f"Uploading audio... {sent // (1024 * 1024)} / {size // (1024 * 1024)} MB")
-
-    def poll(self, job_id):
-        r = self.session.get(f"{API_URL}{API_TRANSCRIBE}/{job_id}",
+    def poll(self, correlation_id):
+        """GET /ai/transcribe/{correlation_id} - CREATED|PENDING|COMPLETED|ERROR|TIMEOUT."""
+        r = self.session.get(f"{API_URL}{API_TRANSCRIBE}/{correlation_id}",
                              headers=self.headers, timeout=30)
         return self._check(r)
 
 
 class MockTranscriptionClient:
-    """Development-tab stand-in: no network, finishes after a few polls and
-    yields a placeholder subtitle so the whole pipeline is testable in Kodi."""
+    """Development-tab stand-in: no network, real response shapes, finishes
+    after a few polls with a placeholder subtitle - the whole pipeline is
+    testable in Kodi today."""
 
     def __init__(self, *_args, **_kwargs):
         self._polls = 0
 
-    def create_job(self, meta):
-        log(f"MOCK transcription job for {meta}")
-        return {"job_id": "mock-1", "credits_charged": 0}
+    def list_apis(self):
+        return [{"name": "mock", "display_name": "Mock Transcribe", "price": 0.0,
+                 "languages_supported": [{"language_code": "auto",
+                                          "language_name": "automatic selection"}]}]
 
-    def upload_audio(self, job_id, path, progress=None):
-        size = os.path.getsize(path)
-        log(f"MOCK upload of {size} bytes skipped")
+    def create_job(self, api_name, language, media_path, progress=None):
+        log(f"MOCK transcription job: api={api_name} lang={language} "
+            f"file={media_path} ({os.path.getsize(media_path)} bytes)")
         if progress:
-            progress.update(99, "Mock upload complete")
+            progress.update(60, "Mock upload complete")
+        return {"status": "CREATED", "correlation_id": "mock-1"}
 
-    def poll(self, job_id):
+    def poll(self, correlation_id):
         self._polls += 1
         if self._polls < 3:
-            return {"status": "processing"}
+            return {"status": "PENDING"}
         srt = ("1\n00:00:01,000 --> 00:00:05,000\n"
                "[OpenSubtitles AI transcription - mock pipeline result]\n")
         out = os.path.join(_profile_dir(), "mock_transcription.srt")
         with open(out, "w") as f:
             f.write(srt)
-        return {"status": "done", "subtitle_path": out}
+        return {"status": "COMPLETED", "url": "file://" + out}
+
+
+def _pick_engine(apis, language):
+    """Choose the transcription engine; ask the user when there are several."""
+    if not apis:
+        raise TranscriptionError("the server offers no transcription engines")
+    usable = []
+    for api in apis:
+        codes = {l.get("language_code") for l in api.get("languages_supported") or []}
+        if not codes or language in codes or "auto" in codes:
+            usable.append(api)
+    if not usable:
+        usable = apis
+    if len(usable) == 1:
+        return usable[0]
+    labels = [f"{a.get('display_name') or a.get('name')}  ({a.get('price', '?')}/s)"
+              for a in usable]
+    idx = xbmcgui.Dialog().select("Choose a transcription engine", labels)
+    if idx < 0:
+        raise UserCancelled()
+    return usable[idx]
+
+
+def _save_completed_result(session, state):
+    """COMPLETED payload shape is loose - accept a url or inline subtitle text."""
+    out = os.path.join(_profile_dir(), "transcription_result.srt")
+    url = state.get("url")
+    if not url and isinstance(state.get("data"), dict):
+        url = state["data"].get("url")
+    if url and str(url).startswith("file://"):
+        return str(url)[7:]
+    if url:
+        r = session.get(url, headers={"User-Agent": get_user_agent()}, timeout=120)
+        r.raise_for_status()
+        with open(out, "wb") as f:
+            f.write(r.content)
+        return out
+    for key in ("subtitles", "subtitle", "content", "data"):
+        val = state.get(key)
+        if isinstance(val, str) and val.strip():
+            with open(out, "w") as f:
+                f.write(val)
+            return out
+    log(f"COMPLETED but unrecognized payload keys: {sorted(state.keys())}")
+    raise TranscriptionError("transcription finished but returned no subtitle")
 
 
 def run_transcription(session, token, file_data, language, mock=False):
-    """The whole pipeline. Returns a local subtitle file path, or None.
+    """The whole pipeline. Returns a local subtitle file path.
 
-    Raises NotDeployed when the real API is not live yet; shows its own
-    progress dialog (cancel supported everywhere).
+    Spec: docs/opensubtitles_api_reference.html (/ai/transcribe). Shows its own
+    progress dialog; cancel supported everywhere; NotDeployed on 404.
     """
     caps = get_capabilities()
     file_path = file_data.get("file_original_path", "")
     source = choose_source(caps, file_path)
-    log(f"transcription source rung: {source} (caps: encode_x={caps.get('encode_x_realtime')}, io={caps.get('io_mb_per_s')})")
+    log(f"transcription rung: {source} (encode_x={caps.get('encode_x_realtime')}, io={caps.get('io_mb_per_s')})")
+    if source == "too_big":
+        raise TranscriptionError(
+            "the server accepts at most 100 MB and no usable ffmpeg was found to "
+            "extract the audio track - install ffmpeg and try again")
 
     client = MockTranscriptionClient() if mock else TranscriptionClient(session, token)
     progress = xbmcgui.DialogProgress()
-    progress.create("OpenSubtitles AI transcription", "Preparing...")
+    progress.create("OpenSubtitles AI transcription", "Checking transcription engines...")
+    audio = None
     try:
-        meta = {
-            "moviehash": file_data.get("moviehash", ""),
-            "file_size": file_data.get("file_size", 0),
-            "language_hint": language,
-            "source": {"type": "url" if source == "url" else "upload",
-                       "url": file_path if source == "url" else None},
-            "credits_ack": True,
-        }
-        job = client.create_job(meta)
-        if job.get("cache_hit"):
-            log(f"transcription cache hit: {job}")
-            return job.get("subtitle_path")
+        engine = _pick_engine(client.list_apis(), language)
+        codes = {l.get("language_code") for l in engine.get("languages_supported") or []}
+        job_language = language if language in codes else "auto"
 
         if source == "ffmpeg":
             progress.update(5, "Extracting audio track...")
             audio = extract_audio(caps["ffmpeg"], file_path, progress)
-            client.upload_audio(job["job_id"], audio, progress)
-            try:
-                os.unlink(audio)
-            except Exception:
-                pass
-        elif source == "upload":
-            progress.update(5, "Uploading media file...")
-            client.upload_audio(job["job_id"], file_path, progress)
-        # source == "url": nothing to send, the server fetches it
+            upload_path = audio
+        else:
+            upload_path = file_path
+
+        job = client.create_job(engine.get("name"), job_language, upload_path, progress)
+        correlation_id = job.get("correlation_id")
+        if not correlation_id:
+            raise TranscriptionError(f"no correlation_id in response: {job}")
 
         start = time.time()
         while time.time() - start < POLL_MAX_SECONDS:
             if progress.iscanceled():
                 raise UserCancelled()
-            state = client.poll(job["job_id"])
-            if state.get("status") == "done":
-                return state.get("subtitle_path") or state.get("subtitle_id")
-            if state.get("status") == "failed":
-                raise TranscriptionError(state.get("error") or "transcription failed")
-            progress.update(99, "Transcribing on the server...")
+            state = client.poll(correlation_id)
+            status = (state.get("status") or "").upper()
+            if status == "COMPLETED":
+                return _save_completed_result(session, state)
+            if status in ("ERROR", "TIMEOUT"):
+                raise TranscriptionError(state.get("error") or f"job ended with {status}")
+            progress.update(80, "Transcribing on the server...")
             for _ in range(POLL_INTERVAL * 2):
                 if progress.iscanceled():
                     raise UserCancelled()
                 time.sleep(0.5)
         raise TranscriptionError("timed out waiting for the transcription job")
     finally:
+        if audio:
+            try:
+                os.unlink(audio)
+            except Exception:
+                pass
         progress.close()
