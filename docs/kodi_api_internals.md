@@ -206,6 +206,7 @@ No HTTP, no auth, always available in-process. `json.dumps` in, `json.loads` out
 13. **Never block Kodi's callback thread**: Player/Monitor callbacks run on Kodi's thread — spawn `threading.Thread(daemon=True)` for network work, checking `abortRequested()` before/after each request (our pattern).
 14. **`isExternalPlayer()`**: when true, `setSubtitles`/stream APIs are no-ops; skip auto-download gracefully.
 15. **`System.HasAddon(id)` counts DISABLED add-ons** (verified live 2026-08-25): a merely-disabled repository still reads as "installed", though it serves no updates. To distinguish enabled/disabled/missing use JSON-RPC `Addons.GetAddonDetails` with `properties: ["enabled"]` — a missing add-on returns an error payload (no `result`), a disabled one returns `enabled: false`. Pattern in `check_updates.py:fast_track_repo_state()`.
+16. **`CZipManager` caches a remote zip's central directory per URL for the whole Kodi session** (verified live 2026-08-25): republish a different zip at the same URL and "Install from zip file" over an HTTP source fails with `CAddonInfoBuilder::Generate: Unable to load .../addon.xml, Failed to open file` — the log signature is `CurlFile::Open` with NO `Resume from position` seek lines after it (the index was never re-read). Server and zip are innocent; a Kodi restart clears the cache. Only bites when several zip versions ship at one URL within a single session (release-testing days).
 
 ## 8. Current usage audit (2026-08-19) — where we stand
 
