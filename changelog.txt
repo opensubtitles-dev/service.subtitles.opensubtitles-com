@@ -23,6 +23,20 @@ NEW GENERATION RELEASE - rebuilt around the background service
 - docs: Kodi API internals reference (plugin contract from Kodi C++ source, Player/Monitor semantics, JSON-RPC), glyph compatibility matrix, auto-download comparison
 
 
+v1.0.32 (2026-08-26)
+- downloaded subtitle temp names are unique per invocation (uuid): Kodi runs add-on scripts as sub-interpreters inside one process, so the process-id-based names from 1.0.31 could still collide when downloads overlap
+
+v1.0.31 (2026-08-26)
+- fixed non-library playback of shows that ARE in the Kodi library: the empty player DBID overwrote the library id found via filename lookup, skipping the original-title and parent-id refinement that makes localized-title searches work
+- downloaded subtitles use per-invocation unique temp names and cleanup spares files younger than an hour, so overlapping searches can no longer delete or overwrite each other's subtitle
+
+v1.0.30 (2026-08-26)
+- fixed subtitle search aborting for local files smaller than 128 KiB: the hasher returned a scalar sentinel where the caller expected (size, hash), raising ValueError before the name-search fallback could run. Small files now search hashless
+- any hashing failure (unsupported rar layout, vfs error) now degrades to a hashless search instead of aborting; removed a dead duplicate rar-hash implementation
+
+v1.0.29 (2026-08-25)
+- fixed filename (basename) detection mangling plain local paths: a leftover rar:// prefix slice removed six characters from every path, so short paths like /tv/E1.mkv searched as ".mkv" - degraded fallback search and smart ranking. Surfaced by review on the official Kodi repo submission
+
 v1.0.28 (2026-08-25)
 - Kodi version detection in Check for Updates falls back to System.BuildVersion when System.BuildVersionShort is absent (not universal across Kodi releases)
 - compatibility verified on real Kodi Matrix 19.5, Nexus 20.5, Omega 21.3 and Piers 22.0 beta via the new headless smoke-test harness; shipped code held to the true Matrix floor of Python 3.6 by a static gate; CI test matrix widened to Python 3.8-3.13
