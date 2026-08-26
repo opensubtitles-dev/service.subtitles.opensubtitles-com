@@ -183,3 +183,14 @@ def test_check_updates_disabled_repo_gets_enable_hint_not_install_steps():
         assert "disabled" in dialog_inst.yesno.call_args[0][1]
         dialog_inst.ok.assert_called_once()          # enable hint is an ok-dialog
         dialog_inst.textviewer.assert_not_called()   # no install walkthrough
+
+
+def test_manifest_read_is_capped():
+    # An oversized manifest must be skipped, not parsed (hardening, PR #4814).
+    from check_updates import _read_capped, MANIFEST_MAX_BYTES
+    from unittest.mock import MagicMock
+    resp = MagicMock()
+    resp.iter_content.return_value = [b"x" * 65536] * ((MANIFEST_MAX_BYTES // 65536) + 2)
+    assert _read_capped(resp) is None
+    resp.iter_content.return_value = [b"<addons/>"]
+    assert _read_capped(resp) == "<addons/>"

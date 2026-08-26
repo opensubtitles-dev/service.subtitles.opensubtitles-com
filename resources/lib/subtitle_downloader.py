@@ -20,7 +20,7 @@ from resources.lib.exceptions import AuthenticationError, ConfigurationError, Do
 from resources.lib.file_operations import get_file_data
 from resources.lib.matcher import rank_subtitles, get_match_display_tag, is_on_demand_translation
 from resources.lib.osclient.provider import OpenSubtitlesProvider
-from resources.lib.utilities import get_params, log, error
+from resources.lib.utilities import get_params, log, error, redact_path
 
 __addon__ = xbmcaddon.Addon("service.subtitles.opensubtitles-com")
 __scriptid__ = __addon__.getAddonInfo("id")
@@ -220,7 +220,10 @@ class SubtitleDownloader:
         file_data = get_file_data(get_file_path())
         language_data = get_language_data(self.params)
 
-        log(__name__, "file_data '%s' " % file_data)
+        # file_original_path can be a tokened stream URL - redact before logging
+        log(__name__, "file_data '%s' " % {
+            k: (redact_path(v) if k == "file_original_path" else v)
+            for k, v in file_data.items()})
         log(__name__, "language_data '%s' " % language_data)
 
         # if there's query passed we use it, don't try to pull media data from VideoPlayer

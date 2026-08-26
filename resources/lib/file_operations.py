@@ -5,12 +5,14 @@ import struct
 import xbmcvfs, xbmc
 
 from urllib.parse import unquote
-from resources.lib.utilities import log
+from resources.lib.utilities import log, redact_path
 
 
 def get_file_data(file_original_path):
     item = {"temp": False, "rar": False, "file_original_path": file_original_path}
-    log(__name__, f"Processing item: {item}")
+    # Never log the raw path: stream/plugin URLs can carry access tokens or
+    # credentials, and debug logs get pasted on forums (review: PR #4814).
+    log(__name__, f"Processing item: {redact_path(file_original_path)}")
 
 
     if file_original_path.find("http") > -1:
@@ -58,7 +60,7 @@ def get_file_data(file_original_path):
 
 
 def hash_file(file_path, rar):
-    log(__name__, f"Processing file: {file_path} - Is RAR: {rar}")
+    log(__name__, f"Processing file: {redact_path(file_path)} - Is RAR: {rar}")
 
     if rar:
         # The rar VFS uses the following scheme: rar://urlencoded_rar_path/archive_content
