@@ -8,8 +8,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-import service_monitor
-from service_monitor import (
+import resources.lib.background_service as service_monitor
+from resources.lib.background_service import (
     ACCOUNT_ALERT_REPEAT_AFTER,
     clear_account_alert,
     notify_account_problem,
@@ -40,7 +40,7 @@ class FakeAddon:
 
 @pytest.fixture
 def dialog():
-    with patch("service_monitor.xbmcgui.Dialog") as dialog_class:
+    with patch("resources.lib.background_service.xbmcgui.Dialog") as dialog_class:
         yield dialog_class.return_value
 
 
@@ -57,9 +57,9 @@ def test_each_account_problem_notifies_the_user(problem, dialog):
 def test_same_problem_is_not_repeated_within_a_day(dialog):
     addon = FakeAddon()
 
-    with patch("service_monitor.time.time", return_value=1_000_000.0):
+    with patch("resources.lib.background_service.time.time", return_value=1_000_000.0):
         notify_account_problem("missing", addon)
-    with patch("service_monitor.time.time", return_value=1_000_000.0 + ACCOUNT_ALERT_REPEAT_AFTER - 60):
+    with patch("resources.lib.background_service.time.time", return_value=1_000_000.0 + ACCOUNT_ALERT_REPEAT_AFTER - 60):
         notify_account_problem("missing", addon)
 
     assert dialog.notification.call_count == 1
@@ -68,9 +68,9 @@ def test_same_problem_is_not_repeated_within_a_day(dialog):
 def test_same_problem_warns_again_after_a_day(dialog):
     addon = FakeAddon()
 
-    with patch("service_monitor.time.time", return_value=1_000_000.0):
+    with patch("resources.lib.background_service.time.time", return_value=1_000_000.0):
         notify_account_problem("missing", addon)
-    with patch("service_monitor.time.time", return_value=1_000_000.0 + ACCOUNT_ALERT_REPEAT_AFTER + 1):
+    with patch("resources.lib.background_service.time.time", return_value=1_000_000.0 + ACCOUNT_ALERT_REPEAT_AFTER + 1):
         notify_account_problem("missing", addon)
 
     assert dialog.notification.call_count == 2
@@ -79,7 +79,7 @@ def test_same_problem_warns_again_after_a_day(dialog):
 def test_a_different_problem_warns_straight_away(dialog):
     addon = FakeAddon()
 
-    with patch("service_monitor.time.time", return_value=1_000_000.0):
+    with patch("resources.lib.background_service.time.time", return_value=1_000_000.0):
         notify_account_problem("missing", addon)
         notify_account_problem("invalid", addon)
 
@@ -89,7 +89,7 @@ def test_a_different_problem_warns_straight_away(dialog):
 def test_successful_login_clears_the_alert_so_a_relapse_warns_again(dialog):
     addon = FakeAddon()
 
-    with patch("service_monitor.time.time", return_value=1_000_000.0):
+    with patch("resources.lib.background_service.time.time", return_value=1_000_000.0):
         notify_account_problem("invalid", addon)
         clear_account_alert(addon)
         notify_account_problem("invalid", addon)
@@ -106,7 +106,7 @@ def test_a_second_wrong_password_warns_again_despite_the_daily_hold(dialog):
     """Someone retyping a password is waiting for a verdict - silence would read as success."""
     addon = FakeAddon(OSuser="user", OSpass="wrong-one", APIKey="key")
 
-    with patch("service_monitor.time.time", return_value=1_000_000.0):
+    with patch("resources.lib.background_service.time.time", return_value=1_000_000.0):
         notify_account_problem("invalid", addon)
         addon.setSetting("OSpass", "wrong-again")
         notify_account_problem("invalid", addon)
@@ -117,7 +117,7 @@ def test_a_second_wrong_password_warns_again_despite_the_daily_hold(dialog):
 def test_unchanged_credentials_stay_on_the_daily_hold(dialog):
     addon = FakeAddon(OSuser="user", OSpass="wrong-one", APIKey="key")
 
-    with patch("service_monitor.time.time", return_value=1_000_000.0):
+    with patch("resources.lib.background_service.time.time", return_value=1_000_000.0):
         notify_account_problem("invalid", addon)
         notify_account_problem("invalid", addon)
 

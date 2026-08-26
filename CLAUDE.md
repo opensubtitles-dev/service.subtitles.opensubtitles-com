@@ -40,7 +40,7 @@ bash scripts/stream_kodi_logs.sh
 
 ### Development in Kodi
 
-Symlink the repo into Kodi's addons directory once — the subtitle plugin side (`service.py` and everything it imports) spawns a fresh process per search, so those edits are instantly active (no reinstall). **The background service (`service_monitor.py`) is one long-lived process started at Kodi launch — its edits require a Kodi restart** (or disabling and re-enabling the add-on) to take effect. macOS:
+Symlink the repo into Kodi's addons directory once — the subtitle plugin side (`service.py` and everything it imports) spawns a fresh process per search, so those edits are instantly active (no reinstall). **The background service (`service_monitor.py`, a thin entry delegating to `resources/lib/background_service.py`) is one long-lived process started at Kodi launch — its edits require a Kodi restart** (or disabling and re-enabling the add-on) to take effect. macOS:
 
 ```bash
 ln -s "$(pwd)" "$HOME/Library/Application Support/Kodi/addons/service.subtitles.opensubtitles-com"

@@ -4,8 +4,8 @@ from unittest.mock import MagicMock, patch
 
 import xbmcaddon
 
-import service_monitor
-from service_monitor import OpenSubtitlesPlayer
+import resources.lib.background_service as service_monitor
+from resources.lib.background_service import OpenSubtitlesPlayer
 
 
 def _sub(sub_id, lang, release, file_id, score):
@@ -33,8 +33,8 @@ def test_stands_down_when_kodi_native_autodownload_is_on():
     dialog = MagicMock()
     with patch.object(player, "_kodi_setting", side_effect=kodi_setting), \
          patch.object(player, "_active_subtitle_state", return_value=None), \
-         patch("service_monitor.get_media_data") as media, \
-         patch("service_monitor.xbmcgui.Dialog", return_value=dialog):
+         patch("resources.lib.background_service.get_media_data") as media, \
+         patch("resources.lib.background_service.xbmcgui.Dialog", return_value=dialog):
         player._auto_download_flow()
         media.assert_not_called()          # stood down before any work
         dialog.notification.assert_called_once()
@@ -63,13 +63,13 @@ def test_downloads_top_subtitle_for_every_preferred_language(tmp_path):
          patch.object(player, "_active_subtitle_state", return_value=(False, "", "")), \
          patch.object(player, "_preferred_subtitle_languages", return_value=("cs", ["cs", "en"])), \
          patch.object(player, "_add_subtitle_stream", side_effect=added_streams.append), \
-         patch("service_monitor.get_media_data", return_value={"query": "Movie", "year": "2024"}), \
-         patch("service_monitor.get_file_path", return_value="/movies/Movie.2024.1080p.mkv"), \
-         patch("service_monitor.OpenSubtitlesProvider.search_subtitles", return_value=subs) as search, \
-         patch("service_monitor.OpenSubtitlesProvider.download_subtitle",
+         patch("resources.lib.background_service.get_media_data", return_value={"query": "Movie", "year": "2024"}), \
+         patch("resources.lib.background_service.get_file_path", return_value="/movies/Movie.2024.1080p.mkv"), \
+         patch("resources.lib.background_service.OpenSubtitlesProvider.search_subtitles", return_value=subs) as search, \
+         patch("resources.lib.background_service.OpenSubtitlesProvider.download_subtitle",
                return_value={"content": b"1\n00:00:01,000 --> 00:00:02,000\nHi\n"}) as download, \
          patch("xbmcvfs.translatePath", return_value=str(tmp_path)), \
-         patch("service_monitor.xbmcgui.Dialog", return_value=MagicMock()):
+         patch("resources.lib.background_service.xbmcgui.Dialog", return_value=MagicMock()):
         player._auto_download_flow()
 
     # Search asked for both languages in one call

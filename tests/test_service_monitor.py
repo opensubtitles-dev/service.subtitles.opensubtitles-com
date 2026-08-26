@@ -5,8 +5,8 @@ import xbmcgui
 import time
 import os
 
-import service_monitor
-from service_monitor import (
+import resources.lib.background_service as service_monitor
+from resources.lib.background_service import (
     OpenSubtitlesMonitor,
     OpenSubtitlesPlayer,
     run_service
@@ -16,7 +16,7 @@ from service_monitor import (
 def test_monitor_settings_changed():
     player = MagicMock()
     monitor = OpenSubtitlesMonitor(player)
-    with patch("service_monitor.threading.Thread") as thread:
+    with patch("resources.lib.background_service.threading.Thread") as thread:
         monitor.onSettingsChanged()
     player.reload_settings.assert_called_once()
     # Only the read-only display reconciler may be spawned - never a validator
@@ -44,7 +44,7 @@ def test_player_av_started_auto_download_disabled():
     player = OpenSubtitlesPlayer()
     player.isPlayingVideo = MagicMock(return_value=True)
 
-    with patch("service_monitor.get_media_data") as mock_media:
+    with patch("resources.lib.background_service.get_media_data") as mock_media:
         player.onAVStarted()
         mock_media.assert_not_called()
 
@@ -89,13 +89,13 @@ def test_player_av_started_auto_download_success(tmp_path):
         target(*args, **(kwargs or {}))
         return MagicMock()
 
-    with patch("service_monitor.get_media_data", return_value=mock_media), \
-         patch("service_monitor.get_file_path", return_value="/movies/Inception.2010.1080p.mkv"), \
-         patch("service_monitor.OpenSubtitlesProvider.search_subtitles", return_value=mock_subs), \
-         patch("service_monitor.OpenSubtitlesProvider.download_subtitle", return_value=mock_download_res), \
+    with patch("resources.lib.background_service.get_media_data", return_value=mock_media), \
+         patch("resources.lib.background_service.get_file_path", return_value="/movies/Inception.2010.1080p.mkv"), \
+         patch("resources.lib.background_service.OpenSubtitlesProvider.search_subtitles", return_value=mock_subs), \
+         patch("resources.lib.background_service.OpenSubtitlesProvider.download_subtitle", return_value=mock_download_res), \
          patch("xbmcvfs.translatePath", return_value=temp_sub_dir), \
          patch("xbmcgui.Dialog", return_value=mock_dialog_inst), \
-         patch("service_monitor.threading.Thread", side_effect=sync_thread):
+         patch("resources.lib.background_service.threading.Thread", side_effect=sync_thread):
 
         player.onAVStarted()
 
@@ -133,7 +133,7 @@ def test_player_playback_ended_rating_prompt():
         return MagicMock()
 
     with patch("xbmcgui.Dialog", return_value=mock_dialog_inst), \
-         patch("service_monitor.OpenSubtitlesProvider.rate_subtitle", return_value=True) as mock_rate, \
+         patch("resources.lib.background_service.OpenSubtitlesProvider.rate_subtitle", return_value=True) as mock_rate, \
          patch("threading.Thread", side_effect=sync_thread_exec):
 
         player.onPlayBackEnded()
@@ -148,8 +148,8 @@ def test_player_playback_ended_rating_prompt():
 
 def test_service_shutdown_graceful():
     """Verify monitor loop shuts down immediately when abort is requested."""
-    with patch("service_monitor.OpenSubtitlesMonitor.abortRequested", side_effect=[False, True]), \
-         patch("service_monitor.OpenSubtitlesMonitor.waitForAbort", return_value=True), \
+    with patch("resources.lib.background_service.OpenSubtitlesMonitor.abortRequested", side_effect=[False, True]), \
+         patch("resources.lib.background_service.OpenSubtitlesMonitor.waitForAbort", return_value=True), \
          patch("threading.Thread"):
         run_service()
 
@@ -158,7 +158,7 @@ def test_service_shutdown_graceful():
 
 def test_rating_preview_shows_dialog_5s_into_playback_in_dev_mode():
     """test_flag_interceptor ON -> rating dialog preview fires after playback start."""
-    import service_monitor
+    import resources.lib.background_service as service_monitor
     addon = xbmcaddon.Addon()
     addon.setSetting("test_flag_interceptor", "true")
     addon.setSetting("auto_download", "false")
@@ -176,9 +176,9 @@ def test_rating_preview_shows_dialog_5s_into_playback_in_dev_mode():
         target(*args, **(kwargs or {}))
         return MagicMock()
 
-    with patch("service_monitor.xbmcgui.Dialog", return_value=dialog), \
-         patch("service_monitor.OpenSubtitlesProvider.rate_subtitle") as rate, \
-         patch("service_monitor.threading.Thread", side_effect=sync_thread):
+    with patch("resources.lib.background_service.xbmcgui.Dialog", return_value=dialog), \
+         patch("resources.lib.background_service.OpenSubtitlesProvider.rate_subtitle") as rate, \
+         patch("resources.lib.background_service.threading.Thread", side_effect=sync_thread):
         player.onAVStarted()
 
     player.monitor.waitForAbort.assert_called_with(5)
@@ -191,14 +191,14 @@ def test_rating_preview_shows_dialog_5s_into_playback_in_dev_mode():
 
 def test_dialog_snapshot_revert_is_reconciled_from_state_file():
     """Regression: OK dialog save reverted a passed Test Connection to stale 401."""
-    import service_monitor
+    import resources.lib.background_service as service_monitor
     addon = xbmcaddon.Addon()
     addon.setSetting("account_status", "Error 401 (Invalid credentials)")  # the revert
     addon.setSetting("account_logged_in", "false")
 
     truth = {"account_status": "OK (VIP)", "account_logged_in": "true", "ai_credits": "460"}
-    with patch("service_monitor.load_account_state", return_value=truth), \
-         patch("service_monitor.xbmc.getCondVisibility", return_value=False):
+    with patch("resources.lib.background_service.load_account_state", return_value=truth), \
+         patch("resources.lib.background_service.xbmc.getCondVisibility", return_value=False):
         service_monitor._reconcile_account_display()
 
     assert addon.getSetting("account_status") == "OK (VIP)"
