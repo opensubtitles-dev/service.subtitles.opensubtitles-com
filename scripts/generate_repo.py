@@ -415,7 +415,7 @@ def main():
 
     # 3. Package repository.opensubtitles-com dynamically
     repo_id = "repository.opensubtitles-com"
-    repo_ver = "1.2.0"
+    repo_ver = "1.2.1"
     # version comes from repo_ver above - a hardcoded one here once shipped a
     # bumped zip whose addon.xml still said 1.0.0, so Kodi never updated it
     repo_xml_content = f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -463,8 +463,9 @@ def main():
         f.write(repo_xml_content)
     # Repo-root icon.png is a 540x264 banner - fine for the GitHub README, wrong
     # for Kodi's add-on info screen, which expects a square icon. Ship the
-    # 512x512 logo as the repository add-on's icon instead.
-    shutil.copy(os.path.join(REPO_ROOT, "resources", "media", "os_logo_512x512.png"),
+    # inverted 512x512 logo (white glyph on black) - the original's white
+    # background glares on Kodi's dark skins.
+    shutil.copy(os.path.join(REPO_ROOT, "resources", "media", "os_logo_512x512_inverted.png"),
                 os.path.join(temp_repo_stage, "icon.png"))
     shutil.copy(os.path.join(REPO_ROOT, "fanart.jpg"), os.path.join(temp_repo_stage, "fanart.jpg"))
     
