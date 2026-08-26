@@ -72,10 +72,10 @@
 
 ## 📚 Developer & Contributor Documentation
 
-- 🛠️ [Developer Workflow & Fast Testing Guide](DEV_WORKFLOW.md)
-- 📋 [Kodi Standards & Repo Submission Rules](KODI_STANDARDS.md)
-- 🤖 [AI Agent Architecture & Guidelines](AGENT_INSTRUCTIONS.md)
-- 🗺️ [Project Roadmap & Feature Backlog](TODO.md)
+- 🛠️ [Developer Workflow & Fast Testing Guide](docs/DEV_WORKFLOW.md)
+- 📋 [Kodi Standards & Repo Submission Rules](docs/KODI_STANDARDS.md)
+- 🤖 [AI Agent Architecture & Guidelines](docs/AGENT_INSTRUCTIONS.md)
+- 🗺️ [Project Roadmap & Feature Backlog](docs/TODO.md)
 - 📜 [Full Release Changelog](CHANGELOG.md)
 
 ---
