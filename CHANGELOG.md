@@ -8,6 +8,11 @@ Mirrors `changelog.txt` (the copy Kodi ships); regenerate this file whenever tha
 
 ---
 
+## [v1.0.40] - 2026-08-26
+
+- fixed episode searches aborting when the /features endpoint returns a malformed (non-numeric) parent id: the lookup now falls through to searching the episode id alone
+- release gate enforces the 1500-character addon.xml news schema cap
+
 ## [v1.0.39] - 2026-08-26
 
 - security: the external-player integration path (videoinfo window properties) derives filenames from the URL path component only - closing the last spot where a stream token could reach the debug log or the search query
