@@ -89,7 +89,9 @@ def test_feature_info_tolerates_malformed_data_shapes():
     from unittest.mock import patch, MagicMock
     from resources.lib.osclient.provider import OpenSubtitlesProvider
     p = OpenSubtitlesProvider(api_key="k", username="u", password="w")
-    for bad in ({"data": "oops"}, {"data": [None]}, {"data": ["str"]}, {"data": {}}):
+    for bad in ({"data": "oops"}, {"data": [None]}, {"data": ["str"]}, {"data": {}},
+                {"data": [{"attributes": "not-a-dict"}]}, {"data": [{"attributes": 7}]},
+                {"data": [{"attributes": ["list"]}]}):
         resp = MagicMock(status_code=200)
         resp.json.return_value = bad
         with patch.object(p, "cache") as cache, patch.object(p.session, "get", return_value=resp):
