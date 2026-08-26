@@ -205,6 +205,7 @@ No HTTP, no auth, always available in-process. `json.dumps` in, `json.loads` out
 12. **`Addon()` settings snapshots:** construct a fresh `xbmcaddon.Addon()` inside handlers that run after settings changes; a module-level instance can serve stale values.
 13. **Never block Kodi's callback thread**: Player/Monitor callbacks run on Kodi's thread — spawn `threading.Thread(daemon=True)` for network work, checking `abortRequested()` before/after each request (our pattern).
 14. **`isExternalPlayer()`**: when true, `setSubtitles`/stream APIs are no-ops; skip auto-download gracefully.
+15. **`System.HasAddon(id)` counts DISABLED add-ons** (verified live 2026-08-25): a merely-disabled repository still reads as "installed", though it serves no updates. To distinguish enabled/disabled/missing use JSON-RPC `Addons.GetAddonDetails` with `properties: ["enabled"]` — a missing add-on returns an error payload (no `result`), a disabled one returns `enabled: false`. Pattern in `check_updates.py:fast_track_repo_state()`.
 
 ## 8. Current usage audit (2026-08-19) — where we stand
 
