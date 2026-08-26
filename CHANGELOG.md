@@ -8,6 +8,12 @@ Mirrors `changelog.txt` (the copy Kodi ships); regenerate this file whenever tha
 
 ---
 
+## [v1.0.36] - 2026-08-26
+
+- Check for Updates verifies this install can actually receive fast-track updates: an add-on installed from a different repository (typically the official Kodi one) stays pinned there, so instead of a dead-end update prompt it now explains how to switch. Unpinned zip installs remain eligible
+- release packaging denies env files, keys, certificates, logs and editor droppings even from a dirty build workspace
+- release gate now fails when addon.xml news or the README What's New drift behind the current version
+
 ## [v1.0.35] - 2026-08-26
 
 - security: playback URLs are redacted before reaching the debug log - stream and plugin URLs can carry access tokens or credentials, and debug logs are what users paste on forums
