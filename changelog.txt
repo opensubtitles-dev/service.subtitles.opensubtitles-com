@@ -1,3 +1,6 @@
+v1.0.42 (2026-08-26)
+- security: filename derivation is centralized and strips credentials both before AND after percent-decoding - an encoded '?token=' inside a URL path could previously reappear in the search query and debug log
+
 v1.0.41 (2026-08-26)
 - security hardening: update manifests carrying DOCTYPE or ENTITY declarations are rejected before XML parsing (entity-expansion protection); legitimate manifests never contain them
 
