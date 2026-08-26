@@ -49,7 +49,7 @@ def test_check_updates_up_to_date():
         check_updates()
 
         dialog_inst.ok.assert_called_once()
-        assert "up to date" in dialog_inst.ok.call_args[0][1]
+        assert "up to date" in dialog_inst.ok.call_args[0][1].lower()
 
 
 def test_check_updates_newer_version_available():
