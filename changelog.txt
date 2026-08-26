@@ -1,3 +1,6 @@
+v1.0.26 (2026-08-25)
+- after a confirmed update the stale add-on info screen now closes automatically, dropping back to the refreshed add-on list. The info dialog populates its labels once at open and cannot be repainted in place, so it kept showing the old version and icon until manually reopened
+
 v1.0.25 (2026-08-25)
 - new add-on and repository icon: white logo on dark background (color-inverted) - the previous opaque white square glared on Kodi's dark skins. Repository add-on bumped to 1.2.1 to carry the same icon
 
