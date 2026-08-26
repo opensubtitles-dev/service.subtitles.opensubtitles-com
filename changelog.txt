@@ -1,3 +1,7 @@
+v1.0.31 (2026-08-26)
+- fixed non-library playback of shows that ARE in the Kodi library: the empty player DBID overwrote the library id found via filename lookup, skipping the original-title and parent-id refinement that makes localized-title searches work
+- downloaded subtitles use per-invocation unique temp names and cleanup spares files younger than an hour, so overlapping searches can no longer delete or overwrite each other's subtitle
+
 v1.0.30 (2026-08-26)
 - fixed subtitle search aborting for local files smaller than 128 KiB: the hasher returned a scalar sentinel where the caller expected (size, hash), raising ValueError before the name-search fallback could run. Small files now search hashless
 - any hashing failure (unsupported rar layout, vfs error) now degrades to a hashless search instead of aborting; removed a dead duplicate rar-hash implementation
