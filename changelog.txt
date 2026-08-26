@@ -1,3 +1,6 @@
+v1.0.43 (2026-08-26)
+- the /features lookup now degrades to unknown-id for every malformed response layer (non-list data, non-dict entries, non-dict attributes) - no shape of bad API data can abort a search
+
 v1.0.42 (2026-08-26)
 - security: filename derivation is centralized and strips credentials both before AND after percent-decoding - an encoded '?token=' inside a URL path could previously reappear in the search query and debug log
 
