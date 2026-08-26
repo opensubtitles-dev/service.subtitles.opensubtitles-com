@@ -3,6 +3,7 @@ import os
 import shutil
 import sys
 import time
+import uuid
 import xbmc
 
 
@@ -328,9 +329,12 @@ class SubtitleDownloader:
         elif self.params["language"].lower() == 'pt-pb':
             self.params["language"] = 'pb'
 
-        # PID-unique name: overlapping invocations write distinct files instead
-        # of renaming over each other's subtitle mid-selection.
-        subtitle_path = os.path.join(dir_path, f"TempSubtitle.{os.getpid()}.{self.params['language']}.{self.sub_format}")
+        # Invocation-unique name: Kodi runs add-on scripts as sub-interpreters
+        # inside ONE process, so a PID would be identical for overlapping
+        # invocations - a uuid keeps each download's temp and destination paths
+        # private to its own invocation.
+        subtitle_path = os.path.join(
+            dir_path, f"TempSubtitle.{uuid.uuid4().hex[:8]}.{self.params['language']}.{self.sub_format}")
         tmp_path = subtitle_path + ".tmp"
         log(__name__, f"download subtitle_path: {subtitle_path}")
 
