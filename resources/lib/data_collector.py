@@ -54,6 +54,21 @@ def get_file_path():
     return xbmc.Player().getPlayingFile()
 
 
+def _apply_player_tvshowid(item):
+    """VideoPlayer.TvShowDBID, but only when it carries a value.
+
+    The label is empty for non-library playback and must not clobber a
+    tvshowid the filename->library lookup already found - losing it skips
+    the original-title / parent-id JSON-RPC refinement. The key always ends
+    up present: downstream does len(item["tvshowid"]).
+    """
+    player_tvshowid = xbmc.getInfoLabel("VideoPlayer.TvShowDBID")
+    if player_tvshowid:
+        item["tvshowid"] = player_tvshowid
+    else:
+        item.setdefault("tvshowid", "")
+
+
 # ---------- Small helpers ----------
 
 def _strip_imdb_tt(value, require_tt=False):
@@ -518,14 +533,7 @@ def get_media_data():
     
     # ---------------- TV SHOW (Episode) ----------------
     if item["tv_show_title"]:
-        # VideoPlayer.TvShowDBID is empty for non-library playback; it must not
-        # clobber a tvshowid the filename->library lookup above already found -
-        # losing it skips the original-title / parent-id JSON-RPC refinement below.
-        player_tvshowid = xbmc.getInfoLabel("VideoPlayer.TvShowDBID")
-        if player_tvshowid:
-            item["tvshowid"] = player_tvshowid
-        else:
-            item.setdefault("tvshowid", "")
+        _apply_player_tvshowid(item)
         item["query"] = item["tv_show_title"]
         item["year"] = None  # Safer for OS search
 

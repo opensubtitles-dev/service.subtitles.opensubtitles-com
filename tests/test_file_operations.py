@@ -80,3 +80,59 @@ def test_clean_temp_directory_spares_fresh_files(tmp_path):
         sd.clean_temp_directory()
     assert fresh.exists()
     assert not stale.exists()
+
+
+def test_player_tvshowid_does_not_clobber_library_id():
+    # Non-library playback: VideoPlayer.TvShowDBID is empty and must not erase
+    # the tvshowid the filename->library lookup found (it gates the
+    # original-title / parent-id JSON-RPC refinement).
+    from resources.lib.data_collector import _apply_player_tvshowid
+    with patch("resources.lib.data_collector.xbmc.getInfoLabel", return_value=""):
+        item = {"tvshowid": "42"}
+        _apply_player_tvshowid(item)
+        assert item["tvshowid"] == "42"
+
+        empty = {}
+        _apply_player_tvshowid(empty)
+        assert empty["tvshowid"] == ""  # key must exist for len() downstream
+
+    with patch("resources.lib.data_collector.xbmc.getInfoLabel", return_value="7"):
+        item = {"tvshowid": "42"}
+        _apply_player_tvshowid(item)
+        assert item["tvshowid"] == "7"  # a real player DBID wins
+
+
+def test_unique_subtitle_path_is_invocation_unique():
+    # os.getpid() is constant across Kodi sub-interpreter invocations, so the
+    # path must differ per call, not per process.
+    from resources.lib.subtitle_downloader import unique_subtitle_path
+    a = unique_subtitle_path("/tmp/x", "en", "srt")
+    b = unique_subtitle_path("/tmp/x", "en", "srt")
+    assert a != b
+    assert a.endswith(".en.srt") and a.startswith("/tmp/x/TempSubtitle.")
+
+
+def test_official_kodi_version_falls_back_to_buildversion():
+    # System.BuildVersionShort is not universal; System.BuildVersion
+    # ("21.3 (21.3.0) Git:...") must carry the branch mapping alone.
+    import check_updates as cu
+
+    labels = {"System.BuildVersionShort": "", "System.BuildVersion": "21.3 (21.3.0) Git:x"}
+    seen = {}
+
+    class Resp:
+        status_code = 200
+        text = ('<addon id="service.subtitles.opensubtitles-com" version="1.0.9"/>')
+
+    def fake_get(url, **kw):
+        seen["url"] = url
+        return Resp()
+
+    with patch("check_updates.xbmc.getInfoLabel", side_effect=lambda l: labels.get(l, "")), \
+         patch("check_updates.requests.get", side_effect=fake_get):
+        assert cu.fetch_official_kodi_version() == "1.0.9"
+    assert "/omega/" in seen["url"]  # major 21 -> omega branch
+
+    # Neither label parseable -> None, never an exception
+    with patch("check_updates.xbmc.getInfoLabel", return_value=""):
+        assert cu.fetch_official_kodi_version() is None

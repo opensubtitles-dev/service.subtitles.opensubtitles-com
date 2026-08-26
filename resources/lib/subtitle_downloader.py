@@ -65,6 +65,16 @@ def clean_temp_directory():
 clean_temp_directory()
 
 
+def unique_subtitle_path(dir_path, language, sub_format):
+    """Invocation-unique temp path for a downloaded subtitle.
+
+    Kodi runs add-on scripts as sub-interpreters inside ONE process, so a PID
+    would be identical for overlapping invocations - a uuid keeps each
+    download's temp and destination paths private to its own invocation.
+    """
+    return os.path.join(dir_path, f"TempSubtitle.{uuid.uuid4().hex[:8]}.{language}.{sub_format}")
+
+
 class SubtitleDownloader:
 
     def __init__(self):
@@ -329,12 +339,7 @@ class SubtitleDownloader:
         elif self.params["language"].lower() == 'pt-pb':
             self.params["language"] = 'pb'
 
-        # Invocation-unique name: Kodi runs add-on scripts as sub-interpreters
-        # inside ONE process, so a PID would be identical for overlapping
-        # invocations - a uuid keeps each download's temp and destination paths
-        # private to its own invocation.
-        subtitle_path = os.path.join(
-            dir_path, f"TempSubtitle.{uuid.uuid4().hex[:8]}.{self.params['language']}.{self.sub_format}")
+        subtitle_path = unique_subtitle_path(dir_path, self.params["language"], self.sub_format)
         tmp_path = subtitle_path + ".tmp"
         log(__name__, f"download subtitle_path: {subtitle_path}")
 
