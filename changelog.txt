@@ -1,3 +1,6 @@
+v1.0.33 (2026-08-26)
+- regression tests for every review fix from the Kodi repo submission rounds, with two behavior-neutral helper extractions to make them directly testable (player tvshowid guard, invocation-unique subtitle paths, Kodi version fallback)
+
 v1.0.32 (2026-08-26)
 - downloaded subtitle temp names are unique per invocation (uuid): Kodi runs add-on scripts as sub-interpreters inside one process, so the process-id-based names from 1.0.31 could still collide when downloads overlap
 
