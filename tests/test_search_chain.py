@@ -111,3 +111,21 @@ def test_streamed_source_contributes_no_filename_attempt():
         assert "nexus" not in query and "5999b664" not in query, (
             f"a CDN path leaked into a search query: {query!r}"
         )
+
+
+def test_non_numeric_parent_imdb_from_features_does_not_abort():
+    # /features returning a truthy non-numeric parent_imdb_id must fall through
+    # to the id-alone episode path, never ValueError out of the search
+    # (mirror-review finding, internal PR #45).
+    from unittest.mock import patch, MagicMock
+    from resources.lib.subtitle_downloader import SubtitleDownloader
+    import sys as _sys
+    with patch.object(_sys, "argv", ["plugin://x", "1", "?action=search"]):
+        sd = SubtitleDownloader.__new__(SubtitleDownloader)
+    sd.open_subtitles = MagicMock()
+    sd.open_subtitles.get_feature_info.return_value = {
+        "feature_type": "Episode", "parent_imdb_id": "not-a-number",
+        "season_number": 2, "episode_number": 3}
+    result = sd._resolve_ambiguous_id({"imdb_id": 999})
+    assert result is not None
+    assert result.get("parent_imdb_id") is None or isinstance(result.get("parent_imdb_id"), int)

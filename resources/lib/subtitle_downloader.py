@@ -255,10 +255,16 @@ class SubtitleDownloader:
             parent_imdb = info.get("parent_imdb_id")
             season = info.get("season_number")
             episode = info.get("episode_number")
+            # A truthy but non-numeric parent id from /features must not raise
+            # out of the search - fall through to the id-alone path instead.
+            try:
+                parent_imdb = int(parent_imdb) if parent_imdb else None
+            except (TypeError, ValueError):
+                parent_imdb = None
             if parent_imdb and season and episode:
                 log(__name__, f"/features: {ambiguous} is episode S{season}E{episode} of "
                               f"imdb {parent_imdb}")
-                return {"parent_imdb_id": int(parent_imdb), "parent_tmdb_id": None,
+                return {"parent_imdb_id": parent_imdb, "parent_tmdb_id": None,
                         "imdb_id": None, "tmdb_id": None,
                         "season_number": str(season), "episode_number": str(episode),
                         "query": ""}

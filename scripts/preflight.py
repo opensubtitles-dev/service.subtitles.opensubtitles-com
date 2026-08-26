@@ -58,6 +58,8 @@ def check_version_consistency():
     news = re.search(r"<news>(.*?)</news>", addon_xml, re.DOTALL)
     if news and f"{version}" not in news.group(1):
         fail(f"addon.xml <news> body never mentions the current version {version}")
+    if news and len(news.group(1)) >= 1500:
+        fail(f"addon.xml <news> is {len(news.group(1))} chars - the Kodi schema caps it at 1500")
     readme_path = os.path.join(REPO, "README.md")
     if os.path.exists(readme_path):
         readme = open(readme_path, encoding="utf-8").read()
