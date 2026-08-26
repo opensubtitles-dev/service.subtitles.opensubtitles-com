@@ -213,6 +213,8 @@ class SubtitleDownloader:
         elif self.params["action"] == "download":
             xbmcgui.Dialog().notification(f"{addon_name} v{version}", "Downloading subtitle...", icon_path, 2000, False)
             self.download()
+        elif self.params["action"] == "transcribe":
+            self.transcribe()
 
     def search(self, query=""):
         file_data = get_file_data(get_file_path())
@@ -729,4 +731,64 @@ class SubtitleDownloader:
                                   f"{subtitle.get('id') if isinstance(subtitle, dict) else '?'}: {e!r}")
                     continue
 
+        self._inject_transcribe_row()
+        xbmcplugin.endOfDirectory(self.handle)
+
+    def _inject_transcribe_row(self):
+        """EXPERIMENTAL (expert setting ai_transcription_enabled): one extra row
+        at the end of the result list that generates subtitles by AI
+        transcription when picked. Sits behind action=transcribe, so selecting
+        it enters the pipeline in resources/lib/transcriber.py instead of a
+        normal download. Never allowed to break the listing."""
+        try:
+            if (__addon__.getSetting("ai_transcription_enabled") or "").lower() not in ("true", "1"):
+                return
+            language = (self.params.get("preferredlanguage")
+                        or (self.params.get("languages") or "en").split(",")[0])
+            list_item = xbmcgui.ListItem(
+                label=language,
+                label2="[COLOR magenta][AI][/COLOR] Generate subtitles by transcription (uses AI credits)")
+            list_item.setArt({"icon": "0", "thumb": get_flag(convert_language(language, True) or "en")})
+            url = f"plugin://{__scriptid__}/?action=transcribe&language={language}"
+            xbmcplugin.addDirectoryItem(handle=self.handle, url=url, listitem=list_item, isFolder=False)
+        except Exception as e:
+            log(__name__, f"transcribe row injection failed: {e!r}")
+
+    def transcribe(self):
+        """action=transcribe - run the AI transcription pipeline and hand the
+        resulting subtitle file to Kodi exactly like a download would."""
+        from resources.lib import transcriber
+        mock = (__addon__.getSetting("test_transcribe_mock") or "").lower() in ("true", "1")
+        try:
+            if not mock and not getattr(self.open_subtitles, "user_token", None):
+                self.open_subtitles.login()
+            file_data = get_file_data(get_file_path())
+            result = transcriber.run_transcription(
+                getattr(self.open_subtitles, "session", None),
+                getattr(self.open_subtitles, "user_token", "") or "",
+                file_data,
+                self.params.get("language", "en"),
+                mock=mock)
+            if result and os.path.exists(str(result)):
+                list_item = xbmcgui.ListItem(label=str(result))
+                xbmcplugin.addDirectoryItem(handle=self.handle, url=str(result),
+                                            listitem=list_item, isFolder=False)
+            elif result:
+                # PROPOSED contract may answer with a subtitle_id instead of a
+                # ready file (cache hit) - fetch it through the normal channel.
+                self.params["id"] = str(result)
+                self.download()
+                return
+            else:
+                log(__name__, "transcription returned nothing")
+        except transcriber.UserCancelled:
+            log(__name__, "transcription cancelled by user")
+        except transcriber.NotDeployed:
+            xbmcgui.Dialog().ok(__addon__.getAddonInfo("name"),
+                                "AI transcription is not available on the server yet.\n"
+                                "The feature is being rolled out - please try a later version.")
+        except Exception as e:
+            log(__name__, f"transcription failed: {e!r}")
+            xbmcgui.Dialog().ok(__addon__.getAddonInfo("name"),
+                                f"AI transcription failed:\n[I]{str(e)[:120]}[/I]")
         xbmcplugin.endOfDirectory(self.handle)

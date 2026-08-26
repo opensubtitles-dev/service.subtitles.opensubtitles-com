@@ -1,8 +1,14 @@
 # AI Transcription — Design Plan (2.0.x)
 
 Generate subtitles for media that has none, via the transcription service on
-ai.opensubtitles.com. Status: **PLANNED** — nothing here is implemented yet; the
-capability probe under `tests/probe/` is the first executable step.
+ai.opensubtitles.com. Status: **CLIENT PIPELINE IMPLEMENTED on develop (2026-08-26)** — expert
+setting `ai_transcription_enabled` injects an "[AI] Generate by transcription"
+row into every search; picking it runs `resources/lib/transcriber.py`
+(capability probe + one-time benchmark cached in the profile, source-rung
+selection, ffmpeg audio extraction, chunked upload, job polling). The real
+endpoints stay PROPOSED (404 → friendly dialog); the Development-tab
+`test_transcribe_mock` setting simulates the server for end-to-end testing
+in Kodi. Server side + Android NDK rung still open.
 
 ---
 

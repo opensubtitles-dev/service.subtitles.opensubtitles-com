@@ -23,6 +23,7 @@ DEV_SETTING_IDS = (
     "test_disable_query_fallback",
     "test_show_search_debug",
     "test_override_language",
+    "test_transcribe_mock",
 )
 
 _DEV_CATEGORY_RE = re.compile(

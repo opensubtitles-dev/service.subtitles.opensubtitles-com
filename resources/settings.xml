@@ -239,6 +239,14 @@
                     <default>false</default>
                     <control type="toggle" />
                 </setting>
+                <!-- EXPERIMENTAL: adds an "[AI] Generate by transcription" row to
+                     every subtitle search (docs/ai_transcription_plan.md).
+                     Expert level: the server side is still PROPOSED. -->
+                <setting id="ai_transcription_enabled" type="boolean" label="32273">
+                    <level>3</level>
+                    <default>false</default>
+                    <control type="toggle" />
+                </setting>
             </group>
         </category>
         <category id="debug" label="32103">
@@ -309,6 +317,11 @@
                     <control type="toggle" />
                 </setting>
                 <setting id="test_rating_preview" type="boolean" label="32261">
+                    <level>3</level>
+                    <default>false</default>
+                    <control type="toggle" />
+                </setting>
+                <setting id="test_transcribe_mock" type="boolean" label="32274">
                     <level>3</level>
                     <default>false</default>
                     <control type="toggle" />
