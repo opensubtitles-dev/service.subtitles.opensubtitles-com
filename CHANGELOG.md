@@ -8,6 +8,10 @@ Mirrors `changelog.txt` (the copy Kodi ships); regenerate this file whenever tha
 
 ---
 
+## [v1.0.29] - 2026-08-25
+
+- fixed filename (basename) detection mangling plain local paths: a leftover rar:// prefix slice removed six characters from every path, so short paths like /tv/E1.mkv searched as ".mkv" - degraded fallback search and smart ranking. Surfaced by review on the official Kodi repo submission
+
 ## [v1.0.28] - 2026-08-25
 
 - Kodi version detection in Check for Updates falls back to System.BuildVersion when System.BuildVersionShort is absent (not universal across Kodi releases)
