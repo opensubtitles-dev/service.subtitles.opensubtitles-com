@@ -1,3 +1,6 @@
+v1.0.23 (2026-08-25)
+- Check for Updates now warns on the up-to-date result too when the fast-track repository is missing or disabled: being current today does not mean the next update can arrive (Kodi only updates from the repository an add-on was installed from). Same instructions dialog offered from both paths
+
 v1.0.22 (2026-08-25)
 - Check for Updates now respects Kodi's origin pinning: without the OpenSubtitles fast-track repository installed, Kodi would never deliver the advertised version (it only updates from the repository an add-on was installed from). The dialog now shows both the fast-track and the official-Kodi-repo version for the running Kodi release, and offers step-by-step instructions for enabling fast-track updates
 - after a confirmed update, the add-on info screen refreshes so the new version is visible without backing out and re-entering
