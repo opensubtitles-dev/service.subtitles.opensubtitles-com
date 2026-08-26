@@ -47,6 +47,24 @@ def redact_path(path):
         return "[unloggable path]"
 
 
+def safe_media_filename(path):
+    """Filename derived from a playback path with NO credential residue.
+
+    Order matters: strip the query at the URL layer, decode percent-encoding,
+    then strip again - '/video%3Ftoken%3DX' decodes into a fresh '?token=X'
+    that a single pre-decode strip would leave inside the basename.
+    """
+    try:
+        s = str(path)
+        if "://" in s:
+            from urllib.parse import urlsplit, unquote
+            s = unquote(urlsplit(s).path)
+            s = s.split("?", 1)[0].split("#", 1)[0]
+        return os.path.basename(s)
+    except Exception:
+        return ""
+
+
 def log(module, msg):
     xbmc.log(f"### [{__addon_name__}:{module}] - {msg}", level=xbmc.LOGDEBUG)
 

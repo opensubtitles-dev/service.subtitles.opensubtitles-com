@@ -161,3 +161,18 @@ def test_media_data_filename_derivation_strips_url_query():
     filename = os.path.basename(unquote(urlsplit(url).path))
     assert filename == "My.Movie.2024.mkv"
     assert "SECRET" not in filename
+
+
+def test_safe_media_filename_survives_encoded_tokens():
+    # '%3Ftoken%3D' decodes into a fresh '?token=' - one-layer stripping
+    # reintroduced the secret (mirror-review finding, internal PR #47).
+    from resources.lib.utilities import safe_media_filename
+    assert safe_media_filename(
+        "https://cdn.example.com/video%3Ftoken%3DSECRET99.mkv") == "video"
+    assert safe_media_filename(
+        "plugin://plugin.video.x/?url=https%3A%2F%2Fcdn%2FMovie.mkv%3Ftoken%3DS") == ""
+    assert safe_media_filename(
+        "https://cdn.example.com/path/My.Movie.2024.mkv?token=SECRET") == "My.Movie.2024.mkv"
+    assert safe_media_filename("/local/My.Movie.mkv") == "My.Movie.mkv"
+    assert "SECRET" not in safe_media_filename(
+        "https://u:SECRET@cdn/x%23frag%3Ftoken%3DSECRET.mkv")
