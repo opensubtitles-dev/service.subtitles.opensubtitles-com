@@ -23,6 +23,45 @@ NEW GENERATION RELEASE - rebuilt around the background service
 - docs: Kodi API internals reference (plugin contract from Kodi C++ source, Player/Monitor semantics, JSON-RPC), glyph compatibility matrix, auto-download comparison
 
 
+v1.0.28 (2026-08-25)
+- Kodi version detection in Check for Updates falls back to System.BuildVersion when System.BuildVersionShort is absent (not universal across Kodi releases)
+- compatibility verified on real Kodi Matrix 19.5, Nexus 20.5, Omega 21.3 and Piers 22.0 beta via the new headless smoke-test harness; shipped code held to the true Matrix floor of Python 3.6 by a static gate; CI test matrix widened to Python 3.8-3.13
+
+v1.0.27 (2026-08-25)
+- every API request now carries an X-Kodi-Origin-Repo header with the install channel (repository id, "zip" for manual installs, "unknown" when undetectable), read once per process from Kodi's addon database - Kodi exposes the installing repository nowhere in its Python API. Server-side this gives real distribution statistics across fast-track repo / official Kodi repo / manual zips
+
+v1.0.26 (2026-08-25)
+- after a confirmed update the stale add-on info screen now closes automatically, dropping back to the refreshed add-on list. The info dialog populates its labels once at open and cannot be repainted in place, so it kept showing the old version and icon until manually reopened
+
+v1.0.25 (2026-08-25)
+- new add-on and repository icon: white logo on dark background (color-inverted) - the previous opaque white square glared on Kodi's dark skins. Repository add-on bumped to 1.2.1 to carry the same icon
+
+v1.0.24 (2026-08-25)
+- fixed the fast-track repository warning not firing when the repository is disabled: Kodi's System.HasAddon reports disabled add-ons as installed, so detection now uses JSON-RPC Addons.GetAddonDetails (enabled / disabled / missing). A disabled repository gets a one-step "enable it under My add-ons" hint instead of the full install walkthrough
+
+v1.0.23 (2026-08-25)
+- Check for Updates now warns on the up-to-date result too when the fast-track repository is missing or disabled: being current today does not mean the next update can arrive (Kodi only updates from the repository an add-on was installed from). Same instructions dialog offered from both paths
+
+v1.0.22 (2026-08-25)
+- Check for Updates now respects Kodi's origin pinning: without the OpenSubtitles fast-track repository installed, Kodi would never deliver the advertised version (it only updates from the repository an add-on was installed from). The dialog now shows both the fast-track and the official-Kodi-repo version for the running Kodi release, and offers step-by-step instructions for enabling fast-track updates
+- after a confirmed update, the add-on info screen refreshes so the new version is visible without backing out and re-entering
+
+v1.0.21 (2026-08-25)
+- maintenance release exercising the 1.0.20 update flow end to end: progress dialog while Kodi installs the update in the background, then "Updated to vX.Y.Z" confirmation; no code changes
+
+v1.0.20 (2026-08-25)
+- Check for Updates now reports the actual result: after Yes, a cancellable progress dialog polls the add-on database for up to 60 seconds and confirms "Updated to vX.Y.Z" once Kodi finishes the background install; on timeout or cancel it says the install may still land and where to check. Previously the update installed silently and the new version was only visible by leaving settings and opening the add-on list
+
+v1.0.19 (2026-08-25)
+- compact Check for Updates dialogs: the update prompt shows old → new version on one line plus the question, and the up-to-date / connection-error results fit without scrolling (the dialog scrolls past ~3 lines and cannot be resized)
+
+v1.0.18 (2026-08-25)
+- compact Test Connection dialog (backported from the 2.0.0 branch): username, VIP flag and downloads today on two bold lines. "Remaining downloads" only restated what X / Y already shows, and the level line duplicated the VIP flag; the ok-dialog scrolls past ~3 lines and cannot be resized
+
+v1.0.17 (2026-08-25)
+- maintenance release verifying repository auto-update delivery end to end; the add-on code is identical to 1.0.16
+- fixed the repository source (kodi.opensubtitles.com) listing as an empty folder in Kodi's file manager: GitHub Pages serves no directory autoindex and Kodi's HTTP browser only recognizes plain anchors, so the portal now ships Kodi-parsable directory listings and the documented Install from zip file flow works
+
 v1.0.16 (2026-08-20)
 - fixed Test Connection failing with "ModuleNotFoundError: No module named 'resources.lib.osclient'" when another installed add-on ships its own top-level 'resources' folder. The import-path guard added in 1.0.11 was lost when test_connection.py was rewritten for 1.0.15; it is restored, extended to Clear Cache and Check for Updates, and a test now fails if it ever goes missing again (issue #39)
 - fixed TV episode searches returning nothing when the Kodi library holds a non-IMDb id in its imdbnumber field. That field contains whatever the scraper treats as the item's primary id, which for a TVDB-scraped show is not an IMDb id: it was sent as parent_imdb_id and matched nothing, while the episode's own id was discarded. The field is now only trusted with a 'tt' prefix, uniqueid is preferred, and the episode id is kept as a fallback attempt
