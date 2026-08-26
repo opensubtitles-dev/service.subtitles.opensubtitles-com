@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<addon id="service.opensubtitles.transcriptionprobe"
+       name="OpenSubtitles Transcription Capability Probe"
+       version="1.0.0"
+       provider-name="opensubtitles">
+	<requires>
+		<import addon="xbmc.python" version="3.0.0"/>
+	</requires>
+	<extension point="xbmc.service" library="service.py" />
+	<extension point="xbmc.addon.metadata">
+		<summary lang="en_GB">Probes the platform capabilities the AI transcription feature depends on (ctypes, NDK media libs, ffmpeg, exec rights) and logs a machine-readable report. Dev/CI only, never shipped to users.</summary>
+		<platform>all</platform>
+		<license>GPL-2.0-only</license>
+	</extension>
+</addon>
