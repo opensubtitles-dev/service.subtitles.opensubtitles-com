@@ -144,3 +144,17 @@ def test_download_retries_through_ai_translation_timeout():
     assert calls["n"] == 2          # timed out once, succeeded on retry
     sleep.assert_called_once_with(5)
     assert result["content"].startswith(b"1\n")
+
+
+def test_feature_info_tolerates_malformed_data_shapes():
+    # /features returning valid JSON with a malformed non-empty data payload
+    # must yield None (id/title fallbacks run), never raise out of the search.
+    from unittest.mock import patch, MagicMock
+    from resources.lib.osclient.provider import OpenSubtitlesProvider
+    p = OpenSubtitlesProvider(api_key="k", username="u", password="w")
+    for bad in ({"data": "oops"}, {"data": [None]}, {"data": ["str"]}, {"data": {}}):
+        resp = MagicMock(status_code=200)
+        resp.json.return_value = bad
+        with patch.object(p, "cache") as cache, patch.object(p.session, "get", return_value=resp):
+            cache.get.return_value = None
+            assert p.get_feature_info(imdb_id=123) is None

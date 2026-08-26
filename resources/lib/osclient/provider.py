@@ -243,7 +243,12 @@ class OpenSubtitlesProvider:
         except ValueError:
             raise ProviderError("Invalid JSON returned by provider")
 
-        attributes = data[0].get("attributes") if data else None
+        # Defensive shape check: /features returning valid JSON with a malformed
+        # data payload must degrade to "unknown id" (None -> existing id/title
+        # fallbacks), not raise out of the search.
+        attributes = (data[0].get("attributes")
+                      if isinstance(data, list) and data and isinstance(data[0], dict)
+                      else None)
         # cache misses too, as {}, so an unknown id is not looked up again every search
         self.cache.set(cache_key, attributes or {}, expires=FEATURE_CACHE_TTL)
         logging(f"Feature lookup {params} -> {attributes.get('feature_type') if attributes else 'unknown'}")
