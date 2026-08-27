@@ -96,12 +96,18 @@ def test_settings_constraints_and_options():
     root = tree.getroot()
     
     # Filter settings should allow 'include', 'exclude', 'only'
-    filter_settings = ["hearing_impaired", "foreign_parts_only", "machine_translated", "ai_translated"]
-    for s_id in filter_settings:
+    # hearing_impaired / foreign_parts_only support 'only' in the API;
+    # machine_translated / ai_translated accept include/exclude ONLY -
+    # offering 'only' broke request construction (mirror-review #75)
+    expected = {"hearing_impaired": ["exclude", "include", "only"],
+                "foreign_parts_only": ["exclude", "include", "only"],
+                "machine_translated": ["exclude", "include"],
+                "ai_translated": ["exclude", "include"]}
+    for s_id, allowed in expected.items():
         elem = root.find(f".//setting[@id='{s_id}']")
         assert elem is not None
         options = [opt.text for opt in elem.findall(".//options/option")]
-        assert sorted(options) == ["exclude", "include", "only"], f"Invalid options for {s_id}: {options}"
+        assert sorted(options) == allowed, f"Invalid options for {s_id}: {options}"
 
     # search_cache_duration constraints
     cache_elem = root.find(".//setting[@id='search_cache_duration']")

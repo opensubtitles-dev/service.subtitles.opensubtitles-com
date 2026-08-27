@@ -390,14 +390,23 @@ def _call_guessit_api(filename):
             if response.getcode() == 200:
                 data = json.loads(response.read().decode("utf-8"))
                 cache.set(cache_key, data or {}, expires=60 * 60 * 24 * 30)
-                log(__name__, f"✅ Guessit API response (cached): {data}")
+                if isinstance(data, dict):
+                    # summary only: the full payload echoes the filename and
+                    # whatever else the derivation carried into the request
+                    log(__name__, "✅ Guessit parsed (cached): "
+                                  f"title={data.get('title')!r} year={data.get('year')} "
+                                  f"type={data.get('type')}")
+                else:
+                    log(__name__, "✅ Guessit response cached (non-object payload)")
                 return data
             else:
                 log(__name__, f"❌ Guessit API error: HTTP {response.getcode()}")
                 return None
 
     except Exception as e:
-        log(__name__, f"❌ Failed to call guessit API: {e}")
+        # class name only: urllib errors repeat the full request URL, and the
+        # URL embeds the (playback-derived) filename
+        log(__name__, f"❌ Failed to call guessit API: {type(e).__name__}")
         return None
 
 def _jsonrpc(method, params=None, use_cache=True):
@@ -1008,11 +1017,19 @@ def get_language_data(params):
     if (not hi_setting or hi_setting == "exclude") and is_kodi_hearing_impaired_preferred():
         hi_setting = "include"
 
+    def _include_exclude(setting_id):
+        # The API accepts only include/exclude for the translation filters.
+        # Old settings files may still carry "only" from when the UI offered
+        # it - map it to "include" instead of letting request construction
+        # fail and kill every fallback.
+        value = __addon__.getSetting(setting_id)
+        return "include" if value == "only" else value
+
     item = {
         "hearing_impaired": hi_setting or "exclude",
         "foreign_parts_only": __addon__.getSetting("foreign_parts_only"),
-        "machine_translated": __addon__.getSetting("machine_translated"),
-        "ai_translated": __addon__.getSetting("ai_translated"),
+        "machine_translated": _include_exclude("machine_translated"),
+        "ai_translated": _include_exclude("ai_translated"),
         "languages": search_languages_str
     }
 

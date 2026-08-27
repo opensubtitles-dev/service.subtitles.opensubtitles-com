@@ -204,7 +204,6 @@
                         <options>
                             <option label="include">include</option>
                             <option label="exclude">exclude</option>
-                            <option label="only">only</option>
                         </options>
                     </constraints>
                     <control type="list" format="string">
@@ -218,7 +217,6 @@
                         <options>
                             <option label="include">include</option>
                             <option label="exclude">exclude</option>
-                            <option label="only">only</option>
                         </options>
                     </constraints>
                     <control type="list" format="string">
