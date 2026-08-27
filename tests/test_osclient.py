@@ -149,3 +149,19 @@ def test_provider_guessit_non_object_body(mock_session_cls):
         mock_resp.raise_for_status.return_value = None
         mock_session.get.return_value = mock_resp
         assert provider.guessit(f"NonObject.{bad.__class__.__name__}.mkv") is None
+
+
+def test_query_to_params_redacts_stream_urls_in_logs():
+    # The search query dict carries file_original_path verbatim; when playback
+    # is a stream URL its query string can hold an access token. query_to_params
+    # logged the raw mapping before request-model filtering.
+    import xbmc
+    from resources.lib.osclient.provider import query_to_params
+    secret = "token=SECRET-STREAM-TOKEN"
+    logged = []
+    with patch.object(xbmc, "log", side_effect=lambda msg, level=0: logged.append(str(msg))):
+        params = query_to_params({"query": "Test Movie", "languages": "en",
+                                  "file_original_path": f"http://cdn.example/v.mkv?{secret}"},
+                                 "OpenSubtitlesSubtitlesRequest")
+    assert "SECRET-STREAM-TOKEN" not in "\n".join(logged)
+    assert params.get("query") == "test movie" or "query" in params

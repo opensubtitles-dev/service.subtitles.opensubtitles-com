@@ -12,7 +12,7 @@ from resources.lib.osclient.model.request.download import OpenSubtitlesDownloadR
 from resources.lib.exceptions import AuthenticationError, ConfigurationError, DownloadLimitExceeded, ProviderError, \
     ServiceUnavailable, TooManyRequests, BadUsernameError
 from resources.lib.cache import Cache, sync_cache_stats_setting
-from resources.lib.utilities import log, get_user_agent, get_install_origin, __addon__
+from resources.lib.utilities import log, get_user_agent, get_install_origin, redact_path, __addon__
 
 API_URL = "https://api.opensubtitles.com/api/v1/"
 API_LOGIN = "login"
@@ -41,12 +41,26 @@ def logging(msg):
     return log(__name__, msg)
 
 
+def _redacted_mapping(mapping):
+    """Copy of a query/params mapping safe for the debug log.
+
+    Values carrying a URL (file_original_path from a stream or plugin
+    source) can embed access tokens - run each through redact_path so the
+    secret-bearing query string never reaches Kodi's log.
+    """
+    try:
+        return {k: redact_path(v) if isinstance(v, str) and "://" in v else v
+                for k, v in dict(mapping).items()}
+    except Exception:
+        return "[unloggable mapping]"
+
+
 def query_to_params(query, _type):
     logging("type: ")
     logging(type(query))
-    logging("query: ")
-    logging(query)
     if type(query) is dict:
+        logging("query: ")
+        logging(_redacted_mapping(query))
         try:
             request = class_lookup[_type](**query)
         except ValueError as e:
@@ -57,10 +71,10 @@ def query_to_params(query, _type):
         raise ValueError("Invalid request data provided. Invalid query type")
 
     logging("request vars: ")
-    logging(vars(request))
+    logging(_redacted_mapping(vars(request)))
     params = request.request_params()
     logging("params: ")
-    logging(params)
+    logging(_redacted_mapping(params))
     return params
 
 

@@ -8,6 +8,10 @@ Mirrors `changelog.txt` (the copy Kodi ships); regenerate this file whenever tha
 
 ---
 
+## [v1.0.53] - 2026-08-27
+
+- search query mappings are redacted before logging, so playback URLs carrying access tokens never reach the debug log
+
 ## [v1.0.52] - 2026-08-27
 
 - invocation arguments are no longer logged verbatim; only a whitelist of known-safe parameters reaches the debug log, so stream tokens from calling add-ons cannot leak
