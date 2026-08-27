@@ -8,6 +8,11 @@ Mirrors `changelog.txt` (the copy Kodi ships); regenerate this file whenever tha
 
 ---
 
+## [v1.0.50] - 2026-08-27
+
+- searches invoked without a languages parameter no longer abort before fallbacks can run
+- guessit replies that are valid JSON but not an object are handled cleanly instead of raising
+
 ## [v1.0.49] - 2026-08-27
 
 - rar archive names go through the credential-safe filename deriver like every other source

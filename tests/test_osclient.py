@@ -132,3 +132,20 @@ def test_non_object_response_bodies_never_raise_type_errors():
             assert p.get_feature_info(imdb_id=1) is None          # features degrades
             with _pytest.raises(ProviderError):
                 p.search_subtitles({"imdb_id": 1, "languages": "en"})  # search -> handled error
+
+
+@patch("resources.lib.osclient.provider.Session")
+def test_provider_guessit_non_object_body(mock_session_cls):
+    # Valid JSON that is not an object (list/string/number) must yield None
+    # without raising - the success-path log line dereferenced the normalized
+    # None with .get() before this guard existed.
+    mock_session = MagicMock()
+    mock_session_cls.return_value = mock_session
+    provider = OpenSubtitlesProvider(api_key="key", username="user", password="pwd")
+    for bad in (["list"], "string", 42, None):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = bad
+        mock_resp.raise_for_status.return_value = None
+        mock_session.get.return_value = mock_resp
+        assert provider.guessit(f"NonObject.{bad.__class__.__name__}.mkv") is None

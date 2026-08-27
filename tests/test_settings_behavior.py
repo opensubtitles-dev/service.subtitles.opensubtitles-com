@@ -233,3 +233,11 @@ def test_hearing_impaired_kodi_setting_reflection():
 
     ranked = rank_subtitles([sub_regular, sub_hi], "Movie.1080p.BluRay-FLUX.mkv", prefer_hearing_impaired=True)
     assert ranked[0]["id"] == "2", "Hearing impaired subtitle should rank #1 when user prefers HI"
+
+
+def test_get_language_data_missing_languages_param():
+    """A search invocation with no languages parameter must not raise -
+    unquote(None) was a TypeError that aborted the whole search."""
+    lang_data = get_language_data({})
+    assert isinstance(lang_data, dict)
+    assert "languages" in lang_data

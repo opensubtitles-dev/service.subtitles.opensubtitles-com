@@ -261,7 +261,8 @@ class OpenSubtitlesProvider:
 
         self.cache.set(cache_key, data or {}, expires=GUESSIT_CACHE_TTL)
         sync_cache_stats_setting()
-        logging(f"Guessit parsed: {data.get('title')} ({data.get('year')}) type={data.get('type')}")
+        if data:
+            logging(f"Guessit parsed: {data.get('title')} ({data.get('year')}) type={data.get('type')}")
         return data or None
 
     @property
