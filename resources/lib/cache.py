@@ -101,11 +101,23 @@ class Cache(object):
         count, total_bytes = self.get_stats()
         try:
             raw = self._win.getProperty(self._index_key)
-            if raw:
-                keys = json.loads(raw)
-                for k in keys:
-                    self._win.clearProperty(k)
-            self._win.clearProperty(self._index_key)
+            cleared = set(json.loads(raw)) if raw else set()
+            for k in cleared:
+                self._win.clearProperty(k)
+            # A concurrent invocation can append to the index while we clear.
+            # Blindly clearing the index would orphan its live property, so
+            # rewrite the index to whatever arrived meanwhile minus the keys
+            # we cleared, with the same verify-retry as _add_to_index.
+            for _ in range(5):
+                cur_raw = self._win.getProperty(self._index_key)
+                remaining = (set(json.loads(cur_raw)) if cur_raw else set()) - cleared
+                if remaining:
+                    self._win.setProperty(self._index_key, json.dumps(sorted(remaining)))
+                else:
+                    self._win.clearProperty(self._index_key)
+                check_raw = self._win.getProperty(self._index_key)
+                if (set(json.loads(check_raw)) if check_raw else set()) == remaining:
+                    break
         except Exception:
             pass
         return count, total_bytes

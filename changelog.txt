@@ -1,3 +1,6 @@
+v1.0.55 (2026-08-27)
+- Clear Cache reconciles the index instead of wiping it, so an entry written by a concurrent invocation mid-clear stays tracked for statistics and future clears
+
 v1.0.54 (2026-08-27)
 - cache index writes verify-and-retry, so overlapping invocations can no longer drop each other's entries from Clear Cache and statistics
 
