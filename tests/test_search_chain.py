@@ -168,3 +168,20 @@ def test_fallback_attempt_clears_unnamed_id_fields():
     assert retry["imdb_id"] == 999
     assert retry["parent_imdb_id"] is None, "resolved parent id must not over-constrain the retry"
     assert retry["season_number"] == "3", "non-id context stays inherited"
+
+
+def test_resolve_ambiguous_id_accepts_season_zero():
+    """/features resolving a specials episode (season 0) must keep the parent
+    id + season/episode coordinates, not degrade to an id-only search."""
+    from unittest.mock import patch, MagicMock
+    from resources.lib.subtitle_downloader import SubtitleDownloader
+
+    sd = SubtitleDownloader.__new__(SubtitleDownloader)
+    sd.open_subtitles = MagicMock()
+    sd.open_subtitles.get_feature_info.return_value = {
+        "feature_type": "episode", "parent_imdb_id": "436992",
+        "season_number": 0, "episode_number": 4}
+    resolved = sd._resolve_ambiguous_id({"imdb_id": 1000001})
+    assert resolved["parent_imdb_id"] == 436992
+    assert resolved["season_number"] == "0"
+    assert resolved["episode_number"] == "4"

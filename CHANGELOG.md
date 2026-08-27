@@ -8,6 +8,10 @@ Mirrors `changelog.txt` (the copy Kodi ships); regenerate this file whenever tha
 
 ---
 
+## [v1.0.58] - 2026-08-27
+
+- a specials episode (season 0) resolved through the features lookup keeps its show id and season/episode coordinates instead of degrading to an id-only search
+
 ## [v1.0.57] - 2026-08-27
 
 - season 0 (specials) is sent to the API instead of being dropped by truthiness filtering
