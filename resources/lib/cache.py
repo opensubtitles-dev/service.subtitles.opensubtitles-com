@@ -150,18 +150,23 @@ class Cache(object):
         """Clears all cached properties from memory and returns (cleared_count, cleared_bytes)."""
         count, total_bytes = self.get_stats()
         try:
-            raw = self._win.getProperty(self._index_key)
-            cleared = set(json.loads(raw)) if raw else set()
-            for k in cleared:
-                self._win.clearProperty(k)
+            # Snapshot, property deletion and index rewrite all happen in ONE
+            # lock hold: deleting properties before taking the lock let a
+            # writer re-cache a key in the gap, after which the index rewrite
+            # dropped the key while its (new) property survived - orphaned
+            # from statistics and future clears. Under the lock a concurrent
+            # set() can at worst re-add its key to the index right after us,
+            # and that entry is consistent with its property.
+            state = {"cleared": set()}
 
-            # A concurrent invocation can append to the index while we clear.
-            # Blindly clearing the index would orphan its live property, so
-            # under the same lock as _add_to_index, rewrite the index to
-            # whatever arrived meanwhile minus the keys we cleared.
             def mutate():
+                raw = self._win.getProperty(self._index_key)
+                cleared = set(json.loads(raw)) if raw else set()
+                state["cleared"] |= cleared
+                for k in cleared:
+                    self._win.clearProperty(k)
                 cur_raw = self._win.getProperty(self._index_key)
-                remaining = (set(json.loads(cur_raw)) if cur_raw else set()) - cleared
+                remaining = (set(json.loads(cur_raw)) if cur_raw else set()) - state["cleared"]
                 if remaining:
                     self._win.setProperty(self._index_key, json.dumps(sorted(remaining)))
                 else:
@@ -170,7 +175,7 @@ class Cache(object):
             def verify():
                 cur = self._win.getProperty(self._index_key)
                 live = set(json.loads(cur)) if cur else set()
-                return not (live & cleared)
+                return not (live & state["cleared"])
 
             self._with_index_lock(mutate, verify)
         except Exception:

@@ -79,7 +79,8 @@ class OpenSubtitlesSubtitlesRequest(OpenSubtitlesRequest):
 
     @id.setter
     def id(self, value):
-        if value > 0:
+        value = _to_int(value)
+        if value is not None and value <= 0:
             raise ValueError("id should be positive integer.")
         self._id = value
 
@@ -132,16 +133,17 @@ class OpenSubtitlesSubtitlesRequest(OpenSubtitlesRequest):
     @languages.setter
     def languages(self, value):
         languages_error = "languages should be a list or a string with coma separated languages (en,fr)."
-        if value is str:
-            language_list = value.split(',')
-        elif value is list:
+        if isinstance(value, str):
+            language_list = value.split(",") if value else []
+        elif isinstance(value, list):
             language_list = value
         else:
             raise ValueError(languages_error)
         for lang in language_list:
             if lang not in LANGUAGE_LIST:
                 raise ValueError(languages_error)
-        self._languages = ",".join(value)
+        # NEVER sort: the value order is the user's preference order
+        self._languages = ",".join(language_list)
 
     @property
     def moviehash(self):
@@ -149,9 +151,9 @@ class OpenSubtitlesSubtitlesRequest(OpenSubtitlesRequest):
 
     @moviehash.setter
     def moviehash(self, value):
-        if value.length() != 16:
+        if value and len(str(value)) != 16:
             raise ValueError("moviehash should be 16 symbol hash. with leading 0 if needed.")
-        self._moviehash = value
+        self._moviehash = value or ""
 
     @property
     def user_id(self):

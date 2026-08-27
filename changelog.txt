@@ -1,3 +1,7 @@
+v1.0.65 (2026-08-27)
+- Clear Cache performs its snapshot, property deletion and index rewrite in one lock hold, so a key re-cached mid-clear can never survive untracked
+- repaired three broken request-model setters: id rejected every positive value, languages compared instances to class objects, moviehash called a nonexistent method; languages keeps user preference order (never sorted)
+
 v1.0.64 (2026-08-27)
 - if the cache index lock could ever be lost to pathological contention, the fallback now merges with verification instead of one blind write, so no interleaving can drop an index entry
 
