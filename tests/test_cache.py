@@ -79,3 +79,33 @@ def test_add_to_index_recovers_from_concurrent_overwrite():
     idx = _json.loads(c._win.getProperty(c._index_key))
     assert "race_test:mine" in idx
     assert "race_test:other_key" in idx, "concurrent writer's key must survive the merge"
+
+
+def test_clear_keeps_entry_written_concurrently():
+    """Clear Cache overlapping a write must not orphan the writer's entry:
+    the index is reconciled, not blindly cleared."""
+    import json as _json
+    from unittest.mock import patch
+    from resources.lib.cache import Cache
+
+    c = Cache(key_prefix="race2")
+    c.set("old", {"v": 1})
+    real_clear = c._win.clearProperty
+    state = {"injected": False}
+
+    def clearing_with_concurrent_writer(prop):
+        real_clear(prop)
+        if prop == "race2:old" and not state["injected"]:
+            state["injected"] = True
+            # concurrent invocation writes a fresh entry mid-clear
+            c._win.setProperty("race2:new", "gz:ignored")
+            c._win.setProperty(c._index_key, _json.dumps(["race2:old", "race2:new"]))
+
+    with patch.object(c._win, "clearProperty", side_effect=clearing_with_concurrent_writer):
+        c.clear()
+
+    idx_raw = c._win.getProperty(c._index_key)
+    idx = _json.loads(idx_raw) if idx_raw else []
+    assert "race2:new" in idx, "concurrently written key must stay indexed"
+    assert "race2:old" not in idx
+    assert c._win.getProperty("race2:new"), "concurrent entry's property must survive"
