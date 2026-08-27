@@ -20,7 +20,7 @@ from resources.lib.exceptions import AuthenticationError, ConfigurationError, Do
 from resources.lib.file_operations import get_file_data
 from resources.lib.matcher import rank_subtitles, get_match_display_tag, is_on_demand_translation
 from resources.lib.osclient.provider import OpenSubtitlesProvider
-from resources.lib.utilities import get_params, log, error, redact_path
+from resources.lib.utilities import get_params, log, error, redact_path, TEMP_MAX_AGE_SECONDS
 
 __addon__ = xbmcaddon.Addon("service.subtitles.opensubtitles-com")
 __scriptid__ = __addon__.getAddonInfo("id")
@@ -29,10 +29,10 @@ __profile__ = xbmcvfs.translatePath(__addon__.getAddonInfo("profile"))
 __temp__ = xbmcvfs.translatePath(os.path.join(__profile__, "temp", ""))
 
 
-# Entries younger than this survive cleanup: overlapping invocations (manual
-# search during an auto-download, quick re-searches) must not delete each
-# other's freshly written subtitle out from under Kodi.
-TEMP_MAX_AGE_SECONDS = 3600
+# Entries younger than TEMP_MAX_AGE_SECONDS (shared via utilities with the
+# Clear Cache script) survive cleanup: overlapping invocations (manual search
+# during an auto-download, quick re-searches) must not delete each other's
+# freshly written subtitle out from under Kodi.
 
 
 def clean_temp_directory():

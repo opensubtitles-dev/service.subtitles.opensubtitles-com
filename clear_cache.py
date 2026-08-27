@@ -24,6 +24,7 @@ if _res is not None and not any(os.path.normpath(p).startswith(_addon_path)
 # -----------------------------------------------------------------------------------
 
 from resources.lib.cache import Cache
+from resources.lib.utilities import TEMP_MAX_AGE_SECONDS
 
 __addon__ = xbmcaddon.Addon("service.subtitles.opensubtitles-com")
 __addon_name__ = __addon__.getAddonInfo("name")
@@ -51,10 +52,12 @@ def clear_cache():
             for f in files:
                 file_path = os.path.join(temp_dir, f)
                 try:
-                    # never delete a file an overlapping download wrote in the
-                    # last minute - its rename would fail and eat the subtitle
+                    # never delete a file inside the downloader's safety
+                    # window - Kodi may not have consumed the subtitle yet,
+                    # and deleting it leaves the selected item pointing at a
+                    # missing file (same constant the downloader cleanup uses)
                     try:
-                        if time.time() - os.path.getmtime(file_path) < 60:
+                        if time.time() - os.path.getmtime(file_path) < TEMP_MAX_AGE_SECONDS:
                             continue
                     except OSError:
                         pass

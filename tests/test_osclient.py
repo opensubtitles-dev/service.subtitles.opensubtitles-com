@@ -228,3 +228,31 @@ def test_query_to_params_redacts_stream_urls_in_logs():
                                  "OpenSubtitlesSubtitlesRequest")
     assert "SECRET-STREAM-TOKEN" not in "\n".join(logged)
     assert params.get("query") == "test movie" or "query" in params
+
+
+def test_subtitles_request_coerces_numeric_strings():
+    # Kodi InfoLabels deliver season/episode/year as strings; the request
+    # model must coerce them so integer comparisons and the wire format are
+    # correct, and reject garbage to None instead of raising.
+    from resources.lib.osclient.model.request.subtitles import OpenSubtitlesSubtitlesRequest
+    req = OpenSubtitlesSubtitlesRequest(query="Succession", languages="en",
+                                        season_number="3", episode_number="4", year="2021",
+                                        imdb_id="7660850", parent_imdb_id=" 7660850 ")
+    params = req.request_params()
+    assert params["season_number"] == 3
+    assert params["episode_number"] == 4
+    assert params["year"] == 2021
+    assert params["imdb_id"] == 7660850
+    assert params["parent_imdb_id"] == 7660850
+
+    junk = OpenSubtitlesSubtitlesRequest(query="X", languages="en",
+                                         season_number="", episode_number="abc", year=None)
+    p2 = junk.request_params()
+    assert "season_number" not in p2 and "episode_number" not in p2 and "year" not in p2
+
+    # setters must accept valid values (the old season setter raised on ANY
+    # positive season) and still reject true garbage ranges
+    req.season_number = "0"          # specials
+    assert req.season_number == 0
+    req.episode_number = 12
+    assert req.episode_number == 12
