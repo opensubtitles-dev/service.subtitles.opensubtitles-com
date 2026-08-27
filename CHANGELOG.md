@@ -8,6 +8,10 @@ Mirrors `changelog.txt` (the copy Kodi ships); regenerate this file whenever tha
 
 ---
 
+## [v1.0.62] - 2026-08-27
+
+- one malformed result entry can no longer make a whole page of look-alikes pass the title gate and skip the no-year and filename retries
+
 ## [v1.0.61] - 2026-08-27
 
 - a release year that disagrees with the film's year no longer hides it: the title search is retried without the year, the single most common reason a correctly named file found nothing

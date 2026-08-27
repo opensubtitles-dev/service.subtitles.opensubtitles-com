@@ -314,7 +314,11 @@ class SubtitleDownloader:
                 title_candidates = (details.get("title"), details.get("movie_name"))
                 release = attributes.get("release")
             except AttributeError:
-                return True
+                # one malformed entry says nothing about the rest of the set -
+                # skip it; a fully malformed set returns False and is merely
+                # held back, the hold-back restore still shows it if nothing
+                # better turns up
+                continue
             for candidate in title_candidates:
                 ctokens = self._title_tokens(candidate)
                 if not ctokens or not wanted <= ctokens:
