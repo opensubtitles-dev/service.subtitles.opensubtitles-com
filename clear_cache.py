@@ -1,4 +1,5 @@
 import os
+import time
 import sys
 
 import xbmc
@@ -50,6 +51,13 @@ def clear_cache():
             for f in files:
                 file_path = os.path.join(temp_dir, f)
                 try:
+                    # never delete a file an overlapping download wrote in the
+                    # last minute - its rename would fail and eat the subtitle
+                    try:
+                        if time.time() - os.path.getmtime(file_path) < 60:
+                            continue
+                    except OSError:
+                        pass
                     xbmcvfs.delete(file_path)
                     files_deleted += 1
                 except Exception:
