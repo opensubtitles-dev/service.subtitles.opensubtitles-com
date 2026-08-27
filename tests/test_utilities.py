@@ -97,3 +97,17 @@ def test_redaction_helpers_decode_nested_encoding():
         assert "SECRET-N" not in redact_path(url)
         assert "SECRET-N" not in safe_media_filename(url)
     assert safe_media_filename("http://cdn.example/video%253Ftoken%253Dx.mkv") == "video"
+
+
+def test_redaction_fails_closed_on_absurd_encoding_depth():
+    """A delimiter encoded beyond the decode bound must never pass through as
+    residue - both helpers fail closed."""
+    from resources.lib.utilities import redact_path, safe_media_filename
+    from urllib.parse import quote
+    payload = "?token=SECRET-DEEP"
+    for _ in range(25):
+        payload = quote(payload, safe="")
+    url = f"http://cdn.example/video{payload}.mkv"
+    assert "SECRET-DEEP" not in redact_path(url)
+    assert "%" not in redact_path(url).split("://", 1)[1].split("  ")[0].replace("[path redacted]", "")
+    assert safe_media_filename(url) == ""
