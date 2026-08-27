@@ -652,9 +652,9 @@ def get_media_data():
                                         if tmdb and str(tmdb).isdigit():
                                             item["parent_tmdb_id"] = int(tmdb)
                                             log(__name__, f"Parent TMDb via JSON-RPC (episodeguide): {item['parent_tmdb_id']}")
-                                except (ET.ParseError, json.JSONDecodeError, ValueError):
-                                    pass  # Silent fail for malformed XML/JSON
-            except (json.JSONDecodeError, ET.ParseError, ValueError, KeyError) as e:
+                                except (ET.ParseError, json.JSONDecodeError, ValueError, TypeError, AttributeError):
+                                    pass  # Silent fail for malformed XML/JSON of any shape
+            except (json.JSONDecodeError, ET.ParseError, ValueError, KeyError, TypeError, AttributeError) as e:
                 log(__name__, f"Failed to extract TV show IDs via JSON-RPC: {e}")
 
         # 4) Try to get specific episode IDs from dedicated episode fields (if available).
