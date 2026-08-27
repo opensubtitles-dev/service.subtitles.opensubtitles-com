@@ -267,3 +267,33 @@ def test_request_params_keeps_season_zero():
     params = req.request_params()
     assert params["season_number"] == 0
     assert params["episode_number"] == 1
+
+
+def test_request_setters_accept_valid_values():
+    # Three setters were broken since the original module: id raised on every
+    # positive value, languages compared instances to class objects with `is`,
+    # moviehash called a nonexistent .length(). All valid inputs must work.
+    from resources.lib.osclient.model.request.subtitles import OpenSubtitlesSubtitlesRequest
+    import pytest as _pytest
+
+    req = OpenSubtitlesSubtitlesRequest(query="X", languages="en")
+    req.id = 42
+    assert req.id == 42
+    with _pytest.raises(ValueError):
+        req.id = -1
+
+    req.languages = "sk,cs,en"
+    assert req.languages == "sk,cs,en", "value order is preference order - never sorted"
+    req.languages = ["en", "fr"]
+    assert req.languages == "en,fr"
+    with _pytest.raises(ValueError):
+        req.languages = "nonsense-lang"
+    with _pytest.raises(ValueError):
+        req.languages = 42
+
+    req.moviehash = "0123456789abcdef"
+    assert req.moviehash == "0123456789abcdef"
+    req.moviehash = ""
+    assert req.moviehash == ""
+    with _pytest.raises(ValueError):
+        req.moviehash = "short"

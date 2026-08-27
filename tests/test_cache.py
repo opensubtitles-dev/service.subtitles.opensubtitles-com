@@ -152,3 +152,37 @@ def test_lock_fallback_merges_with_verification():
 
     idx = set(_json.loads(c._win.getProperty(c._index_key)))
     assert "livelock:mine" in idx, "verified merge must survive the clobber"
+
+
+def test_clear_snapshot_and_delete_same_lock_hold():
+    """A writer re-caching a key between clear's property deletion and index
+    rewrite must not end up orphaned: with deletion inside the lock, the
+    writer's re-add lands after the rewrite and stays consistent."""
+    import json as _json
+    from unittest.mock import patch
+    from resources.lib.cache import Cache
+
+    c = Cache(key_prefix="clear_lock")
+    c.set("victim", {"v": 1})
+    real_clear = c._win.clearProperty
+    state = {"injected": False}
+
+    def clearing_with_rewriter(prop):
+        real_clear(prop)
+        if prop == "clear_lock:victim" and not state["injected"]:
+            state["injected"] = True
+            # concurrent set() writes its property mid-clear; its
+            # _add_to_index will block on the lock and land after
+            c._win.setProperty("clear_lock:victim", "gz:new-value")
+
+    with patch.object(c._win, "clearProperty", side_effect=clearing_with_rewriter):
+        c.clear()
+    # the concurrent set() completes its second half (the index add serialized
+    # behind clear's lock) once the lock is free - as the real set() would
+    c._add_to_index("clear_lock:victim")
+    # after both: either the index tracks the property or neither exists -
+    # never a live property missing from the index
+    idx_raw = c._win.getProperty(c._index_key)
+    idx = set(_json.loads(idx_raw)) if idx_raw else set()
+    prop_alive = bool(c._win.getProperty("clear_lock:victim"))
+    assert prop_alive and "clear_lock:victim" in idx, "re-cached entry must stay tracked"
