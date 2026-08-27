@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <addon id="service.subtitles.opensubtitles-com"
        name="OpenSubtitles.com"
-       version="1.0.48"
+       version="1.0.49"
        provider-name="amet, opensubtitles, juokelis, opensubtitlesdev">
 	<requires>
 		<import addon="xbmc.python" version="3.0.0"/>
@@ -51,28 +51,27 @@
 		<description lang="uz_UZ">Film va TV Taglavhalari ko'p tillarda, minglab tarjima qilingan taglavhalar har kuni tizimga yuklanadi. Bepul resursdan yuklab oling, API qo'llaydi, millionlab foydalanuvchilar.</description>
 		<description lang="zh_CN">多语种的电影及剧集字幕，每日更新千余条翻译好的字幕。免费下载，提供API接口，已拥有上百万的用户。</description>
 		<disclaimer lang="en_GB">Users need to provide OpenSubtitles.com username and password in add-on configuration. This is our new extension, old opensubtitles.org will not work on this, but the account can be easily imported on opensubtitles.com.</disclaimer>
-		<news>v1.0.48 - everything new since v1.0.9 (the version in the official Kodi repository):
+		<news>v1.0.49 - everything new since v1.0.9 (the version in the official Kodi repository):
 
-LATEST (1.0.48): searches survive every malformed API response shape; stream tokens - plain or percent-encoded - can never reach logs or search queries; update manifests validated against hostile XML; hardened packaging and release pipeline
+LATEST (1.0.49): searches survive every malformed API response; stream tokens can never reach logs or queries; hardened caching, packaging and update checks
 
 SEARCH AND MATCHING
-- Smart release matcher: file hash, release group, source, resolution - best match first with score badge
+- Smart release matcher (file hash, release group, source, resolution) - best match first with score badge
 - Top picks per preferred language, adaptive language memory, hearing-impaired (SDH) sync
-- TV episodes found reliably: id type verified via the API, original titles for localized libraries, non-IMDb library ids handled
-- Filename analysis (guessit) with 30-day cache; compressed search cache with configurable duration and Clear Cache button
-- One malformed result no longer hides the whole list; atomic downloads and temp cleanup
+- Reliable TV episode detection via the API, original titles for localized libraries
+- Filename analysis (guessit) with caching; compressed search cache with Clear Cache button
+- One malformed result never hides or aborts the rest; atomic race-free downloads
 
 ACCOUNT AND SECURITY
-- Credentials, session tokens and API keys are never written to the Kodi debug log
-- Expired sessions refresh automatically; clear error dialogs for all HTTP failures
-- Account status, quota and VIP shown in settings; compact Test Connection dialog
+- Credentials, tokens and playback URLs never reach the debug log
+- Sessions refresh automatically; clear dialogs for every error
+- Account status, quota and VIP shown in settings
 
 UPDATES
-- Check for Updates with progress and confirmation; fast-track repository awareness with setup instructions
+- Check for Updates with progress and confirmation, aware of Kodi's repository origin pinning
 
 COMPATIBILITY
-- Verified on real Kodi 19-22 (Matrix through Piers beta); works down to Python 3.6 devices
-- New icon matching Kodi's dark skins</news>
+- Verified on real Kodi 19-22; works down to Python 3.6 devices; dark-skin icon</news>
 		<platform>all</platform>
 		<license>GPL-2.0-only</license>
 		<forum>https://forum.opensubtitles.com/t/new-opensubtitles-com-kodi-subtitles-addon/1673</forum>

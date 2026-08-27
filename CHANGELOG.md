@@ -8,6 +8,13 @@ Mirrors `changelog.txt` (the copy Kodi ships); regenerate this file whenever tha
 
 ---
 
+## [v1.0.49] - 2026-08-27
+
+- rar archive names go through the credential-safe filename deriver like every other source
+- Clear Cache spares files written in the last minute, so it can no longer race an active download out of its subtitle
+- one malformed subtitle entry can no longer disable smart ranking for the whole result list - it just scores zero
+- release notes trimmed well under the Kodi schema cap
+
 ## [v1.0.48] - 2026-08-27
 
 - every API response consumer survives a top-level non-object JSON body (null, list, string) - the last of the malformed-response abort class

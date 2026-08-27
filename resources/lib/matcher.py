@@ -323,7 +323,12 @@ def rank_subtitles(subtitles, video_filename, guessit_data=None, smart_ranking=T
     # 1. Compute match scores for all subtitles if smart ranking enabled
     if smart_ranking and video_filename:
         for sub in subtitles:
-            calculate_match_score(sub, video_filename, guessit_data, prefer_hearing_impaired=prefer_hearing_impaired)
+            try:
+                calculate_match_score(sub, video_filename, guessit_data, prefer_hearing_impaired=prefer_hearing_impaired)
+            except Exception:
+                # one malformed entry (non-numeric ratings, odd attributes) must
+                # not disable ranking for every valid result - it just scores 0
+                sub["_match_score"] = 0.0
         sort_key = lambda s: s.get("_match_score", 0.0)
     else:
         sort_key = lambda s: (

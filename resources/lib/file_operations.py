@@ -38,7 +38,9 @@ def get_file_data(file_original_path):
     elif file_original_path.find("rar://") > -1:
         item["rar"] = True
         item["file_original_path"] = os.path.dirname(file_original_path[6:])
-        item["basename"] = os.path.basename(file_original_path)
+        # archive-content name via the credential-safe deriver - the vfs path
+        # is urlencoded and could smuggle decoded tokens into logs/queries
+        item["basename"] = safe_media_filename(file_original_path)
 
     elif file_original_path.find("stack://") > -1:
         stack_path = file_original_path.split(" , ")
