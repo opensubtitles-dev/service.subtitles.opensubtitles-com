@@ -74,3 +74,15 @@ def test_provider_sends_origin_header():
         from resources.lib.osclient.provider import OpenSubtitlesProvider
         p = OpenSubtitlesProvider(api_key="k", username="u", password="p")
         assert p.request_headers["X-Kodi-Origin-Repo"] == "repository.opensubtitles-com"
+
+
+def test_redact_path_strips_percent_encoded_tokens():
+    """'%3Ftoken%3D...' hides a query inside the PATH component - decode and
+    strip again, same trap safe_media_filename covers."""
+    from resources.lib.utilities import redact_path
+    out = redact_path("http://cdn.example/video%3Ftoken%3DSECRET-ENC-TOKEN.mkv")
+    assert "SECRET-ENC-TOKEN" not in out
+    assert "redacted" in out
+    # plain paths and clean URLs unaffected
+    assert redact_path("/movies/Title (2024).mkv") == "/movies/Title (2024).mkv"
+    assert redact_path("http://cdn.example/video.mkv") == "http://cdn.example/video.mkv"

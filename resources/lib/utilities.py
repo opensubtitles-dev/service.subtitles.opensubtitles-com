@@ -52,11 +52,17 @@ def redact_path(path):
         s = str(path)
         if "://" not in s:
             return s
-        from urllib.parse import urlsplit
+        from urllib.parse import urlsplit, unquote
         parts = urlsplit(s)
         host = parts.netloc.rsplit("@", 1)[-1]      # drop user:pass@
-        redacted = f"{parts.scheme}://{host}{parts.path}"
-        if parts.query or parts.fragment or "@" in parts.netloc:
+        # a percent-encoded '?token=' ('%3Ftoken%3D...') hides INSIDE the
+        # path component - decode and strip again, same trap
+        # safe_media_filename covers (one-layer stripping is not enough)
+        clean_path = unquote(parts.path)
+        encoded_smuggle = "?" in clean_path or "#" in clean_path
+        clean_path = clean_path.split("?", 1)[0].split("#", 1)[0]
+        redacted = f"{parts.scheme}://{host}{clean_path}"
+        if parts.query or parts.fragment or encoded_smuggle or "@" in parts.netloc:
             redacted += "  [query/credentials redacted]"
         return redacted
     except Exception:
