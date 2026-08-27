@@ -8,6 +8,10 @@ Mirrors `changelog.txt` (the copy Kodi ships); regenerate this file whenever tha
 
 ---
 
+## [v1.0.47] - 2026-08-27
+
+- API responses with a null or wrong-typed data field surface as a normal provider error instead of crashing the search
+
 ## [v1.0.46] - 2026-08-27
 
 - a missing API key ends the subtitle listing cleanly after the configuration-error dialog instead of crashing mid-search
