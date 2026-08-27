@@ -15,11 +15,21 @@ class Cache(object):
         self._index_key = f"{key_prefix}:__index__" if key_prefix else "__cache_index__"
 
     def _add_to_index(self, key):
+        # Window properties offer no compare-and-swap, so two overlapping
+        # invocations doing read-modify-write can drop each other's key.
+        # Verify after writing and retry: the re-read sees the concurrent
+        # writer's list, so the merge converges within a couple of rounds.
+        # A key lost anyway only hides one property from stats/Clear Cache
+        # until it expires - cached data itself is never affected.
         try:
-            raw = self._win.getProperty(self._index_key)
-            keys = set(json.loads(raw)) if raw else set()
-            keys.add(key)
-            self._win.setProperty(self._index_key, json.dumps(list(keys)))
+            for _ in range(5):
+                raw = self._win.getProperty(self._index_key)
+                keys = set(json.loads(raw)) if raw else set()
+                keys.add(key)
+                self._win.setProperty(self._index_key, json.dumps(sorted(keys)))
+                check = self._win.getProperty(self._index_key)
+                if key in (json.loads(check) if check else ()):
+                    return
         except Exception:
             pass
 

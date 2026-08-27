@@ -52,3 +52,30 @@ def test_cache_uses_gzip_compression():
     # Decompressed result matches original data structure exactly
     retrieved = cache.get("large_item")
     assert retrieved == large_data
+
+
+def test_add_to_index_recovers_from_concurrent_overwrite():
+    """Window properties have no CAS: a concurrent invocation can clobber the
+    index between our read and write. The verify-retry loop must re-add the
+    key when the first write is lost."""
+    from unittest.mock import patch
+    from resources.lib.cache import Cache
+
+    c = Cache(key_prefix="race_test")
+    real_set = c._win.setProperty
+    state = {"clobbered": False}
+
+    def clobbering_set(prop, value):
+        real_set(prop, value)
+        if prop == c._index_key and not state["clobbered"]:
+            state["clobbered"] = True
+            # concurrent writer's list lands after ours, without our key
+            real_set(prop, '["race_test:other_key"]')
+
+    with patch.object(c._win, "setProperty", side_effect=clobbering_set):
+        c.set("mine", {"v": 1})
+
+    import json as _json
+    idx = _json.loads(c._win.getProperty(c._index_key))
+    assert "race_test:mine" in idx
+    assert "race_test:other_key" in idx, "concurrent writer's key must survive the merge"
