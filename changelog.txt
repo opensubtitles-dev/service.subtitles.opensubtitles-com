@@ -1,3 +1,6 @@
+v1.0.72 (2026-08-27)
+- the log path redaction decodes percent-encoding before stripping, so a token smuggled inside the path component (video%3Ftoken%3D...) can no longer reach the debug log
+
 v1.0.71 (2026-08-27)
 - multipart RAR hashing works again: Python 3 float division produced a fractional part index that broke the last-part filename, silently dropping the moviehash for every multipart archive
 
