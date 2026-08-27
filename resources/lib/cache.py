@@ -1,9 +1,14 @@
 import base64
 import gzip
 import json
-from time import time
+import uuid
+from time import time, sleep
 import xbmcgui
 from resources.lib.utilities import log
+
+# How long an index-lock holder may be presumed alive. Anything older is a
+# crashed invocation's leftover and gets stolen.
+_LOCK_STALE_SECONDS = 2.0
 
 
 class Cache(object):
@@ -13,25 +18,55 @@ class Cache(object):
         self.key_prefix = key_prefix
         self._win = xbmcgui.Window(10000)
         self._index_key = f"{key_prefix}:__index__" if key_prefix else "__cache_index__"
+        self._lock_key = self._index_key + ":__lock__"
 
-    def _add_to_index(self, key):
-        # Window properties offer no compare-and-swap, so two overlapping
-        # invocations doing read-modify-write can drop each other's key.
-        # Verify after writing and retry: the re-read sees the concurrent
-        # writer's list, so the merge converges within a couple of rounds.
-        # A key lost anyway only hides one property from stats/Clear Cache
-        # until it expires - cached data itself is never affected.
+    def _with_index_lock(self, mutate):
+        """Runs mutate() holding a cross-invocation mutex on the index.
+
+        Window properties offer no compare-and-swap, so a bare read-modify-write
+        lets two overlapping invocations drop each other's keys no matter how
+        often each verifies - a slower writer that read first can overwrite a
+        faster writer AFTER its verification passed. Individual property reads
+        and writes ARE atomic though, which is enough for a token spinlock:
+        write your token, read back, and only the writer whose token survived
+        proceeds - the loser retries. A lock left behind by a crashed
+        invocation is stolen after _LOCK_STALE_SECONDS; if the lock cannot be
+        won at all, mutate() runs unlocked - the pre-lock behavior, never worse.
+        """
+        token = uuid.uuid4().hex
         try:
-            for _ in range(5):
-                raw = self._win.getProperty(self._index_key)
-                keys = set(json.loads(raw)) if raw else set()
-                keys.add(key)
-                self._win.setProperty(self._index_key, json.dumps(sorted(keys)))
-                check = self._win.getProperty(self._index_key)
-                if key in (json.loads(check) if check else ()):
+            for _ in range(100):
+                current = self._win.getProperty(self._lock_key)
+                if current:
+                    try:
+                        held_since = float(current.split(":", 1)[1])
+                    except (IndexError, ValueError):
+                        held_since = 0.0
+                    if time() - held_since < _LOCK_STALE_SECONDS:
+                        sleep(0.002)
+                        continue
+                self._win.setProperty(self._lock_key, f"{token}:{time()}")
+                sleep(0.001)  # let a colliding writer's set land before we re-read
+                if self._win.getProperty(self._lock_key).startswith(token):
+                    try:
+                        mutate()
+                    finally:
+                        self._win.clearProperty(self._lock_key)
                     return
         except Exception:
             pass
+        try:
+            mutate()
+        except Exception:
+            pass
+
+    def _add_to_index(self, key):
+        def mutate():
+            raw = self._win.getProperty(self._index_key)
+            keys = set(json.loads(raw)) if raw else set()
+            keys.add(key)
+            self._win.setProperty(self._index_key, json.dumps(sorted(keys)))
+        self._with_index_lock(mutate)
 
     def set(self, key, value, expires=60 * 60 * 24 * 7):
         log(__name__, f"caching {key}")
@@ -104,20 +139,19 @@ class Cache(object):
             cleared = set(json.loads(raw)) if raw else set()
             for k in cleared:
                 self._win.clearProperty(k)
+
             # A concurrent invocation can append to the index while we clear.
             # Blindly clearing the index would orphan its live property, so
-            # rewrite the index to whatever arrived meanwhile minus the keys
-            # we cleared, with the same verify-retry as _add_to_index.
-            for _ in range(5):
+            # under the same lock as _add_to_index, rewrite the index to
+            # whatever arrived meanwhile minus the keys we cleared.
+            def mutate():
                 cur_raw = self._win.getProperty(self._index_key)
                 remaining = (set(json.loads(cur_raw)) if cur_raw else set()) - cleared
                 if remaining:
                     self._win.setProperty(self._index_key, json.dumps(sorted(remaining)))
                 else:
                     self._win.clearProperty(self._index_key)
-                check_raw = self._win.getProperty(self._index_key)
-                if (set(json.loads(check_raw)) if check_raw else set()) == remaining:
-                    break
+            self._with_index_lock(mutate)
         except Exception:
             pass
         return count, total_bytes
