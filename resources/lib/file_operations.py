@@ -63,7 +63,9 @@ def get_file_data(file_original_path):
         try:
             item["file_size"], item["moviehash"] = hash_file(item["file_original_path"], item["rar"])
         except Exception as e:
-            log(__name__, f"Hashing failed ({e!r}), continuing without moviehash")
+            # exception class only: vfs/OS errors embed the raw path (and any
+            # stream token in it) in their message, which must not hit the log
+            log(__name__, f"Hashing failed ({type(e).__name__}), continuing without moviehash")
     return item
 
 

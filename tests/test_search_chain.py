@@ -185,3 +185,19 @@ def test_resolve_ambiguous_id_accepts_season_zero():
     assert resolved["parent_imdb_id"] == 436992
     assert resolved["season_number"] == "0"
     assert resolved["episode_number"] == "4"
+
+
+def test_resolve_ambiguous_id_rejects_malformed_coordinates():
+    """A valid parent id with a nonnumeric season/episode must fall through to
+    the id-alone search, never a show-wide parent search."""
+    from unittest.mock import MagicMock
+    from resources.lib.subtitle_downloader import SubtitleDownloader
+
+    sd = SubtitleDownloader.__new__(SubtitleDownloader)
+    sd.open_subtitles = MagicMock()
+    sd.open_subtitles.get_feature_info.return_value = {
+        "feature_type": "episode", "parent_imdb_id": "436992",
+        "season_number": "abc", "episode_number": 4}
+    resolved = sd._resolve_ambiguous_id({"imdb_id": 1000001})
+    assert resolved["parent_imdb_id"] is None, "malformed coordinates must not keep the parent id"
+    assert resolved["imdb_id"] == 1000001

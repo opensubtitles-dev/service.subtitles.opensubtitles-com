@@ -190,3 +190,20 @@ def test_stack_url_member_basename_sheds_token(monkeypatch):
         item = file_operations.get_file_data(stack)
     assert "SECRET-STACK-TOKEN" not in item["basename"]
     assert item["basename"] == "part1.mkv"
+
+
+def test_hash_failure_log_never_contains_path(monkeypatch):
+    """A vfs/OS exception message embeds the raw path (token included); the
+    hash-failure log line must carry only the exception class."""
+    import xbmc
+    from unittest.mock import patch
+    from resources.lib import file_operations
+
+    secret_path = "ftp://cdn.example/v.mkv?token=SECRET-HASH-TOKEN"
+    logged = []
+    with patch.object(file_operations, "hash_file",
+                      side_effect=OSError(f"cannot open {secret_path}")), \
+         patch.object(xbmc, "log", side_effect=lambda msg, level=0: logged.append(str(msg))):
+        item = file_operations.get_file_data(secret_path)
+    assert "SECRET-HASH-TOKEN" not in "\n".join(logged)
+    assert "moviehash" not in item or not item.get("moviehash")
