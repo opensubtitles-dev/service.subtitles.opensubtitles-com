@@ -208,7 +208,8 @@ class OpenSubtitlesProvider:
 
         try:
             r = self.session.get(API_URL + API_FEATURES, params=params, timeout=REQUEST_TIMEOUT)
-            logging(f"Feature lookup URL: {r.url} -> {r.status_code}")
+            # path only - the query carries playback-derived parameters
+            logging(f"Feature lookup: {redact_path(r.url)} -> {r.status_code}")
             r.raise_for_status()
         except (ConnectionError, Timeout, ReadTimeout) as e:
             raise ServiceUnavailable(f"Connection error: {e!r}")
@@ -256,7 +257,7 @@ class OpenSubtitlesProvider:
         params = {"filename": clean_filename}
         try:
             r = self.session.get(API_URL + API_GUESSIT, params=params, timeout=REQUEST_TIMEOUT)
-            logging(f"Guessit lookup URL: {r.url} -> {r.status_code}")
+            logging(f"Guessit lookup: {redact_path(r.url)} -> {r.status_code}")
             r.raise_for_status()
         except (ConnectionError, Timeout, ReadTimeout) as e:
             logging(f"Guessit connection error: {e}")
@@ -341,7 +342,7 @@ class OpenSubtitlesProvider:
             # Never log request or response headers: they carry the Api-Key (and would
             # carry the Authorization token) - users paste debug logs to public forums.
             r = self.session.get(subtitles_url, params=params, timeout=REQUEST_TIMEOUT)
-            logging(f"Search response: {r.url} -> {r.status_code}")
+            logging(f"Search response: {redact_path(r.url)} -> {r.status_code}")
 
             r.raise_for_status()
         except (ConnectionError, Timeout, ReadTimeout) as e:

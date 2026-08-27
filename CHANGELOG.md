@@ -8,6 +8,10 @@ Mirrors `changelog.txt` (the copy Kodi ships); regenerate this file whenever tha
 
 ---
 
+## [v1.0.70] - 2026-08-27
+
+- prepared API request URLs (feature lookup, guessit, search) are logged path-only through the redaction helper, so playback-derived query parameters never reach the debug log
+
 ## [v1.0.69] - 2026-08-27
 
 - a download invocation with a missing or nonnumeric file id raises a controlled provider error with a user-facing dialog instead of an uncaught KeyError
