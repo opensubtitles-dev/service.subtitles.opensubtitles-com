@@ -160,3 +160,20 @@ def test_feature_info_tolerates_malformed_data_shapes():
         with patch.object(p, "cache") as cache, patch.object(p.session, "get", return_value=resp):
             cache.get.return_value = None
             assert p.get_feature_info(imdb_id=123) is None
+
+
+def test_search_response_with_null_data_raises_provider_error():
+    # {"data": null} is valid JSON; it must become ProviderError, not a
+    # TypeError from len(None) (mirror-review finding, internal PR #52).
+    from unittest.mock import patch, MagicMock
+    from resources.lib.osclient.provider import OpenSubtitlesProvider, ProviderError
+    import pytest as _pytest
+    p = OpenSubtitlesProvider(api_key="k", username="u", password="w")
+    for bad in ({"data": None}, {"data": "x"}, {"data": 3}, {}):
+        resp = MagicMock(status_code=200)
+        resp.json.return_value = bad
+        resp.raise_for_status.return_value = None
+        with patch.object(p, "cache") as cache, patch.object(p.session, "get", return_value=resp):
+            cache.get.return_value = None
+            with _pytest.raises(ProviderError):
+                p.search_subtitles({"imdb_id": 123, "languages": "en"})
