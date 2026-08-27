@@ -40,6 +40,22 @@ def get_user_agent():
     return f"Opensubtitles.com Kodi plugin v{__addon__.getAddonInfo('version')}"
 
 
+def _fully_unquote(s):
+    """Percent-decode until nothing changes (bounded).
+
+    One unquote pass leaves an n-times-encoded delimiter ('%253F' ->
+    '%3F') still hidden; decoding to fixpoint surfaces every layer so the
+    strip that follows sees a literal '?'/'#'.
+    """
+    from urllib.parse import unquote
+    for _ in range(5):
+        decoded = unquote(s)
+        if decoded == s:
+            break
+        s = decoded
+    return s
+
+
 def redact_path(path):
     """A playback path safe for the debug log.
 
@@ -52,13 +68,13 @@ def redact_path(path):
         s = str(path)
         if "://" not in s:
             return s
-        from urllib.parse import urlsplit, unquote
+        from urllib.parse import urlsplit
         parts = urlsplit(s)
         host = parts.netloc.rsplit("@", 1)[-1]      # drop user:pass@
-        # a percent-encoded '?token=' ('%3Ftoken%3D...') hides INSIDE the
-        # path component - decode and strip again, same trap
-        # safe_media_filename covers (one-layer stripping is not enough)
-        clean_path = unquote(parts.path)
+        # a percent-encoded '?token=' ('%3Ftoken%3D...', or nested
+        # '%253F...') hides INSIDE the path component - decode to fixpoint
+        # so every encoding layer surfaces, then strip
+        clean_path = _fully_unquote(parts.path)
         encoded_smuggle = "?" in clean_path or "#" in clean_path
         clean_path = clean_path.split("?", 1)[0].split("#", 1)[0]
         redacted = f"{parts.scheme}://{host}{clean_path}"
@@ -72,15 +88,16 @@ def redact_path(path):
 def safe_media_filename(path):
     """Filename derived from a playback path with NO credential residue.
 
-    Order matters: strip the query at the URL layer, decode percent-encoding,
-    then strip again - '/video%3Ftoken%3DX' decodes into a fresh '?token=X'
-    that a single pre-decode strip would leave inside the basename.
+    Order matters: strip the query at the URL layer, decode percent-encoding
+    TO FIXPOINT, then strip again - '/video%3Ftoken%3DX' (or nested
+    '%253F...') decodes into a fresh '?token=X' that fewer decode passes
+    would leave inside the basename.
     """
     try:
         s = str(path)
         if "://" in s:
-            from urllib.parse import urlsplit, unquote
-            s = unquote(urlsplit(s).path)
+            from urllib.parse import urlsplit
+            s = _fully_unquote(urlsplit(s).path)
             s = s.split("?", 1)[0].split("#", 1)[0]
         return os.path.basename(s)
     except Exception:
