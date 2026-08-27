@@ -8,6 +8,12 @@ Mirrors `changelog.txt` (the copy Kodi ships); regenerate this file whenever tha
 
 ---
 
+## [v1.0.61] - 2026-08-27
+
+- a release year that disagrees with the film's year no longer hides it: the title search is retried without the year, the single most common reason a correctly named file found nothing
+- results matching none of the titles we searched for no longer end the search - the remaining attempts still run, and the look-alikes are shown only when nothing better is found
+- the look-alike gate judges each fallback attempt against the title that attempt searched, and one-word titles (Up, It, Her) are confirmed only by a near-exact feature title, never by a shared token in a release name
+
 ## [v1.0.60] - 2026-08-27
 
 - fast-track walkthrough (dialog and README) now tells users to disable Unknown sources again after the one-time zip install

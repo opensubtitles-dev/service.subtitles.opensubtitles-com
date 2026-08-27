@@ -320,3 +320,70 @@ def test_resolve_ambiguous_id_rejects_malformed_coordinates():
     resolved = sd._resolve_ambiguous_id({"imdb_id": 1000001})
     assert resolved["parent_imdb_id"] is None, "malformed coordinates must not keep the parent id"
     assert resolved["imdb_id"] == 1000001
+
+
+def test_gate_uses_each_attempts_own_title():
+    """Id-first plan: primary query is empty, so the gate must judge fallback
+    results against the title that attempt actually searched - not the empty
+    primary query, which would accept any look-alike set and end the chain."""
+    from unittest.mock import patch
+    from resources.lib.subtitle_downloader import SubtitleDownloader
+
+    sd = SubtitleDownloader.__new__(SubtitleDownloader)
+    sd.params = {"action": "search", "languages": "English"}
+    sd.sub_format = "srt"
+    sd.subtitles = {}
+
+    lookalike = [{"attributes": {"feature_details": {"title": "A Tooth Fairy Tale",
+                                                     "movie_name": "A Tooth Fairy Tale"},
+                                 "release": "A.Tooth.Fairy.Tale.1080p"}}]
+    right = [{"attributes": {"feature_details": {"title": "Freaky Tales",
+                                                 "movie_name": "Freaky Tales"},
+              "release": "Freaky.Tales.2024.1080p"}}]
+    answers = iter([([], True), (lookalike, True), (right, True)])
+    seen = []
+
+    def fake_search(q):
+        seen.append(dict(q))
+        return next(answers)
+
+    media = {"query": "", "imdb_id": 999,
+             "search_fallbacks": [
+                 {"query": "Freaky Tales", "year": 2025, "imdb_id": None, "tmdb_id": None,
+                  "parent_imdb_id": None, "parent_tmdb_id": None},
+                 {"query": "Freaky Tales", "year": None, "imdb_id": None, "tmdb_id": None,
+                  "parent_imdb_id": None, "parent_tmdb_id": None}]}
+    with patch("resources.lib.subtitle_downloader.get_file_path", return_value="/m/x.mkv"), \
+         patch("resources.lib.subtitle_downloader.get_file_data",
+               return_value={"filename": "x.mkv", "basename": "x.mkv"}), \
+         patch("resources.lib.subtitle_downloader.get_media_data", return_value=media), \
+         patch("resources.lib.subtitle_downloader.get_language_data",
+               return_value={"languages": "en"}), \
+         patch("resources.lib.subtitle_downloader._call_guessit_api", return_value=None), \
+         patch.object(sd, "_search_subtitles", side_effect=fake_search), \
+         patch.object(SubtitleDownloader, "list_subtitles", create=True, return_value=None):
+        sd.search()
+
+    assert len(seen) == 3, "look-alikes from attempt 1 must not end the chain"
+    assert sd.subtitles == right
+
+
+def test_gate_rejects_common_token_matches_for_short_titles():
+    """'Up'/'It'/'Her': a shared token inside a long title or a release string
+    proves nothing - only a near-exact feature title confirms a one-word
+    title."""
+    from resources.lib.subtitle_downloader import SubtitleDownloader
+    sd = SubtitleDownloader.__new__(SubtitleDownloader)
+
+    wrong = [{"attributes": {"feature_details": {"title": "Growing Up Down Under",
+                                                 "movie_name": "Growing Up Down Under"},
+              "release": "Growing.Up.Down.Under.2024.1080p.Up"}}]
+    assert sd._results_match_title(wrong, "Up") is False
+
+    exact = [{"attributes": {"feature_details": {"title": "Up", "movie_name": "Up (2009)"},
+              "release": "Up.2009.1080p.BluRay"}}]
+    assert sd._results_match_title(exact, "Up") is True
+
+    # multi-token titles may still be confirmed by the release string
+    rel = [{"attributes": {"feature_details": {}, "release": "Freaky.Tales.2024.1080p"}}]
+    assert sd._results_match_title(rel, "Freaky Tales") is True

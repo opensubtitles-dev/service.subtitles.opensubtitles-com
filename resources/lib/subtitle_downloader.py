@@ -257,9 +257,14 @@ class SubtitleDownloader:
                     retry[id_field] = None
             log(__name__, f"No results, retrying with: {({k: v for k, v in attempt.items() if v})}")
             self.subtitles, searched_ok = self._search_subtitles(retry)
-            if self.subtitles and not self._results_match_title(self.subtitles, expected_title):
+            # Gate against the title THIS attempt searched for: on an id-first
+            # plan the primary query is empty, and gating fallback title
+            # attempts against "" would accept the first look-alike set and
+            # end the chain before the no-year or filename attempt ran.
+            attempt_title = str(retry.get("query") or "") or expected_title
+            if self.subtitles and not self._results_match_title(self.subtitles, attempt_title):
                 log(__name__, f"{len(self.subtitles)} results, still none matching "
-                              f"'{expected_title}' - holding them and continuing")
+                              f"'{attempt_title}' - holding them and continuing")
                 if held_back is None:
                     held_back = self.subtitles
                 self.subtitles = None
@@ -301,17 +306,29 @@ class SubtitleDownloader:
         wanted = self._title_tokens(expected_title)
         if not wanted or not results:
             return True
+        single_token = len(wanted) == 1
         for entry in results:
             try:
                 attributes = entry.get("attributes") or {}
                 details = attributes.get("feature_details") or {}
-                candidates = (details.get("title"), details.get("movie_name"),
-                              attributes.get("release"))
+                title_candidates = (details.get("title"), details.get("movie_name"))
+                release = attributes.get("release")
             except AttributeError:
                 return True
-            for candidate in candidates:
-                if wanted <= self._title_tokens(candidate):
-                    return True
+            for candidate in title_candidates:
+                ctokens = self._title_tokens(candidate)
+                if not ctokens or not wanted <= ctokens:
+                    continue
+                # "Up", "It", "Her": one shared token means nothing when the
+                # candidate title is itself long - accept a single-token match
+                # only against a near-exact feature title
+                if single_token and len(ctokens) > 3:
+                    continue
+                return True
+            # a release string is token soup ("...BluRay.x265..."), so a
+            # single-token title can never be confirmed by it
+            if not single_token and wanted <= self._title_tokens(release):
+                return True
         return False
 
     def _resolve_ambiguous_id(self, ambiguous):
