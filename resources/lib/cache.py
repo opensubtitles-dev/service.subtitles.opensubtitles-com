@@ -20,7 +20,7 @@ class Cache(object):
         self._index_key = f"{key_prefix}:__index__" if key_prefix else "__cache_index__"
         self._lock_key = self._index_key + ":__lock__"
 
-    def _with_index_lock(self, mutate):
+    def _with_index_lock(self, mutate, verify=None):
         """Runs mutate() holding a cross-invocation mutex on the index.
 
         Window properties offer no compare-and-swap, so a bare read-modify-write
@@ -30,12 +30,16 @@ class Cache(object):
         and writes ARE atomic though, which is enough for a token spinlock:
         write your token, read back, and only the writer whose token survived
         proceeds - the loser retries. A lock left behind by a crashed
-        invocation is stolen after _LOCK_STALE_SECONDS; if the lock cannot be
-        won at all, mutate() runs unlocked - the pre-lock behavior, never worse.
+        invocation is stolen after _LOCK_STALE_SECONDS, so with mutations
+        holding the lock for ~1ms, acquisition within the deadline is certain
+        short of pathological livelock. Even then nothing is overwritten
+        blindly: the fallback re-runs mutate() - which re-reads the live index
+        - until verify() confirms the update landed.
         """
         token = uuid.uuid4().hex
         try:
-            for _ in range(100):
+            deadline = time() + 5.0
+            while time() < deadline:
                 current = self._win.getProperty(self._lock_key)
                 if current:
                     try:
@@ -55,8 +59,14 @@ class Cache(object):
                     return
         except Exception:
             pass
+        # Livelock fallback: merge-with-verification, never a single blind
+        # write - each pass re-reads the live index, so an update lost to a
+        # concurrent writer is re-applied instead of silently dropped.
         try:
-            mutate()
+            for _ in range(5):
+                mutate()
+                if verify is None or verify():
+                    return
         except Exception:
             pass
 
@@ -66,7 +76,12 @@ class Cache(object):
             keys = set(json.loads(raw)) if raw else set()
             keys.add(key)
             self._win.setProperty(self._index_key, json.dumps(sorted(keys)))
-        self._with_index_lock(mutate)
+
+        def verify():
+            raw = self._win.getProperty(self._index_key)
+            return key in (set(json.loads(raw)) if raw else set())
+
+        self._with_index_lock(mutate, verify)
 
     def set(self, key, value, expires=60 * 60 * 24 * 7):
         log(__name__, f"caching {key}")
@@ -151,7 +166,13 @@ class Cache(object):
                     self._win.setProperty(self._index_key, json.dumps(sorted(remaining)))
                 else:
                     self._win.clearProperty(self._index_key)
-            self._with_index_lock(mutate)
+
+            def verify():
+                cur = self._win.getProperty(self._index_key)
+                live = set(json.loads(cur)) if cur else set()
+                return not (live & cleared)
+
+            self._with_index_lock(mutate, verify)
         except Exception:
             pass
         return count, total_bytes

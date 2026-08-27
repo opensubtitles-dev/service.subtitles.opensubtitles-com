@@ -8,6 +8,10 @@ Mirrors `changelog.txt` (the copy Kodi ships); regenerate this file whenever tha
 
 ---
 
+## [v1.0.64] - 2026-08-27
+
+- if the cache index lock could ever be lost to pathological contention, the fallback now merges with verification instead of one blind write, so no interleaving can drop an index entry
+
 ## [v1.0.63] - 2026-08-27
 
 - cache index updates are serialized with a token spinlock over window properties, so concurrent invocations can never drop each other's entries; stale locks from crashed invocations are stolen after two seconds
