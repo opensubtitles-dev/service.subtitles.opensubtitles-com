@@ -135,7 +135,7 @@ class OpenSubtitlesProvider:
                 response_json = r.json()
                 self.user_token = response_json["token"]
                 logging("Login successful, token received")
-            except (ValueError, KeyError) as e:
+            except (ValueError, KeyError, TypeError) as e:
                 logging(f"Failed to parse login response JSON: {e!r}")
                 raise ValueError("Invalid JSON returned by provider")
 
@@ -205,7 +205,10 @@ class OpenSubtitlesProvider:
             raise ProviderError(f"Bad status code on feature lookup: {status_code}")
 
         try:
-            data = r.json().get("data") or []
+            body = r.json()
+            # a non-object body (null, list, string) is as malformed as bad JSON
+            data = body.get("data") if isinstance(body, dict) else []
+            data = data or []
         except ValueError:
             raise ProviderError("Invalid JSON returned by provider")
 
@@ -250,6 +253,8 @@ class OpenSubtitlesProvider:
 
         try:
             data = r.json()
+            if not isinstance(data, dict):
+                data = None
         except ValueError:
             logging("Invalid JSON returned by guessit endpoint")
             return None
@@ -349,6 +354,8 @@ class OpenSubtitlesProvider:
 
         try:
             result = r.json()
+            if not isinstance(result, dict):
+                raise ValueError("response body is not an object")
             logging(f"Search successful response JSON keys: {list(result.keys()) if result else None}")
             # "data" must exist AND be a list - {"data": null} is valid JSON
             # and len(None) would raise TypeError past this handler
@@ -459,7 +466,7 @@ class OpenSubtitlesProvider:
         try:
             subtitle = r.json()
             download_link = subtitle["link"]
-        except (ValueError, KeyError):
+        except (ValueError, KeyError, TypeError):
             raise ProviderError("Invalid JSON returned by provider")
         else:
             try:

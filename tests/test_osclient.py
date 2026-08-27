@@ -114,3 +114,21 @@ def test_search_response_with_null_data_raises_provider_error():
             cache.get.return_value = None
             with _pytest.raises(ProviderError):
                 p.search_subtitles({"imdb_id": 123, "languages": "en"})
+
+
+def test_non_object_response_bodies_never_raise_type_errors():
+    # Every .json() consumer must survive a top-level non-object body
+    # (mirror-review finding, internal PR #53).
+    from unittest.mock import patch, MagicMock
+    from resources.lib.osclient.provider import OpenSubtitlesProvider, ProviderError
+    import pytest as _pytest
+    p = OpenSubtitlesProvider(api_key="k", username="u", password="w")
+    for body in (None, [], "x", 3):
+        resp = MagicMock(status_code=200)
+        resp.json.return_value = body
+        resp.raise_for_status.return_value = None
+        with patch.object(p, "cache") as cache, patch.object(p.session, "get", return_value=resp):
+            cache.get.return_value = None
+            assert p.get_feature_info(imdb_id=1) is None          # features degrades
+            with _pytest.raises(ProviderError):
+                p.search_subtitles({"imdb_id": 1, "languages": "en"})  # search -> handled error
