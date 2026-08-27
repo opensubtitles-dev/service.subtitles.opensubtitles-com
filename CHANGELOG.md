@@ -8,6 +8,10 @@ Mirrors `changelog.txt` (the copy Kodi ships); regenerate this file whenever tha
 
 ---
 
+## [v1.0.63] - 2026-08-27
+
+- cache index updates are serialized with a token spinlock over window properties, so concurrent invocations can never drop each other's entries; stale locks from crashed invocations are stolen after two seconds
+
 ## [v1.0.62] - 2026-08-27
 
 - one malformed result entry can no longer make a whole page of look-alikes pass the title gate and skip the no-year and filename retries

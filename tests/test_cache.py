@@ -54,33 +54,6 @@ def test_cache_uses_gzip_compression():
     assert retrieved == large_data
 
 
-def test_add_to_index_recovers_from_concurrent_overwrite():
-    """Window properties have no CAS: a concurrent invocation can clobber the
-    index between our read and write. The verify-retry loop must re-add the
-    key when the first write is lost."""
-    from unittest.mock import patch
-    from resources.lib.cache import Cache
-
-    c = Cache(key_prefix="race_test")
-    real_set = c._win.setProperty
-    state = {"clobbered": False}
-
-    def clobbering_set(prop, value):
-        real_set(prop, value)
-        if prop == c._index_key and not state["clobbered"]:
-            state["clobbered"] = True
-            # concurrent writer's list lands after ours, without our key
-            real_set(prop, '["race_test:other_key"]')
-
-    with patch.object(c._win, "setProperty", side_effect=clobbering_set):
-        c.set("mine", {"v": 1})
-
-    import json as _json
-    idx = _json.loads(c._win.getProperty(c._index_key))
-    assert "race_test:mine" in idx
-    assert "race_test:other_key" in idx, "concurrent writer's key must survive the merge"
-
-
 def test_clear_keeps_entry_written_concurrently():
     """Clear Cache overlapping a write must not orphan the writer's entry:
     the index is reconciled, not blindly cleared."""
@@ -109,3 +82,44 @@ def test_clear_keeps_entry_written_concurrently():
     assert "race2:new" in idx, "concurrently written key must stay indexed"
     assert "race2:old" not in idx
     assert c._win.getProperty("race2:new"), "concurrent entry's property must survive"
+
+
+def test_index_lock_serializes_concurrent_writers():
+    """Token spinlock: two threads adding different keys concurrently must
+    both end up in the index - the exact interleaving the verify-retry
+    approach could not survive."""
+    import threading
+    import json as _json
+    from resources.lib.cache import Cache
+
+    c = Cache(key_prefix="lock_test")
+    errors = []
+
+    def writer(name):
+        try:
+            for i in range(20):
+                c.set(f"{name}_{i}", {"v": i})
+        except Exception as e:
+            errors.append(e)
+
+    threads = [threading.Thread(target=writer, args=(f"w{t}",)) for t in range(3)]
+    for t in threads: t.start()
+    for t in threads: t.join()
+
+    assert not errors
+    idx = set(_json.loads(c._win.getProperty(c._index_key)))
+    expected = {f"lock_test:w{t}_{i}" for t in range(3) for i in range(20)}
+    assert expected <= idx, f"lost {sorted(expected - idx)[:5]}"
+
+
+def test_index_lock_steals_stale_lock():
+    """A crashed invocation's leftover lock must not wedge the cache."""
+    import json as _json
+    from resources.lib.cache import Cache
+
+    c = Cache(key_prefix="stale_lock")
+    c._win.setProperty(c._lock_key, "deadbeef:1.0")  # ancient timestamp
+    c.set("survivor", {"v": 1})
+    idx = _json.loads(c._win.getProperty(c._index_key))
+    assert "stale_lock:survivor" in idx
+    assert not c._win.getProperty(c._lock_key), "lock must be released after steal"
