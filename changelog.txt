@@ -1,3 +1,7 @@
+v1.0.66 (2026-08-27)
+- cache writes publish the value and its index entry in one lock hold, so a Clear Cache overlapping a write can never delete the fresh value while registering a dead index key
+- every numeric request-model setter coerces and validates uniformly; parent_feature_id had an inverted comparison rejecting all valid ids
+
 v1.0.65 (2026-08-27)
 - Clear Cache performs its snapshot, property deletion and index rewrite in one lock hold, so a key re-cached mid-clear can never survive untracked
 - repaired three broken request-model setters: id rejected every positive value, languages compared instances to class objects, moviehash called a nonexistent method; languages keeps user preference order (never sorted)
