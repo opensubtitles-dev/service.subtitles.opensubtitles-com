@@ -513,7 +513,8 @@ class SubtitleDownloader:
                 parent_imdb = int(parent_imdb) if parent_imdb else None
             except (TypeError, ValueError):
                 parent_imdb = None
-            if parent_imdb and season and episode:
+            # season 0 = specials, a real value - only None/empty mean unknown
+            if parent_imdb and season not in (None, "") and episode not in (None, ""):
                 log(__name__, f"/features: {ambiguous} is episode S{season}E{episode} of "
                               f"imdb {parent_imdb}")
                 return {"parent_imdb_id": parent_imdb, "parent_tmdb_id": None,
