@@ -8,6 +8,11 @@ Mirrors `changelog.txt` (the copy Kodi ships); regenerate this file whenever tha
 
 ---
 
+## [v1.0.68] - 2026-08-27
+
+- Machine Translated and AI Translated settings no longer offer "only" - the API accepts include/exclude for these; a stored "only" maps to include instead of breaking every search
+- guessit logging carries a parsed summary and exception class only - the full payload and urllib errors echo the playback-derived filename and request URL
+
 ## [v1.0.67] - 2026-08-27
 
 - the download request coerces file_id from the invocation query string to an integer, matching every other numeric field

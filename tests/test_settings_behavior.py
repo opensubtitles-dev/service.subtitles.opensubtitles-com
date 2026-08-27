@@ -241,3 +241,38 @@ def test_get_language_data_missing_languages_param():
     lang_data = get_language_data({})
     assert isinstance(lang_data, dict)
     assert "languages" in lang_data
+
+
+def test_translation_filters_never_send_only():
+    """The API accepts include/exclude for machine_translated/ai_translated;
+    a stored 'only' from the old UI must map to include, not break requests."""
+    addon = xbmcaddon.Addon()
+    addon.setSetting("machine_translated", "only")
+    addon.setSetting("ai_translated", "only")
+    lang_data = get_language_data({"languages": "English"})
+    assert lang_data["machine_translated"] == "include"
+    assert lang_data["ai_translated"] == "include"
+
+
+def test_settings_xml_offers_no_only_for_translation_filters():
+    import os, re
+    repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    xml = open(os.path.join(repo, "resources", "settings.xml"), encoding="utf-8").read()
+    for setting_id in ("machine_translated", "ai_translated"):
+        block = xml.split(f'<setting id="{setting_id}"')[1].split("</setting>")[0]
+        assert ">only<" not in block, f"{setting_id} must not offer 'only'"
+
+
+def test_guessit_failure_log_hides_url(monkeypatch):
+    import xbmc
+    from unittest.mock import patch
+    from resources.lib import data_collector
+
+    logged = []
+    import urllib.request
+    with patch.object(urllib.request, "urlopen",
+                      side_effect=Exception("HTTP Error at https://api.opensubtitles.com/utilities/guessit?filename=SECRET-NAME.mkv")), \
+         patch.object(xbmc, "log", side_effect=lambda msg, level=0: logged.append(str(msg))):
+        result = data_collector._call_guessit_api("SECRET-NAME.mkv")
+    assert result is None
+    assert "SECRET-NAME" not in "".join(l for l in logged if "Failed to call" in l)
