@@ -8,6 +8,11 @@ Mirrors `changelog.txt` (the copy Kodi ships); regenerate this file whenever tha
 
 ---
 
+## [v1.0.59] - 2026-08-27
+
+- a release year that disagrees with the film's year no longer hides it: the title search is retried without the year, which is the single most common reason a correctly named file finds nothing
+- results matching none of the titles we searched for no longer end the search - the remaining attempts still run, and the look-alikes are shown only when nothing better is found
+
 ## [v1.0.58] - 2026-08-27
 
 - a specials episode (season 0) resolved through the features lookup keeps its show id and season/episode coordinates instead of degrading to an id-only search

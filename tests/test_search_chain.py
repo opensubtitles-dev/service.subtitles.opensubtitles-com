@@ -170,6 +170,125 @@ def test_fallback_attempt_clears_unnamed_id_fields():
     assert retry["season_number"] == "3", "non-id context stays inherited"
 
 
+# ---------------------------------------------------------------------------
+# A release year is not the feature year, and a title search that misses does
+# not come back empty. Both observed together on "Freaky Tales": a 2024 film in
+# a file named (2025), searched as query+year, returning 30 subtitles for
+# "7 immoral Tales", "A Tooth Fairy Tale", "Dracula: A Love Tale"...
+# ---------------------------------------------------------------------------
+
+MOVIE_FILE = ("/Users/juju/Downloads/Freaky Tales (2025) (1080p BluRay x265 10bit EAC3 7.1 r00t)/"
+              "Freaky Tales (2025) (1080p BluRay x265 10bit r00t).mkv")
+
+GUESSIT_MOVIE = {"type": "movie", "title": "Freaky Tales", "year": 2025}
+
+
+def _movie_plan(playing_file=MOVIE_FILE, guessit=GUESSIT_MOVIE):
+    """A loose file with no library entry: title + year from the filename, no ids."""
+    with patch("xbmc.getInfoLabel", return_value=""), \
+         patch("xbmc.executeJSONRPC", return_value='{"jsonrpc":"2.0","id":"1","result":{}}'), \
+         patch("resources.lib.data_collector._call_guessit_api", return_value=guessit), \
+         patch("resources.lib.data_collector.get_file_path", return_value=playing_file):
+        item = get_media_data()
+    return item, item.get("search_fallbacks") or []
+
+
+def test_title_search_constrained_by_a_year_gets_a_no_year_retry():
+    """The year is the one parameter most likely to be wrong, and it is ANDed.
+
+    A BluRay of a 2024 film is routinely labelled 2025. Sending that year does not merely
+    fail to help - it excludes the single correct feature, leaving only look-alikes.
+    """
+    item, fallbacks = _movie_plan()
+    assert item.get("query") == "Freaky Tales"
+    assert item.get("year") == "2025"
+    assert any(f.get("query") == "Freaky Tales" and not f.get("year") for f in fallbacks), (
+        "no no-year retry: a release year that disagrees with the feature year permanently "
+        "hides the correct film, and the fuzzy title match fills the list with wrong ones."
+    )
+
+
+def test_no_year_retry_comes_before_the_raw_filename_attempt():
+    _, fallbacks = _movie_plan()
+    queries = [str(f.get("query") or "") for f in fallbacks]
+    no_year = next(i for i, f in enumerate(fallbacks)
+                   if f.get("query") == "Freaky Tales" and not f.get("year"))
+    filename = next(i for i, q in enumerate(queries) if "1080p" in q)
+    assert no_year < filename, f"cheap, precise attempts must come first: {queries}"
+
+
+def _sub(title, release=None):
+    return {"attributes": {"feature_details": {"title": title, "movie_name": title},
+                           "release": release if release is not None else title}}
+
+
+def _drive(media, responses):
+    """Run search() with canned results per attempt. Returns (downloader, queries sent)."""
+    from unittest.mock import MagicMock
+    from resources.lib.subtitle_downloader import SubtitleDownloader
+
+    with patch("sys.argv", ["plugin://service.subtitles.opensubtitles-com/", "1",
+                            "?action=search&languages=English"]):
+        sd = SubtitleDownloader.__new__(SubtitleDownloader)
+    sd.params = {"action": "search", "languages": "English"}
+    sd.sub_format = "srt"
+    sd.subtitles = {}
+    sd.open_subtitles = MagicMock()
+    sent = []
+
+    def fake_search(q):
+        sent.append(dict(q))
+        idx = len(sent) - 1
+        return (responses[idx] if idx < len(responses) else None), True
+
+    with patch("resources.lib.subtitle_downloader.get_file_path", return_value="/m/x.mkv"), \
+         patch("resources.lib.subtitle_downloader.get_file_data",
+               return_value={"filename": "x.mkv", "basename": "x.mkv"}), \
+         patch("resources.lib.subtitle_downloader.get_media_data", return_value=media), \
+         patch("resources.lib.subtitle_downloader.get_language_data",
+               return_value={"languages": "en"}), \
+         patch("resources.lib.subtitle_downloader._call_guessit_api", return_value=None), \
+         patch.object(sd, "_search_subtitles", side_effect=fake_search), \
+         patch.object(sd, "list_subtitles"):
+        sd.search()
+    return sd, sent
+
+
+JUNK = [_sub("7 immoral Tales"), _sub("A Tooth Fairy Tale"), _sub("Dracula")]
+GOOD = [_sub("Freaky Tales")]
+
+
+def test_results_for_a_different_film_do_not_end_the_search():
+    """'Non-empty' is not 'found it' - the whole point of this fix."""
+    media = {"query": "Freaky Tales", "year": "2025",
+             "search_fallbacks": [{"query": "Freaky Tales", "year": None}]}
+    sd, sent = _drive(media, [JUNK, GOOD])
+    assert len(sent) == 2, (
+        "the chain stopped on a result set in which no title matched 'Freaky Tales'; "
+        "the remaining attempts never ran"
+    )
+    assert sd.subtitles == GOOD
+
+
+def test_unmatched_results_are_still_shown_when_nothing_better_is_found():
+    """The gate may only add attempts, never leave the user with less than before."""
+    media = {"query": "Freaky Tales", "year": "2025",
+             "search_fallbacks": [{"query": "Freaky Tales", "year": None}]}
+    sd, sent = _drive(media, [JUNK, None])
+    assert sd.subtitles == JUNK, "held-back results must be restored when no attempt matches"
+
+
+def test_id_search_results_are_never_title_gated():
+    """An id search is authoritative: OS.com may file the feature under a localised or
+    alternate title that shares no word with the filename."""
+    odd = [_sub("Une histoire bizarre")]
+    media = {"query": "", "imdb_id": 21942598,
+             "search_fallbacks": [{"query": "Freaky Tales", "year": None}]}
+    sd, sent = _drive(media, [odd, None])
+    assert len(sent) == 1, "an id search must not be second-guessed on its title"
+    assert sd.subtitles == odd
+
+
 def test_resolve_ambiguous_id_accepts_season_zero():
     """/features resolving a specials episode (season 0) must keep the parent
     id + season/episode coordinates, not degrade to an id-only search."""
