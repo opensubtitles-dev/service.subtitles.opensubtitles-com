@@ -1,5 +1,6 @@
 
 import os
+import re
 import shutil
 import sys
 import time
@@ -229,7 +230,18 @@ class SubtitleDownloader:
             if resolved:
                 self.query.update(resolved)
 
+        # A title search that misses does not come back empty - see _results_match_title.
+        # Hold such results aside instead of accepting them, so the remaining attempts still
+        # run; if none does better they are restored below. This can only add attempts, never
+        # show the user less than before.
+        expected_title = str(self.query.get("query") or "")
+        held_back = None
+
         self.subtitles, searched_ok = self._search_subtitles(self.query)
+        if self.subtitles and not self._results_match_title(self.subtitles, expected_title):
+            log(__name__, f"{len(self.subtitles)} results, none matching '{expected_title}' - "
+                          f"holding them and trying the remaining attempts")
+            held_back, self.subtitles = self.subtitles, None
 
         for attempt in fallbacks:
             if self.subtitles or not searched_ok:
@@ -245,6 +257,18 @@ class SubtitleDownloader:
                     retry[id_field] = None
             log(__name__, f"No results, retrying with: {({k: v for k, v in attempt.items() if v})}")
             self.subtitles, searched_ok = self._search_subtitles(retry)
+            if self.subtitles and not self._results_match_title(self.subtitles, expected_title):
+                log(__name__, f"{len(self.subtitles)} results, still none matching "
+                              f"'{expected_title}' - holding them and continuing")
+                if held_back is None:
+                    held_back = self.subtitles
+                self.subtitles = None
+
+        if not self.subtitles and held_back:
+            # Nothing matched the title anywhere. The look-alikes are all we have, and one of
+            # them may still be right if our parsed title is the thing that is wrong.
+            log(__name__, "No attempt matched the title; showing the closest results found")
+            self.subtitles = held_back
 
         if self.subtitles and len(self.subtitles):
             log(__name__, len(self.subtitles))
@@ -252,6 +276,43 @@ class SubtitleDownloader:
         else:
             # TODO retry using guessit???
             log(__name__, "No subtitle found")
+
+    @staticmethod
+    def _title_tokens(text):
+        return set(re.findall(r"[a-z0-9]+", str(text or "").lower()))
+
+    def _results_match_title(self, results, expected_title):
+        """Does any result plausibly belong to the feature we think we are playing?
+
+        OS.com's `query` is a fuzzy token match, so a title search that misses does not
+        return nothing - it returns everything sharing a word. Searching "Freaky Tales"
+        (a 2024 film) with the release year 2025 excluded the real feature and produced 30
+        subtitles for "7 immoral Tales", "A Tooth Fairy Tale", "Dracula: A Love Tale".
+        Treating "non-empty" as "found it" stopped the fallback chain dead and showed the
+        user a page of wrong films.
+
+        Deliberately permissive - it decides only whether to *keep trying*, and a caller
+        that runs out of attempts falls back to these results anyway:
+
+          * no expected title (an id search) -> always True. An id is authoritative and
+            OS.com may file the feature under a localised or alternate title.
+          * an unexpected result shape -> True. Not our place to discard results here.
+        """
+        wanted = self._title_tokens(expected_title)
+        if not wanted or not results:
+            return True
+        for entry in results:
+            try:
+                attributes = entry.get("attributes") or {}
+                details = attributes.get("feature_details") or {}
+                candidates = (details.get("title"), details.get("movie_name"),
+                              attributes.get("release"))
+            except AttributeError:
+                return True
+            for candidate in candidates:
+                if wanted <= self._title_tokens(candidate):
+                    return True
+        return False
 
     def _resolve_ambiguous_id(self, ambiguous):
         """Turn a player-supplied id of unknown role into a definite set of search params.

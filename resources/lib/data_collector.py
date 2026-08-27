@@ -886,6 +886,34 @@ def get_media_data():
         # `episode_ids`, which is not bound on this path - it was unreachable dead code that
         # would have raised NameError if it ever ran. The real logic is in the TV branch.
 
+    # ---------- Tier 3.5: the same title, without the year ----------
+    # `year` is ANDed like every other parameter, and a release year is not the feature
+    # year: festival-to-release gaps and BluRay re-labelling shift it by one routinely.
+    # "Freaky Tales" is a 2024 film shipped in a file named (2025) - sending 2025 did not
+    # merely fail to narrow the search, it excluded the only correct feature, and because
+    # `query` is a fuzzy token match the API then returned 30 subtitles for everything else
+    # sharing a word: "7 immoral Tales", "A Tooth Fairy Tale", "Dracula: A Love Tale".
+    # Dropping the year puts the right film first. One extra request, and only when the
+    # year-constrained attempt found nothing usable.
+    try:
+        if item.get("query") and item.get("year"):
+            source = item
+        else:
+            # An id-first plan keeps its title search in the fallbacks; relax that one.
+            source = next((f for f in (item.get("search_fallbacks") or [])
+                           if f.get("query") and f.get("year")), None)
+        if source is not None:
+            item.setdefault("search_fallbacks", []).append(
+                {"query": source.get("query"), "year": None,
+                 "season_number": source.get("season_number"),
+                 "episode_number": source.get("episode_number"),
+                 "imdb_id": None, "tmdb_id": None,
+                 "parent_imdb_id": None, "parent_tmdb_id": None})
+            log(__name__, f"Added no-year retry for '{source.get('query')}' "
+                          f"(release year {source.get('year')} may not be the feature year)")
+    except Exception as e:
+        log(__name__, f"Could not build the no-year fallback: {e}")
+
     # ---------- Tier 4: the raw release filename, as a last resort ----------
     # Everything above searches by id or by a cleaned-up title. When all of those miss - a
     # mis-scraped library, an unusual release, a feature OS.com files under something else -
