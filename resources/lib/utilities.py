@@ -31,19 +31,21 @@ def get_user_agent():
 
 
 def _fully_unquote(s):
-    """Percent-decode until nothing changes (bounded).
+    """Percent-decode until nothing changes, or None to FAIL CLOSED.
 
     One unquote pass leaves an n-times-encoded delimiter ('%253F' ->
     '%3F') still hidden; decoding to fixpoint surfaces every layer so the
-    strip that follows sees a literal '?'/'#'.
+    strip that follows sees a literal '?'/'#'. A value still changing
+    after 20 layers is adversarial by construction - return None so the
+    caller drops the value entirely instead of passing residue through.
     """
     from urllib.parse import unquote
-    for _ in range(5):
+    for _ in range(20):
         decoded = unquote(s)
         if decoded == s:
-            break
+            return s
         s = decoded
-    return s
+    return None
 
 
 def redact_path(path):
@@ -65,6 +67,9 @@ def redact_path(path):
         # '%253F...') hides INSIDE the path component - decode to fixpoint
         # so every encoding layer surfaces, then strip
         clean_path = _fully_unquote(parts.path)
+        if clean_path is None:
+            # never emit residue we could not fully decode
+            return f"{parts.scheme}://{host}/[path redacted]"
         encoded_smuggle = "?" in clean_path or "#" in clean_path
         clean_path = clean_path.split("?", 1)[0].split("#", 1)[0]
         redacted = f"{parts.scheme}://{host}{clean_path}"
@@ -88,6 +93,9 @@ def safe_media_filename(path):
         if "://" in s:
             from urllib.parse import urlsplit
             s = _fully_unquote(urlsplit(s).path)
+            if s is None:
+                # never let undecodable residue reach a search query
+                return ""
             s = s.split("?", 1)[0].split("#", 1)[0]
         return os.path.basename(s)
     except Exception:

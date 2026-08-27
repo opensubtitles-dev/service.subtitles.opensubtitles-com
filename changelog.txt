@@ -1,3 +1,6 @@
+v1.0.74 (2026-08-28)
+- redaction fails closed: a path still percent-decoding after twenty layers is dropped entirely (redacted placeholder in logs, empty filename for searches) instead of passing residue through
+
 v1.0.73 (2026-08-27)
 - both redaction helpers decode percent-encoding to fixpoint before stripping, so double- or deeper-encoded tokens surface and are removed - no encoding depth can smuggle a credential into the log or a search query
 
