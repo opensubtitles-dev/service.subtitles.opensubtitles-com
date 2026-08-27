@@ -264,3 +264,11 @@ def test_test_flag_interceptor_injection_and_badges():
         
         # Verify items were generated and directory ended
         xbmcplugin.endOfDirectory.assert_called()
+
+
+def test_get_language_data_missing_languages_param():
+    """A search invocation with no languages parameter must not raise -
+    unquote(None) was a TypeError that aborted the whole search."""
+    lang_data = get_language_data({})
+    assert isinstance(lang_data, dict)
+    assert "languages" in lang_data

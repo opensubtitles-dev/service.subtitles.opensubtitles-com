@@ -948,7 +948,9 @@ def get_language_data(params):
             "languages": override,
         }
 
-    search_languages = unquote(params.get("languages")).split(",")
+    # Kodi may invoke a search with no languages parameter at all -
+    # unquote(None) would raise TypeError and abort the whole search.
+    search_languages = unquote(params.get("languages") or "").split(",")
     search_languages_str = ""
     preferred_language = params.get("preferredlanguage")
 
