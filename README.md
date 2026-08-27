@@ -72,11 +72,11 @@
 
 ## 📚 Developer & Contributor Documentation
 
-- 🛠️ [Developer Workflow & Fast Testing Guide](docs/DEV_WORKFLOW.md)
-- 📋 [Kodi Standards & Repo Submission Rules](docs/KODI_STANDARDS.md)
-- 🤖 [AI Agent Architecture & Guidelines](docs/AGENT_INSTRUCTIONS.md)
-- 🗺️ [Project Roadmap & Feature Backlog](docs/TODO.md)
-- 📜 [Full Release Changelog](CHANGELOG.md)
+- 🛠️ [Developer Workflow & Fast Testing Guide](https://github.com/opensubtitles/service.subtitles.opensubtitles-com/blob/master/docs/DEV_WORKFLOW.md)
+- 📋 [Kodi Standards & Repo Submission Rules](https://github.com/opensubtitles/service.subtitles.opensubtitles-com/blob/master/docs/KODI_STANDARDS.md)
+- 🤖 [AI Agent Architecture & Guidelines](https://github.com/opensubtitles/service.subtitles.opensubtitles-com/blob/master/docs/AGENT_INSTRUCTIONS.md)
+- 🗺️ [Project Roadmap & Feature Backlog](https://github.com/opensubtitles/service.subtitles.opensubtitles-com/blob/master/docs/TODO.md)
+- 📜 [Full Release Changelog](https://github.com/opensubtitles/service.subtitles.opensubtitles-com/blob/master/CHANGELOG.md)
 
 ---
 
@@ -109,7 +109,7 @@ effectively a new add-on:
 - **Verified on real Kodi 19–22** (Matrix through Piers beta) via an automated headless-Kodi test harness; shipped code held to the true Matrix floor of Python 3.6.
 - New icon matching Kodi's dark skins.
 
-See the [full changelog](CHANGELOG.md) for the complete release-by-release history.
+See the [full changelog](https://github.com/opensubtitles/service.subtitles.opensubtitles-com/blob/master/CHANGELOG.md) for the complete release-by-release history.
 
 ---
 
