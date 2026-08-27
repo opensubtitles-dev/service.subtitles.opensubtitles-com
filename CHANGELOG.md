@@ -8,6 +8,11 @@ Mirrors `changelog.txt` (the copy Kodi ships); regenerate this file whenever tha
 
 ---
 
+## [v1.0.60] - 2026-08-27
+
+- fast-track walkthrough (dialog and README) now tells users to disable Unknown sources again after the one-time zip install
+- when the install origin cannot be read and the update does not confirm, the dialog explains repository pinning instead of claiming the update is still installing
+
 ## [v1.0.59] - 2026-08-27
 
 - hash-failure log lines carry only the exception class - vfs error messages embed the raw playback path, tokens included

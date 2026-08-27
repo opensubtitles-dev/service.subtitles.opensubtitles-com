@@ -48,6 +48,7 @@
 8. Select **`repository.opensubtitles-com.zip`** and wait for the installation notification.
 9. Go to **Install from repository ➔ OpenSubtitles.com Official Repository ➔ Subtitles ➔ OpenSubtitles.com**.
 10. Click **Install**.
+11. You can now disable **Unknown sources** again (step 1) — it is only needed for the one-time zip install; repository updates work without it.
 
 ---
 
@@ -82,7 +83,7 @@
 
 ## 🆕 What's New — everything since the official Kodi repo version (v1.0.9)
 
-The official Kodi repository still ships **v1.0.9**. The current release is **v1.0.59** —
+The official Kodi repository still ships **v1.0.9**. The current release is **v1.0.60** —
 forty releases of work. If you are coming from the Kodi repo version, this is
 effectively a new add-on:
 

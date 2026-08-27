@@ -247,3 +247,22 @@ def test_manifest_with_doctype_or_entity_is_rejected():
     assert extract_remote_version(bomb) is None
     clean = '<addon id="service.subtitles.opensubtitles-com" version="1.0.40"/>'
     assert extract_remote_version(clean) == "1.0.40"
+
+
+def test_instructions_include_unknown_sources_restore_step():
+    """The walkthrough must tell users to disable Unknown sources again after
+    the one-time zip install - leaving it on permits untrusted installs."""
+    import inspect
+    import check_updates
+    src = inspect.getsource(check_updates.show_fast_track_instructions)
+    assert "Disable Unknown sources again" in src
+
+
+def test_unknown_origin_timeout_message_mentions_pinning():
+    """When install origin could not be read, the timeout message must not
+    claim the update is still installing - the install may be repository-pinned
+    elsewhere and would never update."""
+    import inspect
+    import check_updates
+    src = inspect.getsource(check_updates.check_updates)
+    assert "from a different repository" in src

@@ -189,7 +189,9 @@ def show_fast_track_instructions(dialog, repo_state):
         "2. Settings > File manager > Add source: https://kodi.opensubtitles.com\n"
         "3. Add-ons > Install from zip file > that source > repository.opensubtitles-com.zip\n"
         "4. Install from repository > OpenSubtitles.com Official Repository > "
-        "Subtitles > OpenSubtitles.com > Install\n\n"
+        "Subtitles > OpenSubtitles.com > Install\n"
+        "5. Disable Unknown sources again (step 1) - it is only needed for the "
+        "one-time zip install, repository updates work without it\n\n"
         "Full instructions with screenshots: https://kodi.opensubtitles.com")
 
 
@@ -276,6 +278,15 @@ def check_updates():
                 # when no info dialog is open.
                 xbmc.executebuiltin("Dialog.Close(addoninformation)")
                 xbmc.executebuiltin("Container.Refresh")
+            elif origin == "unknown":
+                # We could not read the install origin, so this install may be
+                # pinned to a different repository and Kodi would never apply
+                # the update - do not claim it is still installing.
+                dialog.ok(__addon_name__,
+                          "Could not confirm the update. If this add-on was installed "
+                          "from a different repository, Kodi only updates it from there - "
+                          "reinstall it from the OpenSubtitles.com repository to switch.\n"
+                          "Otherwise it may still be installing in the background.")
             else:
                 # Timeout or cancel - the install may still land, or auto-update
                 # may be disabled in Kodi. Say so instead of going silent.
