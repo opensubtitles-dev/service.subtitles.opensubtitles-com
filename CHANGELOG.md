@@ -8,6 +8,12 @@ Mirrors `changelog.txt` (the copy Kodi ships); regenerate this file whenever tha
 
 ---
 
+## [v1.0.59] - 2026-08-27
+
+- hash-failure log lines carry only the exception class - vfs error messages embed the raw playback path, tokens included
+- a features-resolved episode with a nonnumeric season or episode falls back to the id-alone search instead of silently widening to the whole show
+- specials detection matches only bare "sN" episode labels - compound labels like S01E05 no longer get their season zeroed and episode truncated
+
 ## [v1.0.58] - 2026-08-27
 
 - a specials episode (season 0) resolved through the features lookup keeps its show id and season/episode coordinates instead of degrading to an id-only search

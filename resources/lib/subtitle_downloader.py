@@ -283,8 +283,16 @@ class SubtitleDownloader:
                 parent_imdb = int(parent_imdb) if parent_imdb else None
             except (TypeError, ValueError):
                 parent_imdb = None
-            # season 0 = specials, a real value - only None/empty mean unknown
-            if parent_imdb and season not in (None, "") and episode not in (None, ""):
+            # season 0 = specials, a real value - but both coordinates must be
+            # cleanly numeric: a malformed one would be dropped by the request
+            # model later while the parent id stayed, silently widening the
+            # search to the whole show
+            def _coord(value):
+                s = str(value).strip() if value is not None else ""
+                return s if s.isdigit() else None
+            season = _coord(season)
+            episode = _coord(episode)
+            if parent_imdb and season is not None and episode is not None:
                 log(__name__, f"/features: {ambiguous} is episode S{season}E{episode} of "
                               f"imdb {parent_imdb}")
                 return {"parent_imdb_id": parent_imdb, "parent_tmdb_id": None,

@@ -801,10 +801,15 @@ def get_media_data():
 
     item["query"] = fallback_title
 
-    # Specials handling
-    if isinstance(item.get("episode_number"), str) and item["episode_number"] and item["episode_number"].lower().find("s") > -1:
-        item["season_number"] = "0"
-        item["episode_number"] = item["episode_number"][-1:]
+    # Specials handling: only a bare "sN" label means special episode N.
+    # A substring test matched any label containing 's' - including compound
+    # ones like "S01E05" - zeroing the season and keeping just the last digit.
+    if isinstance(item.get("episode_number"), str):
+        import re as _re
+        special = _re.fullmatch(r"[sS](\d+)", item["episode_number"].strip())
+        if special:
+            item["season_number"] = "0"
+            item["episode_number"] = special.group(1)
 
     # ---------- Search plan for TV episodes & Movies ----------
     # When unique IDs (IMDb/TMDb) are available, sending 'query' or 'year' introduces

@@ -64,3 +64,28 @@ def test_preferred_language_is_converted_not_seeded_raw():
     assert "Slovak" not in data["languages"], "raw language name leaked again"
     parts = data["languages"].split(",")
     assert "sl" in parts and "sk" in parts
+
+
+def test_specials_detection_only_matches_bare_s_labels():
+    """'S01E05'-style compound labels must pass through untouched; only a bare
+    'sN' label marks a special (season 0)."""
+    from unittest.mock import patch
+    import xbmc
+    from resources.lib import data_collector
+
+    def run(label):
+        labels = {"VideoPlayer.Year": "", "VideoPlayer.Season": "2",
+                  "VideoPlayer.Episode": label, "VideoPlayer.TVshowtitle": "Show",
+                  "VideoPlayer.OriginalTitle": "", "VideoPlayer.TvShowDBID": "",
+                  "VideoPlayer.Title": "Show"}
+        with patch.object(xbmc, "getInfoLabel", side_effect=lambda k: labels.get(k, "")), \
+             patch.object(data_collector, "get_file_path", return_value="/tv/x.mkv"), \
+             patch.object(data_collector, "_jsonrpc", return_value=None):
+            return data_collector.get_media_data()
+
+    special = run("s3")
+    assert special["season_number"] == "0" and special["episode_number"] == "3"
+
+    compound = run("S01E05")
+    assert compound["season_number"] != "0"
+    assert compound["episode_number"] == "S01E05"
