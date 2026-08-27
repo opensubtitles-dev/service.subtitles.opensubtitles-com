@@ -8,6 +8,11 @@ Mirrors `changelog.txt` (the copy Kodi ships); regenerate this file whenever tha
 
 ---
 
+## [v1.0.69] - 2026-08-27
+
+- a download invocation with a missing or nonnumeric file id raises a controlled provider error with a user-facing dialog instead of an uncaught KeyError
+- a malformed videoinfo.current_size property from a playback integration degrades to hashless search instead of aborting it
+
 ## [v1.0.68] - 2026-08-27
 
 - Machine Translated and AI Translated settings no longer offer "only" - the API accepts include/exclude for these; a stored "only" maps to include instead of breaking every search

@@ -433,6 +433,11 @@ class OpenSubtitlesProvider:
 
         params = query_to_params(query, "OpenSubtitlesDownloadRequest")
 
+        # a missing or nonnumeric id is dropped by the request model - raise a
+        # controlled provider error instead of a KeyError out of the handler
+        if "file_id" not in params:
+            raise ProviderError("Download request carries no valid file_id")
+
         logging(f"Downloading subtitle {params['file_id']!r} ")
 
         # build download request

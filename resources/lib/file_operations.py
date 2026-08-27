@@ -26,7 +26,12 @@ def get_file_data(file_original_path):
             item["basename"] = safe_media_filename(orig_path)
             item["file_original_path"] = orig_path
         if orig_size:
-            item["file_size"] = int(orig_size)
+            # property values come from whatever add-on populated them - a
+            # malformed size degrades to hashless search, never aborts it
+            try:
+                item["file_size"] = int(orig_size)
+            except (TypeError, ValueError):
+                log(__name__, "Ignoring malformed videoinfo.current_size property")
         if orig_oshash:
             item["moviehash"] = orig_oshash
 
