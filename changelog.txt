@@ -1,3 +1,6 @@
+v1.0.54 (2026-08-27)
+- cache index writes verify-and-retry, so overlapping invocations can no longer drop each other's entries from Clear Cache and statistics
+
 v1.0.53 (2026-08-27)
 - search query mappings are redacted before logging, so playback URLs carrying access tokens never reach the debug log
 
