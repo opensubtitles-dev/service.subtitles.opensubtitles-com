@@ -162,7 +162,10 @@ class OpenSubtitlesProvider:
                 raise ProviderError(f"HTTP Error {status_code} fetching user info.")
 
         try:
-            return r.json()["data"]
+            data = r.json()["data"]
+            if not isinstance(data, dict):
+                raise KeyError("data is not an object")
+            return data
         except (ValueError, KeyError):
             raise ProviderError("Invalid JSON returned by provider")
 
@@ -347,8 +350,10 @@ class OpenSubtitlesProvider:
         try:
             result = r.json()
             logging(f"Search successful response JSON keys: {list(result.keys()) if result else None}")
-            if "data" not in result:
-                raise ValueError
+            # "data" must exist AND be a list - {"data": null} is valid JSON
+            # and len(None) would raise TypeError past this handler
+            if not isinstance(result.get("data"), list):
+                raise ValueError("data missing or not a list")
         except ValueError as e:
             logging(f"Failed to parse search response JSON: {e}")
             raise ProviderError("Invalid JSON returned by provider")
