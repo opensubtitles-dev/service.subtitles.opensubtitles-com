@@ -8,6 +8,13 @@ Mirrors `changelog.txt` (the copy Kodi ships); regenerate this file whenever tha
 
 ---
 
+## [v1.0.56] - 2026-08-27
+
+- season, episode, year and id fields are coerced to integers at the request model, so InfoLabel strings can never hit integer comparisons or go out mistyped on the wire
+- fixed inverted season validation that rejected every positive season if the setter was used; season 0 (specials) accepted
+- Clear Cache temp deletion honors the same 1-hour safety window as the downloader cleanup, so a subtitle Kodi has not consumed yet is never removed
+- fixed unquoted msgstr in the Chinese (zh_CN) catalog that made Kodi fall back to English; test now validates every shipped catalog
+
 ## [v1.0.55] - 2026-08-27
 
 - Clear Cache reconciles the index instead of wiping it, so an entry written by a concurrent invocation mid-clear stays tracked for statistics and future clears

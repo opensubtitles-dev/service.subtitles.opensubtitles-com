@@ -15,6 +15,12 @@ __addon_name__ = __addon__.getAddonInfo("name")
 __language__ = __addon__.getLocalizedString
 
 
+# Temp files younger than this are considered possibly in use by an
+# overlapping invocation. Shared by the downloader's temp cleanup and the
+# Clear Cache script so the two can never disagree on what "active" means.
+TEMP_MAX_AGE_SECONDS = 3600
+
+
 def get_user_agent():
     """The ONE User-Agent for every outbound request (API, guessit, GitHub).
 
