@@ -8,6 +8,10 @@ Mirrors `changelog.txt` (the copy Kodi ships); regenerate this file whenever tha
 
 ---
 
+## [v1.0.45] - 2026-08-27
+
+- metadata-enrichment steps tolerate every malformed data shape (TypeError/AttributeError join the caught families) - enrichment is optional and can never abort a search
+
 ## [v1.0.44] - 2026-08-26
 
 - a scraper episode-guide entry decoding to non-object JSON can no longer abort the search (same degrade-not-abort rule as all other parsing)
