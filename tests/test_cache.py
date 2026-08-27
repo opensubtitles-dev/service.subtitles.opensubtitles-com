@@ -123,3 +123,32 @@ def test_index_lock_steals_stale_lock():
     idx = _json.loads(c._win.getProperty(c._index_key))
     assert "stale_lock:survivor" in idx
     assert not c._win.getProperty(c._lock_key), "lock must be released after steal"
+
+
+def test_lock_fallback_merges_with_verification():
+    """Even when the lock can never be acquired (permanent contention), the
+    fallback must merge-and-verify, not blind-write once."""
+    import json as _json
+    from unittest.mock import patch
+    from resources.lib import cache as cache_mod
+    from resources.lib.cache import Cache
+
+    c = Cache(key_prefix="livelock")
+    # permanently held, never stale
+    with patch.object(cache_mod, "_LOCK_STALE_SECONDS", 10**6):
+        c._win.setProperty(c._lock_key, f"foreign:{__import__('time').time()}")
+        real_set = c._win.setProperty
+        state = {"clobbered": False}
+
+        def clobbering_set(prop, value):
+            real_set(prop, value)
+            if prop == c._index_key and not state["clobbered"]:
+                state["clobbered"] = True
+                real_set(prop, '["livelock:other"]')  # concurrent overwrite
+
+        with patch.object(cache_mod, "time", side_effect=__import__('time').time), \
+             patch.object(c._win, "setProperty", side_effect=clobbering_set):
+            c._add_to_index("livelock:mine")
+
+    idx = set(_json.loads(c._win.getProperty(c._index_key)))
+    assert "livelock:mine" in idx, "verified merge must survive the clobber"
