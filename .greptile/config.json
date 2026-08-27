@@ -1,0 +1,4 @@
+{
+  "strictness": 1,
+  "commentTypes": ["logic", "syntax", "style"]
+}
