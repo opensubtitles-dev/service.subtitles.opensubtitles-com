@@ -1,5 +1,6 @@
 
 from resources.lib.osclient.model.request.abstract import OpenSubtitlesRequest
+from resources.lib.osclient.model.request.subtitles import _to_int
 
 SUB_FORMAT_LIST = ["srt", "sub", "mpl", "webvtt", "dfxp", "txt"]
 
@@ -7,7 +8,9 @@ SUB_FORMAT_LIST = ["srt", "sub", "mpl", "webvtt", "dfxp", "txt"]
 class OpenSubtitlesDownloadRequest(OpenSubtitlesRequest):
     def __init__(self, file_id: int, sub_format="", file_name="", in_fps: float = None, out_fps: float = None,
                  timeshift: float = None, force_download: bool = None, **catch_overflow):
-        self._file_id = file_id
+        # file_id arrives from the invocation query string as a string -
+        # coerce like every other numeric field so it goes out as an int
+        self._file_id = _to_int(file_id)
         self._sub_format = sub_format
         self._file_name = file_name
         self._in_fps = in_fps
@@ -27,7 +30,8 @@ class OpenSubtitlesDownloadRequest(OpenSubtitlesRequest):
 
     @file_id.setter
     def file_id(self, value):
-        if value <= 0:
+        value = _to_int(value)
+        if value is not None and value <= 0:
             raise ValueError("file_id should be positive integer.")
         self._file_id = value
 

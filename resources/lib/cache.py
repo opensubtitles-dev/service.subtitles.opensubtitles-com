@@ -55,7 +55,11 @@ class Cache(object):
                     try:
                         mutate()
                     finally:
-                        self._win.clearProperty(self._lock_key)
+                        # release only OUR lock: if we stalled past the stale
+                        # window and someone stole it, clearing would hand a
+                        # third invocation a free pass into the mutation
+                        if self._win.getProperty(self._lock_key).startswith(token):
+                            self._win.clearProperty(self._lock_key)
                     return
         except Exception:
             pass
