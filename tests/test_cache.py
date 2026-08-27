@@ -203,3 +203,21 @@ def test_set_publishes_property_and_index_atomically():
     c.set("k2", {"v": 2})
     idx2 = set(_json.loads(c._win.getProperty(c._index_key)))
     assert "atomic_pub:k2" in idx2 and c._win.getProperty("atomic_pub:k2")
+
+
+def test_stalled_holder_never_clears_stolen_lock():
+    """A holder that stalls past the stale window must not clear the thief's
+    lock on its way out."""
+    import time as _time
+    from unittest.mock import patch
+    from resources.lib.cache import Cache
+    c = Cache(key_prefix="steal_release")
+
+    def slow_mutate():
+        # while "stalled", another invocation steals the lock
+        c._win.setProperty(c._lock_key, f"thief:{_time.time()}")
+
+    c._with_index_lock(slow_mutate)
+    assert c._win.getProperty(c._lock_key).startswith("thief"), \
+        "stalled holder must leave the thief's lock in place"
+    c._win.clearProperty(c._lock_key)

@@ -250,3 +250,15 @@ def test_all_numeric_setters_polarity():
         assert getattr(req, field) == 12, field
         with _pytest.raises(ValueError):
             setattr(req, field, -3)
+
+
+def test_download_request_coerces_string_file_id():
+    # file_id arrives from the invocation query string as a string
+    from resources.lib.osclient.model.request.download import OpenSubtitlesDownloadRequest
+    import pytest as _pytest
+    req = OpenSubtitlesDownloadRequest(file_id="123456")
+    assert req.request_params()["file_id"] == 123456
+    req.file_id = "789"
+    assert req.file_id == 789
+    with _pytest.raises(ValueError):
+        req.file_id = -1

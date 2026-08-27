@@ -8,6 +8,11 @@ Mirrors `changelog.txt` (the copy Kodi ships); regenerate this file whenever tha
 
 ---
 
+## [v1.0.67] - 2026-08-27
+
+- the download request coerces file_id from the invocation query string to an integer, matching every other numeric field
+- a lock holder that stalls past the stale window releases only its own lock, never a thief's - a third invocation can no longer slip into the mutation
+
 ## [v1.0.66] - 2026-08-27
 
 - cache writes publish the value and its index entry in one lock hold, so a Clear Cache overlapping a write can never delete the fresh value while registering a dead index key
