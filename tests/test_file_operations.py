@@ -224,3 +224,16 @@ def test_malformed_size_property_degrades_to_hashless(monkeypatch):
         item = file_operations.get_file_data("http://cdn.example/v.mkv")
     assert "file_size" not in item
     assert item["basename"] == "x.mkv"
+
+
+def test_multipart_rar_last_split_index_is_integer():
+    """Python 3 turned '/' into float division; the float index blew up the
+    %d filename formatting for multipart RARs, losing the moviehash."""
+    from resources.lib.file_operations import get_last_split
+
+    # the exact expression hash_rar uses, with realistic sizes
+    s_unpack_size, s_divide_body = 1_468_006_400, 104_857_600
+    index = (s_unpack_size - 1) // s_divide_body
+    assert isinstance(index, int)
+    assert get_last_split("/m/video.part01.rar", index) == "/m/video.part14.rar"
+    assert get_last_split("/m/video.001", index) == "/m/video.014"

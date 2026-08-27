@@ -1,3 +1,6 @@
+v1.0.71 (2026-08-27)
+- multipart RAR hashing works again: Python 3 float division produced a fractional part index that broke the last-part filename, silently dropping the moviehash for every multipart archive
+
 v1.0.70 (2026-08-27)
 - prepared API request URLs (feature lookup, guessit, search) are logged path-only through the redaction helper, so playback-derived query parameters never reach the debug log
 

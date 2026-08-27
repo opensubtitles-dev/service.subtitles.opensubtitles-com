@@ -137,7 +137,9 @@ def hash_rar(first_rar_file):
                 s_unpack_size = (struct.unpack("<I", a[36:36 + 4])[0] << 32) + s_unpack_size
                 log(__name__, "Hash untested for files bigger that 2gb. May work or may generate bad hash.")
             
-            last_rar_file = get_last_split(first_rar_file, (s_unpack_size - 1) / s_divide_body)
+            # integer division: Python 3 made "/" float division, and the
+            # float index then blew up the %d filename formatting downstream
+            last_rar_file = get_last_split(first_rar_file, (s_unpack_size - 1) // s_divide_body)
             hash_ = add_file_hash(first_rar_file, s_unpack_size, s_divide_body_start)
             hash_ = add_file_hash(last_rar_file, hash_, (s_unpack_size % s_divide_body) + s_divide_body_start - 65536)
             f.close()
