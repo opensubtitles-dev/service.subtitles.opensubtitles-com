@@ -235,6 +235,14 @@ class SubtitleDownloader:
             if self.subtitles or not searched_ok:
                 break
             retry = {**self.query, **attempt}
+            # Each attempt is a self-contained reading of the player's id.
+            # Id fields it does not name must not leak in from the (possibly
+            # /features-resolved) primary query - a retry carrying both the
+            # attempt's id AND a leftover parent id is over-constrained and
+            # can miss subtitles the attempt's reading alone would find.
+            for id_field in ("imdb_id", "tmdb_id", "parent_imdb_id", "parent_tmdb_id"):
+                if id_field not in attempt:
+                    retry[id_field] = None
             log(__name__, f"No results, retrying with: {({k: v for k, v in attempt.items() if v})}")
             self.subtitles, searched_ok = self._search_subtitles(retry)
 

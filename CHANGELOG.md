@@ -8,6 +8,12 @@ Mirrors `changelog.txt` (the copy Kodi ships); regenerate this file whenever tha
 
 ---
 
+## [v1.0.57] - 2026-08-27
+
+- season 0 (specials) is sent to the API instead of being dropped by truthiness filtering
+- fallback search attempts clear id fields they do not name, so a resolved parent id can no longer over-constrain a retry into missing subtitles
+- every derived basename goes through the credential-safe helper, covering stack:// members and other URL-shaped paths
+
 ## [v1.0.56] - 2026-08-27
 
 - season, episode, year and id fields are coerced to integers at the request model, so InfoLabel strings can never hit integer comparisons or go out mistyped on the wire

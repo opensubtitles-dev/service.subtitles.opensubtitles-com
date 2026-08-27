@@ -193,3 +193,14 @@ def test_subtitles_request_coerces_numeric_strings():
     assert req.season_number == 0
     req.episode_number = 12
     assert req.episode_number == 12
+
+
+def test_request_params_keeps_season_zero():
+    # Season 0 = specials. Truthiness filtering silently dropped it from the
+    # request, searching the whole show instead of the specials season.
+    from resources.lib.osclient.model.request.subtitles import OpenSubtitlesSubtitlesRequest
+    req = OpenSubtitlesSubtitlesRequest(query="Doctor Who", languages="en",
+                                        season_number=0, episode_number=1)
+    params = req.request_params()
+    assert params["season_number"] == 0
+    assert params["episode_number"] == 1

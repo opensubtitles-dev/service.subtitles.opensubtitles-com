@@ -129,3 +129,42 @@ def test_non_numeric_parent_imdb_from_features_does_not_abort():
     result = sd._resolve_ambiguous_id({"imdb_id": 999})
     assert result is not None
     assert result.get("parent_imdb_id") is None or isinstance(result.get("parent_imdb_id"), int)
+
+
+def test_fallback_attempt_clears_unnamed_id_fields():
+    """A retry must be the attempt's reading alone: ids resolved into the
+    primary query (e.g. parent_imdb_id from /features) must not leak into a
+    fallback attempt that names a different id."""
+    from unittest.mock import patch
+    from resources.lib.subtitle_downloader import SubtitleDownloader
+
+    test_argv = ["plugin://service.subtitles.opensubtitles-com/", "1",
+                 "?action=search&languages=English"]
+    with patch("sys.argv", test_argv):
+        sd = SubtitleDownloader.__new__(SubtitleDownloader)
+    sd.params = {"action": "search", "languages": "English"}
+    sd.sub_format = "srt"
+    sd.subtitles = {}
+    seen = []
+
+    def fake_search(q):
+        seen.append(dict(q))
+        return {}, True
+
+    media = {"query": "", "parent_imdb_id": 123456, "season_number": "3",
+             "episode_number": "4", "search_fallbacks": [{"imdb_id": 999}]}
+    with patch("resources.lib.subtitle_downloader.get_file_path", return_value="/tv/x.mkv"), \
+         patch("resources.lib.subtitle_downloader.get_file_data",
+               return_value={"filename": "x.mkv", "basename": "x.mkv"}), \
+         patch("resources.lib.subtitle_downloader.get_media_data", return_value=media), \
+         patch("resources.lib.subtitle_downloader.get_language_data",
+               return_value={"languages": "en"}), \
+         patch("resources.lib.subtitle_downloader._call_guessit_api", return_value=None), \
+         patch.object(sd, "_search_subtitles", side_effect=fake_search):
+        sd.search()
+
+    assert len(seen) == 2
+    retry = seen[1]
+    assert retry["imdb_id"] == 999
+    assert retry["parent_imdb_id"] is None, "resolved parent id must not over-constrain the retry"
+    assert retry["season_number"] == "3", "non-id context stays inherited"

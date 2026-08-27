@@ -176,3 +176,17 @@ def test_safe_media_filename_survives_encoded_tokens():
     assert safe_media_filename("/local/My.Movie.mkv") == "My.Movie.mkv"
     assert "SECRET" not in safe_media_filename(
         "https://u:SECRET@cdn/x%23frag%3Ftoken%3DSECRET.mkv")
+
+
+def test_stack_url_member_basename_sheds_token(monkeypatch):
+    """stack:// whose first member is a token-bearing stream URL: the derived
+    basename must not retain the query string."""
+    from unittest.mock import patch
+    from resources.lib import file_operations
+
+    stack = ("stack://ftp://cdn.example/part1.mkv?token=SECRET-STACK-TOKEN"
+             " , ftp://cdn.example/part2.mkv?token=SECRET-STACK-TOKEN")
+    with patch.object(file_operations, "hash_file", return_value=(0, "")):
+        item = file_operations.get_file_data(stack)
+    assert "SECRET-STACK-TOKEN" not in item["basename"]
+    assert item["basename"] == "part1.mkv"
