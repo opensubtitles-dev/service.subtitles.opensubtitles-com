@@ -8,6 +8,10 @@ Mirrors `changelog.txt` (the copy Kodi ships); regenerate this file whenever tha
 
 ---
 
+## [v1.0.73] - 2026-08-27
+
+- both redaction helpers decode percent-encoding to fixpoint before stripping, so double- or deeper-encoded tokens surface and are removed - no encoding depth can smuggle a credential into the log or a search query
+
 ## [v1.0.72] - 2026-08-27
 
 - the log path redaction decodes percent-encoding before stripping, so a token smuggled inside the path component (video%3Ftoken%3D...) can no longer reach the debug log

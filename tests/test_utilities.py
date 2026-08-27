@@ -85,3 +85,14 @@ def test_redact_path_strips_percent_encoded_tokens():
     # plain paths and clean URLs unaffected
     assert redact_path("/movies/Title (2024).mkv") == "/movies/Title (2024).mkv"
     assert redact_path("http://cdn.example/video.mkv") == "http://cdn.example/video.mkv"
+
+
+def test_redaction_helpers_decode_nested_encoding():
+    """Double- and triple-encoded delimiters must surface and be stripped in
+    BOTH helpers - one unquote pass left '%253F...' hiding a token."""
+    from resources.lib.utilities import redact_path, safe_media_filename
+    for url in ("http://cdn.example/video%253Ftoken%253DSECRET-N2.mkv",
+                "http://cdn.example/video%25253Ftoken%25253DSECRET-N3.mkv"):
+        assert "SECRET-N" not in redact_path(url)
+        assert "SECRET-N" not in safe_media_filename(url)
+    assert safe_media_filename("http://cdn.example/video%253Ftoken%253Dx.mkv") == "video"
