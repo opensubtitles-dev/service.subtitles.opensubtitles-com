@@ -8,6 +8,10 @@ Mirrors `changelog.txt` (the copy Kodi ships); regenerate this file whenever tha
 
 ---
 
+## [v1.0.48] - 2026-08-27
+
+- every API response consumer survives a top-level non-object JSON body (null, list, string) - the last of the malformed-response abort class
+
 ## [v1.0.47] - 2026-08-27
 
 - API responses with a null or wrong-typed data field surface as a normal provider error instead of crashing the search
