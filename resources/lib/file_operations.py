@@ -52,8 +52,12 @@ def get_file_data(file_original_path):
         # every plain local path and mangled short ones ("/tv/E1.mkv" ->
         # ".mkv"), degrading the fallback search query and smart ranking.
         # The rar branch above already set its basename from the vfs path.
+        # safe_media_filename, not os.path.basename: a stack:// member or any
+        # other URL-shaped path can carry an access token in its query string,
+        # and the basename feeds the fallback search query and the debug log.
+        # Plain local paths pass through it unchanged.
         if "basename" not in item:
-            item["basename"] = os.path.basename(item["file_original_path"])
+            item["basename"] = safe_media_filename(item["file_original_path"])
         # Hashing is an enhancer, never a gate: a rar probe error or vfs
         # hiccup must degrade to a hashless name/id search, not abort it.
         try:

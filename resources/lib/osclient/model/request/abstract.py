@@ -22,7 +22,9 @@ class OpenSubtitlesRequest:
         for key, default_value in list(self.DEFAULT_LIST.items()):
             current_value = getattr(self, key)
             logging(f"Some property {key}: {default_value}, {current_value}")
-            if current_value and current_value != default_value:
+            # 0 is a real value (season 0 = specials) - only None and empty
+            # string mean "not set", plain truthiness dropped it from requests
+            if current_value not in (None, "") and current_value != default_value:
                 request_params[key] = current_value
 
         return request_params
