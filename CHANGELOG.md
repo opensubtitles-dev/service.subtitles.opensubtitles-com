@@ -8,6 +8,10 @@ Mirrors `changelog.txt` (the copy Kodi ships); regenerate this file whenever tha
 
 ---
 
+## [v1.0.51] - 2026-08-27
+
+- README documentation links point at the GitHub repository, so they work from the installed add-on too
+
 ## [v1.0.50] - 2026-08-27
 
 - searches invoked without a languages parameter no longer abort before fallbacks can run
