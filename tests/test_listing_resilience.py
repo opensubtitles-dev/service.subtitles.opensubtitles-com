@@ -73,3 +73,22 @@ def test_one_malformed_entry_does_not_lose_the_others(bad_attributes):
 
     assert good_a in ranked and good_b in ranked, "a malformed entry took good results with it"
     assert len(ranked) == 3, "entries must be reordered, never dropped"
+
+
+def test_init_never_logs_raw_argv(monkeypatch):
+    """A calling add-on can embed stream tokens in its plugin URL arguments;
+    SubtitleDownloader.__init__ used to log sys.argv verbatim."""
+    import sys as _sys
+    import xbmc
+    from unittest.mock import patch
+    from resources.lib.subtitle_downloader import SubtitleDownloader
+
+    secret = "token=SECRET-STREAM-TOKEN"
+    argv = ["plugin://service.subtitles.opensubtitles-com/", "7",
+            f"?action=search&languages=English&videopath=http%3A%2F%2Fcdn%2Fv.mkv%3F{secret}"]
+    logged = []
+    with patch.object(_sys, "argv", argv), \
+         patch.object(xbmc, "log", side_effect=lambda msg, level=0: logged.append(str(msg))):
+        SubtitleDownloader()
+    joined = "\n".join(logged)
+    assert "SECRET-STREAM-TOKEN" not in joined
