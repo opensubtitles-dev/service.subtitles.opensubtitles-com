@@ -387,3 +387,20 @@ def test_gate_rejects_common_token_matches_for_short_titles():
     # multi-token titles may still be confirmed by the release string
     rel = [{"attributes": {"feature_details": {}, "release": "Freaky.Tales.2024.1080p"}}]
     assert sd._results_match_title(rel, "Freaky Tales") is True
+
+
+def test_gate_skips_malformed_entries_instead_of_accepting_set():
+    """One malformed entry (attributes not a mapping) must not make the whole
+    look-alike set count as a title match - later retries would be skipped."""
+    from resources.lib.subtitle_downloader import SubtitleDownloader
+    sd = SubtitleDownloader.__new__(SubtitleDownloader)
+
+    mixed = [{"attributes": "not-a-dict"},
+             {"attributes": {"feature_details": {"title": "A Tooth Fairy Tale"},
+                             "release": "A.Tooth.Fairy.Tale.1080p"}}]
+    assert sd._results_match_title(mixed, "Freaky Tales") is False
+
+    mixed_good = [{"attributes": "not-a-dict"},
+                  {"attributes": {"feature_details": {"title": "Freaky Tales"},
+                                  "release": "Freaky.Tales.2024.1080p"}}]
+    assert sd._results_match_title(mixed_good, "Freaky Tales") is True
