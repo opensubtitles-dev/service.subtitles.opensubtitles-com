@@ -95,9 +95,17 @@ class SubtitleDownloader:
         try:
             self.open_subtitles = OpenSubtitlesProvider(self.api_key, self.username, self.password)
         except ConfigurationError as e:
+            # The user has seen the dialog; leave a None provider so
+            # handle_action ends the listing cleanly instead of a later
+            # AttributeError mid-search.
             error(__name__, 32002, e)
+            self.open_subtitles = None
 
     def handle_action(self):
+        if self.open_subtitles is None:
+            log(__name__, "No provider (missing API key) - ending listing cleanly")
+            xbmcplugin.endOfDirectory(self.handle)
+            return
         log(__name__, "action '%s' called" % self.params["action"])
         version = __addon__.getAddonInfo("version")
         addon_name = __addon__.getAddonInfo("name")
