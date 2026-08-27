@@ -336,3 +336,25 @@ def test_download_without_valid_file_id_raises_provider_error():
     for bad in ({"file_id": "abc"}, {"file_id": None}):
         with pytest.raises(ProviderError):
             p.download_subtitle(bad)
+
+
+def test_prepared_request_urls_logged_redacted():
+    # The prepared URL repeats every search parameter (playback-derived
+    # query, filename) - only scheme://host/path may reach the log.
+    import xbmc
+    from unittest.mock import patch, MagicMock
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.url = "https://api.opensubtitles.com/api/v1/subtitles?query=SECRET-QUERY-TITLE&languages=en"
+    mock_resp.json.return_value = {"data": []}
+    mock_resp.raise_for_status.return_value = None
+
+    p = OpenSubtitlesProvider(api_key="k", username="", password="")
+    logged = []
+    with patch.object(p.session, "get", return_value=mock_resp), \
+         patch.object(xbmc, "log", side_effect=lambda msg, level=0: logged.append(str(msg))):
+        p.search_subtitles({"query": "SECRET-QUERY-TITLE", "languages": "en"})
+    url_lines = [l for l in logged if "api.opensubtitles.com" in l and "->" in l]
+    assert url_lines, "expected a redacted URL log line"
+    assert all("SECRET-QUERY-TITLE" not in l for l in url_lines)
