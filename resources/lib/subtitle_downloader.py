@@ -186,11 +186,17 @@ class SubtitleDownloader:
         self.username = __addon__.getSetting("OSuser")
         self.password = __addon__.getSetting("OSpass")
 
-        log(__name__, sys.argv)
-
         self.sub_format = "srt"
         self.handle = int(sys.argv[1])
         self.params = get_params()
+
+        # Never log raw sys.argv: a calling video add-on can embed stream
+        # tokens or credentials in its plugin URL / query arguments, and Kodi
+        # debug logs are exactly what users paste on public forums. Log only
+        # a whitelist of known-safe parameters instead.
+        safe_keys = ("action", "languages", "preferredlanguage", "id")
+        safe_params = {k: self.params[k] for k in safe_keys if k in self.params}
+        log(__name__, f"invoked: handle={self.handle} params={safe_params}")
         self.query = {}
         self.subtitles = {}
         self.file = {}
