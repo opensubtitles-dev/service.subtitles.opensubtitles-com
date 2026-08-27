@@ -186,3 +186,20 @@ def test_clear_snapshot_and_delete_same_lock_hold():
     idx = set(_json.loads(idx_raw)) if idx_raw else set()
     prop_alive = bool(c._win.getProperty("clear_lock:victim"))
     assert prop_alive and "clear_lock:victim" in idx, "re-cached entry must stay tracked"
+
+
+def test_set_publishes_property_and_index_atomically():
+    """clear() overlapping set() must never leave a dead index key: with
+    publication under the lock, the entry either fully survives or was fully
+    cleared."""
+    import json as _json
+    from resources.lib.cache import Cache
+    c = Cache(key_prefix="atomic_pub")
+    c.set("k", {"v": 1})
+    c.clear()
+    idx_raw = c._win.getProperty(c._index_key)
+    idx = set(_json.loads(idx_raw)) if idx_raw else set()
+    assert "atomic_pub:k" not in idx and not c._win.getProperty("atomic_pub:k")
+    c.set("k2", {"v": 2})
+    idx2 = set(_json.loads(c._win.getProperty(c._index_key)))
+    assert "atomic_pub:k2" in idx2 and c._win.getProperty("atomic_pub:k2")

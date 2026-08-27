@@ -297,3 +297,19 @@ def test_request_setters_accept_valid_values():
     assert req.moviehash == ""
     with _pytest.raises(ValueError):
         req.moviehash = "short"
+
+
+def test_all_numeric_setters_polarity():
+    # Every numeric setter accepts valid positive ids (two had inverted
+    # comparisons that rejected ALL valid values) and rejects non-positives.
+    from resources.lib.osclient.model.request.subtitles import OpenSubtitlesSubtitlesRequest
+    import pytest as _pytest
+    req = OpenSubtitlesSubtitlesRequest(query="X", languages="en")
+    for field in ("id", "imdb_id", "tmdb_id", "user_id", "parent_feature_id",
+                  "parent_imdb_id", "parent_tmdb_id", "page"):
+        setattr(req, field, 7)
+        assert getattr(req, field) == 7, field
+        setattr(req, field, "12")
+        assert getattr(req, field) == 12, field
+        with _pytest.raises(ValueError):
+            setattr(req, field, -3)

@@ -90,7 +90,8 @@ class OpenSubtitlesSubtitlesRequest(OpenSubtitlesRequest):
 
     @imdb_id.setter
     def imdb_id(self, value):
-        if value <= 0:
+        value = _to_int(value)
+        if value is not None and value <= 0:
             raise ValueError("imdb_id should be positive integer.")
         self._imdb_id = value
 
@@ -100,7 +101,8 @@ class OpenSubtitlesSubtitlesRequest(OpenSubtitlesRequest):
 
     @tmdb_id.setter
     def tmdb_id(self, value):
-        if value <= 0:
+        value = _to_int(value)
+        if value is not None and value <= 0:
             raise ValueError("tmdb_id should be positive integer.")
         self._tmdb_id = value
 
@@ -161,7 +163,8 @@ class OpenSubtitlesSubtitlesRequest(OpenSubtitlesRequest):
 
     @user_id.setter
     def user_id(self, value):
-        if value <= 0:
+        value = _to_int(value)
+        if value is not None and value <= 0:
             raise ValueError("user_id should be positive integer.")
         self._user_id = value
 
@@ -251,7 +254,8 @@ class OpenSubtitlesSubtitlesRequest(OpenSubtitlesRequest):
 
     @parent_feature_id.setter
     def parent_feature_id(self, value):
-        if value > 0:
+        value = _to_int(value)
+        if value is not None and value <= 0:
             raise ValueError("parent_feature_id should be positive integer.")
         self._parent_feature_id = value
 
@@ -261,7 +265,8 @@ class OpenSubtitlesSubtitlesRequest(OpenSubtitlesRequest):
 
     @parent_imdb_id.setter
     def parent_imdb_id(self, value):
-        if value <= 0:
+        value = _to_int(value)
+        if value is not None and value <= 0:
             raise ValueError("parent_imdb_id should be positive integer.")
         self._parent_imdb_id = value
 
@@ -271,7 +276,8 @@ class OpenSubtitlesSubtitlesRequest(OpenSubtitlesRequest):
 
     @parent_tmdb_id.setter
     def parent_tmdb_id(self, value):
-        if value <= 0:
+        value = _to_int(value)
+        if value is not None and value <= 0:
             raise ValueError("parent_tmdb_id should be positive integer.")
         self._parent_tmdb_id = value
 
@@ -327,6 +333,7 @@ class OpenSubtitlesSubtitlesRequest(OpenSubtitlesRequest):
 
     @page.setter
     def page(self, value):
-        if value <= 0:
+        value = _to_int(value)
+        if value is not None and value <= 0:
             raise ValueError("page should be positive integer.")
         self._page = value

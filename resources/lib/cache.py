@@ -91,8 +91,25 @@ class Cache(object):
         raw_json = json.dumps(dict(value=value, expires=expires_at)).encode("utf-8")
         compressed = gzip.compress(raw_json)
         b64_str = base64.b64encode(compressed).decode("ascii")
-        self._win.setProperty(full_key, f"gz:{b64_str}")
-        self._add_to_index(full_key)
+
+        # Property write and index registration under ONE lock hold: written
+        # separately, a Clear Cache landing between them deleted the fresh
+        # value and the delayed index add then registered a dead key. Under
+        # the lock, publication is atomic relative to clear() - the entry
+        # either fully survives a concurrent clear or was never published.
+        def mutate():
+            self._win.setProperty(full_key, f"gz:{b64_str}")
+            raw = self._win.getProperty(self._index_key)
+            keys = set(json.loads(raw)) if raw else set()
+            keys.add(full_key)
+            self._win.setProperty(self._index_key, json.dumps(sorted(keys)))
+
+        def verify():
+            raw = self._win.getProperty(self._index_key)
+            return (bool(self._win.getProperty(full_key))
+                    and full_key in (set(json.loads(raw)) if raw else set()))
+
+        self._with_index_lock(mutate, verify)
 
     def get(self, key, default=None):
         log(__name__, f"got request for {key} from cache")
