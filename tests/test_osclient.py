@@ -325,3 +325,14 @@ def test_download_request_coerces_string_file_id():
     assert req.file_id == 789
     with _pytest.raises(ValueError):
         req.file_id = -1
+
+
+def test_download_without_valid_file_id_raises_provider_error():
+    # A missing/nonnumeric file_id must surface as a controlled ProviderError,
+    # not a KeyError out of the handler.
+    from resources.lib.osclient.provider import OpenSubtitlesProvider
+    from resources.lib.exceptions import ProviderError
+    p = OpenSubtitlesProvider(api_key="k", username="", password="")
+    for bad in ({"file_id": "abc"}, {"file_id": None}):
+        with pytest.raises(ProviderError):
+            p.download_subtitle(bad)

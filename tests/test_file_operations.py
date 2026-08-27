@@ -207,3 +207,20 @@ def test_hash_failure_log_never_contains_path(monkeypatch):
         item = file_operations.get_file_data(secret_path)
     assert "SECRET-HASH-TOKEN" not in "\n".join(logged)
     assert "moviehash" not in item or not item.get("moviehash")
+
+
+def test_malformed_size_property_degrades_to_hashless(monkeypatch):
+    """A nonnumeric videoinfo.current_size from a playback integration must
+    not abort the search - just skip the size."""
+    import xbmc
+    from unittest.mock import patch
+    from resources.lib import file_operations
+
+    props = {"Window(10000).Property(videoinfo.current_path)": "/movies/x.mkv",
+             "Window(10000).Property(videoinfo.current_size)": "not-a-number",
+             "Window(10000).Property(videoinfo.current_oshash)": ""}
+    with patch.object(xbmc, "getInfoLabel", side_effect=lambda k: props.get(k, "")), \
+         patch.object(file_operations, "hash_file", return_value=(0, "")):
+        item = file_operations.get_file_data("http://cdn.example/v.mkv")
+    assert "file_size" not in item
+    assert item["basename"] == "x.mkv"
