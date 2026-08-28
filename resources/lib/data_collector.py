@@ -467,10 +467,18 @@ def _jsonrpc(method, params=None, use_cache=True):
 
 def get_media_data():
 
+    # InfoLabels are external input: coordinates and year validated at intake,
+    # so a malformed value can never fail the request and stop the fallbacks.
+    # A bare "sN" episode label legitimately means special N of season 0 and
+    # must convert BEFORE validation would drop it as non-numeric.
+    raw_episode = str(xbmc.getInfoLabel("VideoPlayer.Episode") or "").strip()
+    special = re.fullmatch(r"[sS](\d+)", raw_episode)
+    season_label = "0" if special else xbmc.getInfoLabel("VideoPlayer.Season")
+    episode_label = special.group(1) if special else raw_episode
     item = {"query": None,
-            "year": xbmc.getInfoLabel("VideoPlayer.Year"),
-            "season_number": str(xbmc.getInfoLabel("VideoPlayer.Season")),
-            "episode_number": str(xbmc.getInfoLabel("VideoPlayer.Episode")),
+            "year": _valid_year(xbmc.getInfoLabel("VideoPlayer.Year")),
+            "season_number": _valid_coordinate(season_label, minimum=0),
+            "episode_number": _valid_coordinate(episode_label, minimum=1),
             "tv_show_title": normalize_string(xbmc.getInfoLabel("VideoPlayer.TVshowtitle")),
             "original_title": normalize_string(xbmc.getInfoLabel("VideoPlayer.OriginalTitle")),
             "parent_tmdb_id": None,
@@ -848,8 +856,7 @@ def get_media_data():
     # A substring test matched any label containing 's' - including compound
     # ones like "S01E05" - zeroing the season and keeping just the last digit.
     if isinstance(item.get("episode_number"), str):
-        import re as _re
-        special = _re.fullmatch(r"[sS](\d+)", item["episode_number"].strip())
+        special = re.fullmatch(r"[sS](\d+)", item["episode_number"].strip())
         if special:
             item["season_number"] = "0"
             item["episode_number"] = special.group(1)
@@ -970,7 +977,6 @@ def get_media_data():
     try:
         # both are only imported inside other branches of this module, so bind them here
         import os
-        import re
 
         playing_file = get_file_path()
         basename = safe_media_filename(playing_file) if playing_file else ""
