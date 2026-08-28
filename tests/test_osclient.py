@@ -345,4 +345,4 @@ def test_search_error_body_never_logged_raw():
             p.search_subtitles({"query": "SECRET-ECHOED-TITLE", "languages": "en"})
     joined = "\n".join(logged)
     assert "SECRET-ECHOED-TITLE" not in joined
-    assert "invalid parameters" in joined
+    assert "invalid parameters" not in joined, "no byte of the error body may be logged"

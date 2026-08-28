@@ -1,3 +1,6 @@
+v1.0.90 (2026-08-28)
+- search error handling logs the HTTP status code only: not one byte of any error response body reaches the log, closing the last conceivable echo channel for playback-derived values
+
 v1.0.89 (2026-08-28)
 - search HTTP-error logging keeps only the server-authored message field - error bodies that echo request parameters (the query among them) never reach the log verbatim
 - request builders log parameter KEYS only; the per-property debug lines and underscore-keyed request internals that carried the query value are gone
