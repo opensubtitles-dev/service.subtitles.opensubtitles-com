@@ -167,3 +167,22 @@ def test_episodeguide_guard_executes(monkeypatch):
          patch.object(data_collector.ET, "fromstring", side_effect=spy):
         data_collector.get_media_data()
     assert not calls["parsed"], "entity-bearing episodeguide must never reach ET.fromstring"
+
+
+def test_guessit_never_caches_non_object_payloads():
+    """A cached list/scalar would come back on every later call and crash
+    .get() consumers - only object shapes may be cached."""
+    import json as _json
+    import urllib.request
+    from unittest.mock import patch, MagicMock
+    from resources.lib import data_collector
+    import xbmcaddon
+    xbmcaddon.Addon().setSetting("APIKey", "k")
+
+    resp = MagicMock()
+    resp.getcode.return_value = 200
+    resp.read.return_value = _json.dumps(["list", "payload"]).encode()
+    resp.__enter__ = lambda s: s
+    resp.__exit__ = lambda s, *a: False
+    with patch.object(urllib.request, "urlopen", return_value=resp):
+        assert data_collector._call_guessit_api("Unique.NonObject.mkv") is None

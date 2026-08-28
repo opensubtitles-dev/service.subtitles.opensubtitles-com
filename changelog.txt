@@ -1,3 +1,7 @@
+v1.0.83 (2026-08-28)
+- a null, empty or non-HTTP download link from the API raises a controlled provider error instead of a raw requests exception with no dialog
+- second deep audit: search error-body logging capped; 503 download errors carry no exception internals; guessit never caches non-object payloads; library titles coerced before comparison; download-model fps setters coerce safely and negative timeshift (a legitimate value) is accepted
+
 v1.0.82 (2026-08-28)
 - season, episode and year InfoLabels are validated at intake (specials sN labels convert first), so a malformed player value can never fail the request and stop the fallback chain
 

@@ -295,3 +295,31 @@ def test_prepared_request_urls_logged_redacted():
     url_lines = [l for l in logged if "api.opensubtitles.com" in l and "->" in l]
     assert url_lines, "expected a redacted URL log line"
     assert all("SECRET-QUERY-TITLE" not in l for l in url_lines)
+
+
+def test_download_rejects_malformed_link():
+    # null/empty/non-HTTP link must raise ProviderError, not a raw requests
+    # URL-validation exception with no error dialog
+    from resources.lib.exceptions import ProviderError
+    p = OpenSubtitlesProvider(api_key="k", username="", password="")
+    for bad_link in (None, "", "ftp://x/y", 42):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"link": bad_link}
+        mock_resp.raise_for_status.return_value = None
+        with patch.object(p.session, "post", return_value=mock_resp):
+            with pytest.raises(ProviderError):
+                p.download_subtitle({"file_id": 123})
+
+
+def test_download_model_fps_and_timeshift_coercion():
+    from resources.lib.osclient.model.request.download import OpenSubtitlesDownloadRequest
+    req = OpenSubtitlesDownloadRequest(file_id=1)
+    req.in_fps = "23.976"
+    assert req.in_fps == 23.976
+    with pytest.raises(ValueError):
+        req.out_fps = -1
+    req.timeshift = "-2.5"          # negative shift is legitimate
+    assert req.timeshift == -2.5
+    req.timeshift = "garbage"
+    assert req.timeshift is None
