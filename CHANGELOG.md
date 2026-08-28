@@ -8,6 +8,10 @@ Mirrors `changelog.txt` (the copy Kodi ships); regenerate this file whenever tha
 
 ---
 
+## [v1.0.85] - 2026-08-28
+
+- viewing history removed from logging entirely: playback filenames, parsed titles and query values no longer appear in any debug log line - only structural information (coordinates, ratios, cache-key prefixes) remains
+
 ## [v1.0.84] - 2026-08-28
 
 - guessit log lines identify requests by cache-key prefix only - the playback-derived filename reaches no log line at all

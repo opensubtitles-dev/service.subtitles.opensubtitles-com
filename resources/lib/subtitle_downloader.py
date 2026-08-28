@@ -146,9 +146,9 @@ class SubtitleDownloader:
             # Only use basename as fallback if no ID and no query was set by media data collection
             if not has_id and "basename" in file_data and not media_data.get("query"):
                 media_data["query"] = file_data["basename"]
-                log(__name__, f"Using basename as query fallback: {file_data['basename']}")
+                log(__name__, "Using basename as query fallback")
             elif media_data.get("query"):
-                log(__name__, f"Using parsed query from media_data: {media_data['query']}")
+                log(__name__, "Using parsed query from media_data")
             # any value can be a library file URL with a stream token - redact
             # every string that looks like one before logging
             log(__name__, "media_data '%s' " % {

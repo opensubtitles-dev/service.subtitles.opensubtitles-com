@@ -505,15 +505,15 @@ def get_media_data():
         try:
             playing_file = get_file_path()
             if playing_file:
-                # redacted: plugin/stream URLs can carry access tokens
-                log(__name__, f"📁 Playing file path: {redact_path(playing_file)}")
+                # the path and filename are the user's viewing history -
+                # neither belongs in a log users share publicly
+                log(__name__, "📁 Playing file detected, deriving search data")
                 filename = safe_media_filename(playing_file)
-                log(__name__, f"📝 Filename to parse: {filename}")
                 
                 # STEP 1: Try basic filename parsing for TV shows
                 show_title, season_num, episode_num = _extract_basic_tv_info(filename)
                 if show_title and season_num and episode_num:
-                    log(__name__, f"🎬 Basic parsing found TV show: '{show_title}' S{season_num}E{episode_num}")
+                    log(__name__, f"🎬 Basic parsing found a TV show (S{season_num}E{episode_num})")
                     
                     # STEP 2: Try to find this show in Kodi library
                     parent_imdb, parent_tmdb, tvshow_id = _query_kodi_library_for_show(show_title)
@@ -534,7 +534,7 @@ def get_media_data():
                         item["tv_show_title"] = show_title
                         item["season_number"] = season_num
                         item["episode_number"] = episode_num
-                        log(__name__, f"📚 Not in library, will search by title: '{show_title}' S{season_num}E{episode_num}")
+                        log(__name__, f"📚 Not in library, will search by title (S{season_num}E{episode_num})")
                 else:
                     # STEP 3: Fallback to guessit API for complex parsing
                     log(__name__, "🔍 Basic parsing failed, trying guessit API...")
@@ -549,7 +549,7 @@ def get_media_data():
                             item["season_number"] = _valid_coordinate(guessed_data.get("season"), minimum=0)
                             item["episode_number"] = _valid_coordinate(guessed_data.get("episode"), minimum=1)
                             item["year"] = _valid_year(guessed_data.get("year"))
-                            log(__name__, f"🎬 Guessit parsed TV episode: {item['tv_show_title']} S{item['season_number']}E{item['episode_number']}")
+                            log(__name__, f"🎬 Guessit parsed TV episode (S{item['season_number']}E{item['episode_number']})")
                         elif guessed_data.get("type") == "movie":
                             # Movie
                             movie_title = guessed_data.get("title", "")
@@ -557,8 +557,8 @@ def get_media_data():
                             item["original_title"] = movie_title
                             item["query"] = movie_title  # Set query to clean title
                             item["year"] = movie_year
-                            log(__name__, f"🎬 Guessit parsed movie: {movie_title} ({movie_year})")
-                            log(__name__, f"🔍 Set query to: '{item['query']}'")
+                            log(__name__, f"🎬 Guessit parsed a movie ({movie_year})")
+                            log(__name__, "🔍 Query set from parsed title")
                             
                             # Try to find this movie in Kodi library
                             movie_imdb, movie_tmdb, file_path = _query_kodi_library_for_movie(movie_title, movie_year)
@@ -571,7 +571,7 @@ def get_media_data():
                                     item["file_path"] = file_path
                                 log(__name__, f"✅ Found movie in library with IDs - IMDb: {movie_imdb}, TMDb: {movie_tmdb}")
                             else:
-                                log(__name__, f"📚 Movie not in library, will search by title: '{movie_title}' ({movie_year})")
+                                log(__name__, f"📚 Movie not in library, will search by title ({movie_year})")
                         else:
                             log(__name__, f"🎬 Guessit detected type: {guessed_data.get('type')}")
                     else:
@@ -838,14 +838,14 @@ def get_media_data():
         elif item.get("tmdb_id"):
             log(__name__, f"🎯 API Strategy: tmdb_id={item['tmdb_id']} (episode-specific, no season/episode needed)")
         else:
-            log(__name__, f"🎯 API Strategy: title search only '{item['query']}' (no IDs available)")
+            log(__name__, "🎯 API Strategy: title search only (no IDs available)")
     else:
         # For movies: Use specific movie IDs
         if item.get("imdb_id") or item.get("tmdb_id"):
             id_name = f"imdb_id={item.get('imdb_id')}" if item.get("imdb_id") else f"tmdb_id={item.get('tmdb_id')}"
             log(__name__, f"🎯 API Strategy: {id_name} (movie)")
         else:
-            log(__name__, f"🎯 API Strategy: title search only '{item['query']}' (movie, no IDs available)")
+            log(__name__, "🎯 API Strategy: title search only (movie, no IDs available)")
 
     fallback_title = item.get("query") or item.get("original_title") or normalize_string(xbmc.getInfoLabel("VideoPlayer.Title"))
     if not fallback_title:
@@ -967,7 +967,7 @@ def get_media_data():
                  "episode_number": source.get("episode_number"),
                  "imdb_id": None, "tmdb_id": None,
                  "parent_imdb_id": None, "parent_tmdb_id": None})
-            log(__name__, f"Added no-year retry for '{source.get('query')}' "
+            log(__name__, "Added no-year retry "
                           f"(release year {source.get('year')} may not be the feature year)")
     except Exception as e:
         log(__name__, f"Could not build the no-year fallback: {type(e).__name__}")
@@ -995,7 +995,7 @@ def get_media_data():
                 {"query": stem, "year": None, "season_number": None, "episode_number": None,
                  "imdb_id": None, "tmdb_id": None,
                  "parent_imdb_id": None, "parent_tmdb_id": None})
-            log(__name__, f"Added filename fallback: '{stem}'")
+            log(__name__, "Added filename fallback attempt")
     except Exception as e:
         log(__name__, f"Could not build the filename fallback: {type(e).__name__}")
 
@@ -1161,7 +1161,7 @@ def clean_feature_release_name(title, release, movie_name=""):
         name = title
 
     match_ratio = SequenceMatcher(None, name, release).ratio()
-    log(__name__, f"name: {name}, release: {release}, match_ratio: {match_ratio}")
+    log(__name__, f"clean_feature_release_name match_ratio: {match_ratio}")
     if name in release:
         return release
     elif match_ratio > 0.3:

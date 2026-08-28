@@ -41,6 +41,10 @@ DICTISH_NAMES = {"item", "data", "media_data", "params", "query", "result",
                  "body", "payload", "file_data", "language_data", "attributes",
                  "response_json", "kwargs"}
 COORD_NAMES = {"season", "episode", "season_number", "episode_number"}
+# viewing-history values: never in a log line (Kodi review doctrine)
+HISTORY_NAMES = {"filename", "basename", "stem", "playing_file", "fallback_title",
+                 "clean_filename", "video_filename", "file_original_path",
+                 "movie_title", "show_title", "release"}
 EXTERNAL_VALUE_HINTS = ("getInfoLabel", "getProperty", "getSetting", "orig_",
                         "params[", "params.get", ".get(")
 LOG_FUNC_NAMES = {"log", "logging", "error"}
@@ -192,6 +196,10 @@ class Gate(ast.NodeVisitor):
             if isinstance(expr, ast.Attribute) and expr.attr == "url":
                 self.flag(node, "G05", "raw .url in log - the prepared URL repeats "
                                        "every parameter; wrap in redact_path")
+            # G12: playback-derived names are the user's viewing history
+            if isinstance(expr, ast.Name) and expr.id in HISTORY_NAMES:
+                self.flag(node, "G12", f"'{expr.id}' in log - playback-derived "
+                                       "viewing history must not reach logs")
             # G06: whole dict-ish object
             if isinstance(expr, ast.Name) and expr.id in DICTISH_NAMES:
                 self.flag(node, "G06", f"whole '{expr.id}' interpolated in log - "
