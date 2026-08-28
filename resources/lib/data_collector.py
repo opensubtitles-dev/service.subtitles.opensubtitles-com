@@ -71,6 +71,23 @@ def _apply_player_tvshowid(item):
 
 # ---------- Small helpers ----------
 
+def _valid_coordinate(value, minimum=0):
+    """Season/episode number as a digit string, or "" when implausible.
+
+    Parsed metadata (guessit, filenames) is untrusted: a non-positive or
+    non-numeric coordinate sent to the API fails the request and stops the
+    fallback chain, so drop it here instead."""
+    s = str(value).strip() if value is not None else ""
+    return s if s.isdigit() and int(s) >= minimum else ""
+
+
+def _valid_year(value):
+    """Feature year as a string, or "" when outside the plausible range."""
+    import datetime
+    s = str(value).strip() if value is not None else ""
+    return s if s.isdigit() and 1927 <= int(s) <= datetime.date.today().year + 1 else ""
+
+
 def _strip_imdb_tt(value, require_tt=False):
     """Return the digits of an IMDb id, or None.
 
@@ -161,7 +178,7 @@ def _query_kodi_library_for_movie(movie_title, year=None, dbid=None):
                         return _extract_movie_ids(best_movie)
 
     except Exception as e:
-        log(__name__, f"Failed to query library for movie: {e}")
+        log(__name__, f"Failed to query library for movie: {type(e).__name__}")
 
     return None, None, None
 
@@ -258,7 +275,7 @@ def _query_kodi_library_for_show(show_title, year=None):
                     return _extract_show_ids(best_show)
 
     except Exception as e:
-        log(__name__, f"Failed to query library for show: {e}")
+        log(__name__, f"Failed to query library for show: {type(e).__name__}")
 
     return None, None, None
 
@@ -440,10 +457,10 @@ def _jsonrpc(method, params=None, use_cache=True):
         return result
 
     except json.JSONDecodeError as e:
-        log(__name__, f"JSON decode error in {method}: {e}")
+        log(__name__, f"JSON decode error in {method}: {type(e).__name__}")
         return None
     except Exception as e:
-        log(__name__, f"JSON-RPC error in {method}: {e}")
+        log(__name__, f"JSON-RPC error in {method}: {type(e).__name__}")
         return None
 
 
@@ -508,20 +525,23 @@ def get_media_data():
                     log(__name__, "🔍 Basic parsing failed, trying guessit API...")
                     guessed_data = _call_guessit_api(filename)
                     if guessed_data:
+                        # guessit output is parsed from an arbitrary filename -
+                        # validate coordinates here so an out-of-range year or
+                        # nonsense episode can never turn into a failing API
+                        # request that stops the whole fallback chain
                         if guessed_data.get("type") == "episode":
-                            # TV show episode
                             item["tv_show_title"] = guessed_data.get("title", "")
-                            item["season_number"] = str(guessed_data.get("season", ""))
-                            item["episode_number"] = str(guessed_data.get("episode", ""))
-                            item["year"] = guessed_data.get("year")
+                            item["season_number"] = _valid_coordinate(guessed_data.get("season"), minimum=0)
+                            item["episode_number"] = _valid_coordinate(guessed_data.get("episode"), minimum=1)
+                            item["year"] = _valid_year(guessed_data.get("year"))
                             log(__name__, f"🎬 Guessit parsed TV episode: {item['tv_show_title']} S{item['season_number']}E{item['episode_number']}")
                         elif guessed_data.get("type") == "movie":
                             # Movie
                             movie_title = guessed_data.get("title", "")
-                            movie_year = guessed_data.get("year")
+                            movie_year = _valid_year(guessed_data.get("year"))
                             item["original_title"] = movie_title
                             item["query"] = movie_title  # Set query to clean title
-                            item["year"] = str(movie_year) if movie_year else ""
+                            item["year"] = movie_year
                             log(__name__, f"🎬 Guessit parsed movie: {movie_title} ({movie_year})")
                             log(__name__, f"🔍 Set query to: '{item['query']}'")
                             
@@ -542,7 +562,7 @@ def get_media_data():
                     else:
                         log(__name__, "❌ All parsing methods failed, will use filename as query")
         except Exception as e:
-            log(__name__, f"Failed to parse filename: {e}")
+            log(__name__, f"Failed to parse filename: {type(e).__name__}")
     
     # ---------------- TV SHOW (Episode) ----------------
     if item["tv_show_title"]:
@@ -573,7 +593,7 @@ def get_media_data():
                 item["parent_tmdb_id"] = int(parent_tmdb_raw)
                 log(__name__, f"TRUE Parent Show TMDb ID: {item['parent_tmdb_id']}")
         except Exception as e:
-            log(__name__, f"Failed to read true parent IDs from InfoLabels: {e}")
+            log(__name__, f"Failed to read true parent IDs from InfoLabels: {type(e).__name__}")
 
         # 2) No true parent IDs, so fall back to whatever id the player exposes.
         #    These labels describe "the thing being played", and video add-ons disagree about
@@ -598,7 +618,7 @@ def get_media_data():
                     item["_player_id_role_unknown"] = True
                     log(__name__, f"Player TMDb ID (show or episode, role unknown): {item['tmdb_id']}")
             except Exception as e:
-                log(__name__, f"Failed to read episode IDs from InfoLabels: {e}")
+                log(__name__, f"Failed to read episode IDs from InfoLabels: {type(e).__name__}")
 
         # 3) Query the library (when the show is in it) for the true parent IDs and the
         #    show's ORIGINAL title. Runs whenever we have a tvshowid: even when parent IDs
@@ -668,7 +688,7 @@ def get_media_data():
                                 except (ET.ParseError, json.JSONDecodeError, ValueError, TypeError, AttributeError):
                                     pass  # Silent fail for malformed XML/JSON of any shape
             except (json.JSONDecodeError, ET.ParseError, ValueError, KeyError, TypeError, AttributeError) as e:
-                log(__name__, f"Failed to extract TV show IDs via JSON-RPC: {e}")
+                log(__name__, f"Failed to extract TV show IDs via JSON-RPC: {type(e).__name__}")
 
         # 4) Try to get specific episode IDs from dedicated episode fields (if available).
         #    Unlike step 2 these name the episode explicitly, so the id's role is not in doubt.
@@ -685,7 +705,7 @@ def get_media_data():
                 item["_player_id_role_unknown"] = False
                 log(__name__, f"Dedicated Episode IMDb ID: {item['imdb_id']}")
         except Exception as e:
-            log(__name__, f"Failed to read dedicated episode IDs from InfoLabels: {e}")
+            log(__name__, f"Failed to read dedicated episode IDs from InfoLabels: {type(e).__name__}")
 
     # ---------------- MOVIE ----------------
     elif item["original_title"]:
@@ -708,7 +728,7 @@ def get_media_data():
                     item["tmdb_id"] = tmdb_id
                     log(__name__, f"Found TMDB ID for movie from InfoLabel: {item['tmdb_id']}")
         except (ValueError, KeyError) as e:
-            log(__name__, f"Failed to extract movie IDs from InfoLabels: {e}")
+            log(__name__, f"Failed to extract movie IDs from InfoLabels: {type(e).__name__}")
         
         # If no IDs found and we have a database ID, query the library directly
         if not item.get("imdb_id") and not item.get("tmdb_id") and movie_dbid and movie_dbid.isdigit():
@@ -925,7 +945,7 @@ def get_media_data():
             log(__name__, f"Added no-year retry for '{source.get('query')}' "
                           f"(release year {source.get('year')} may not be the feature year)")
     except Exception as e:
-        log(__name__, f"Could not build the no-year fallback: {e}")
+        log(__name__, f"Could not build the no-year fallback: {type(e).__name__}")
 
     # ---------- Tier 4: the raw release filename, as a last resort ----------
     # Everything above searches by id or by a cleaned-up title. When all of those miss - a
@@ -953,7 +973,7 @@ def get_media_data():
                  "parent_imdb_id": None, "parent_tmdb_id": None})
             log(__name__, f"Added filename fallback: '{stem}'")
     except Exception as e:
-        log(__name__, f"Could not build the filename fallback: {e}")
+        log(__name__, f"Could not build the filename fallback: {type(e).__name__}")
 
     # Remove internal-only key
     if "tvshowid" in item:

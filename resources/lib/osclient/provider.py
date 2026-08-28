@@ -127,7 +127,7 @@ class OpenSubtitlesProvider:
             # A DNS/connect/read failure carries no HTTP response, so there is no status
             # code to report - reading one here raised AttributeError inside the handler
             # instead of surfacing the intended "service unavailable" message.
-            logging(f"Connection error during login: {e}")
+            logging(f"Connection error during login: {type(e).__name__}")
             raise ServiceUnavailable(f"Connection error: {e!r}")
         except HTTPError as e:
             status_code = e.response.status_code
@@ -150,7 +150,7 @@ class OpenSubtitlesProvider:
                 self.user_token = response_json["token"]
                 logging("Login successful, token received")
             except (ValueError, KeyError, TypeError) as e:
-                logging(f"Failed to parse login response JSON: {e!r}")
+                logging(f"Failed to parse login response JSON: {type(e).__name__}")
                 raise ValueError("Invalid JSON returned by provider")
 
     def get_user_info(self):
@@ -203,7 +203,7 @@ class OpenSubtitlesProvider:
 
         cached = self.cache.get(cache_key)
         if cached is not None:
-            logging(f"CACHE HIT: feature info for {params}")
+            logging(f"CACHE HIT: feature info for {_redacted_mapping(params)}")
             return cached or None
 
         try:
@@ -238,7 +238,7 @@ class OpenSubtitlesProvider:
             attributes = None
         # cache misses too, as {}, so an unknown id is not looked up again every search
         self.cache.set(cache_key, attributes or {}, expires=FEATURE_CACHE_TTL)
-        logging(f"Feature lookup {params} -> {attributes.get('feature_type') if attributes else 'unknown'}")
+        logging(f"Feature lookup {_redacted_mapping(params)} -> {attributes.get('feature_type') if attributes else 'unknown'}")
         return attributes
 
     def guessit(self, filename: str) -> dict:
@@ -260,7 +260,7 @@ class OpenSubtitlesProvider:
             logging(f"Guessit lookup: {redact_path(r.url)} -> {r.status_code}")
             r.raise_for_status()
         except (ConnectionError, Timeout, ReadTimeout) as e:
-            logging(f"Guessit connection error: {e}")
+            logging(f"Guessit connection error: {type(e).__name__}")
             return None
         except HTTPError as e:
             logging(f"Guessit HTTP error: {e.response.status_code}")
@@ -309,7 +309,7 @@ class OpenSubtitlesProvider:
             else:
                 cache_ttl = int(float(cache_setting)) * 60 # Convert minutes to seconds
         except (ValueError, TypeError) as e:
-            logging(f"Error reading cache setting: {e}")
+            logging(f"Error reading cache setting: {type(e).__name__}")
             cache_ttl = 0
 
         # If user sets duration to 0, we disable caching
@@ -329,7 +329,7 @@ class OpenSubtitlesProvider:
                     logging(f"CACHE HIT: Returning cached subtitles for key {cache_key} (TTL: {cache_ttl}s)")
                     return cached_result
             except Exception as e:
-                logging(f"Cache check failed: {e}")
+                logging(f"Cache check failed: {type(e).__name__}")
         # --- [END] Cache Check ---
 
         logging(f"User token cached: {bool(self.user_token)}")
@@ -337,7 +337,7 @@ class OpenSubtitlesProvider:
         try:
             # build query request
             subtitles_url = API_URL + API_SUBTITLES
-            logging(f"Search request params: {params}")
+            logging(f"Search request params: {_redacted_mapping(params)}")
 
             # Never log request or response headers: they carry the Api-Key (and would
             # carry the Authorization token) - users paste debug logs to public forums.
@@ -346,11 +346,11 @@ class OpenSubtitlesProvider:
 
             r.raise_for_status()
         except (ConnectionError, Timeout, ReadTimeout) as e:
-            logging(f"Connection error during search: {e}")
+            logging(f"Connection error during search: {type(e).__name__}")
             raise ServiceUnavailable(f"Connection error: {e!r}")
         except HTTPError as e:
             status_code = e.response.status_code
-            logging(f"HTTP error during subtitle search: {e}")
+            logging(f"HTTP error during subtitle search: {type(e).__name__}")
 
             # Log the error response body for debugging (no secrets on this endpoint)
             try:
@@ -378,7 +378,7 @@ class OpenSubtitlesProvider:
             if not isinstance(result.get("data"), list):
                 raise ValueError("data missing or not a list")
         except ValueError as e:
-            logging(f"Failed to parse search response JSON: {e}")
+            logging(f"Failed to parse search response JSON: {type(e).__name__}")
             raise ProviderError("Invalid JSON returned by provider")
         else:
             logging(f"Query returned {len(result['data'])} subtitles")
@@ -391,7 +391,7 @@ class OpenSubtitlesProvider:
                     self.cache.set(cache_key, result["data"], expires=cache_ttl)
                     sync_cache_stats_setting()
                 except Exception as e:
-                    logging(f"Cache save failed: {e}")
+                    logging(f"Cache save failed: {type(e).__name__}")
             # --- [END] Cache Save ---
 
             return result["data"]
@@ -451,7 +451,7 @@ class OpenSubtitlesProvider:
                 headers = {"Authorization": "Bearer " + self.user_token}
             resp = self.session.post(download_url, headers=headers, json=download_params,
                                      timeout=REQUEST_TIMEOUT)
-            logging(f"Download response: {resp.url} -> {resp.status_code}")
+            logging(f"Download response: {redact_path(resp.url)} -> {resp.status_code}")
             resp.raise_for_status()
             return resp
 
@@ -469,7 +469,7 @@ class OpenSubtitlesProvider:
                 else:
                     raise
         except (ConnectionError, Timeout, ReadTimeout) as e:
-            logging(f"Connection error during download: {e}")
+            logging(f"Connection error during download: {type(e).__name__}")
             raise ServiceUnavailable(f"Connection error: {e!r}")
         except HTTPError as e:
             status_code = e.response.status_code

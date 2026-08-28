@@ -1,3 +1,9 @@
+v1.0.77 (2026-08-28)
+- guessit-derived season/episode/year validated at intake, so implausible values can never turn into a failing API request that stops the fallback chain
+- the cache index lock renews its lease during long clears (heartbeat), so a slow holder can no longer be mistaken for crashed and stolen from mid-mutation
+- every exception reaching a log line is reduced to its class name across the whole add-on - error messages embed paths, URLs and payloads
+- remaining parameter-dict log sites redacted; internal static gate (greptile simulator) now enforces all of this in the test suite
+
 v1.0.76 (2026-08-28)
 - the initial InfoLabel metadata log line redacts URL-shaped values, closing the last log site where a playback integration's tokened URL could reach a shared debug log
 

@@ -6,9 +6,11 @@ from time import time, sleep
 import xbmcgui
 from resources.lib.utilities import log
 
-# How long an index-lock holder may be presumed alive. Anything older is a
-# crashed invocation's leftover and gets stolen.
-_LOCK_STALE_SECONDS = 2.0
+# How long an index-lock holder may be presumed alive without renewing its
+# lease. Mutations hold the lock for milliseconds; a long-running Clear
+# Cache renews via _heartbeat() well inside this window, so anything older
+# really is a crashed invocation's leftover and gets stolen.
+_LOCK_STALE_SECONDS = 5.0
 
 
 class Cache(object):
@@ -38,7 +40,7 @@ class Cache(object):
         """
         token = uuid.uuid4().hex
         try:
-            deadline = time() + 5.0
+            deadline = time() + 8.0
             while time() < deadline:
                 current = self._win.getProperty(self._lock_key)
                 if current:
@@ -52,9 +54,11 @@ class Cache(object):
                 self._win.setProperty(self._lock_key, f"{token}:{time()}")
                 sleep(0.001)  # let a colliding writer's set land before we re-read
                 if self._win.getProperty(self._lock_key).startswith(token):
+                    self._held_token = token
                     try:
                         mutate()
                     finally:
+                        self._held_token = None
                         # release only OUR lock: if we stalled past the stale
                         # window and someone stole it, clearing would hand a
                         # third invocation a free pass into the mutation
@@ -71,6 +75,19 @@ class Cache(object):
                 mutate()
                 if verify is None or verify():
                     return
+        except Exception:
+            pass
+
+    def _heartbeat(self):
+        """Renews the lock lease mid-mutation.
+
+        A mutation that outlives _LOCK_STALE_SECONDS (a Clear Cache over a
+        huge index) would otherwise look crashed and get stolen while still
+        writing - long loops call this periodically to stay leased."""
+        token = getattr(self, "_held_token", None)
+        try:
+            if token and self._win.getProperty(self._lock_key).startswith(token):
+                self._win.setProperty(self._lock_key, f"{token}:{time()}")
         except Exception:
             pass
 
@@ -184,7 +201,9 @@ class Cache(object):
                 raw = self._win.getProperty(self._index_key)
                 cleared = set(json.loads(raw)) if raw else set()
                 state["cleared"] |= cleared
-                for k in cleared:
+                for i, k in enumerate(cleared):
+                    if i % 200 == 0:
+                        self._heartbeat()   # keep the lease during huge clears
                     self._win.clearProperty(k)
                 cur_raw = self._win.getProperty(self._index_key)
                 remaining = (set(json.loads(cur_raw)) if cur_raw else set()) - state["cleared"]
