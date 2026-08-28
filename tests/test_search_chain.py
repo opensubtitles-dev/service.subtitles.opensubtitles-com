@@ -445,3 +445,23 @@ def test_single_word_gate_rejects_multiword_lookalikes():
                                                    "movie_name": "Up (2009)"},
                 "release": "Up.2009.1080p"}}]
     assert sd._results_match_title(year_ok, "Up") is True
+
+
+def test_download_without_id_param_shows_error_not_keyerror():
+    """A truncated download URL without id must reach the provider's
+    controlled ProviderError path, not KeyError out of the handler."""
+    from unittest.mock import patch, MagicMock
+    from resources.lib.subtitle_downloader import SubtitleDownloader
+    from resources.lib.exceptions import ProviderError
+
+    sd = SubtitleDownloader.__new__(SubtitleDownloader)
+    sd.params = {"action": "download", "language": "en"}   # no id
+    sd.sub_format = "srt"
+    sd.file = {}
+    sd.username = "u"
+    sd.open_subtitles = MagicMock()
+    sd.open_subtitles.download_subtitle.side_effect = ProviderError("no valid file_id")
+    with patch("resources.lib.subtitle_downloader.error") as mock_error, \
+         patch("resources.lib.subtitle_downloader.clean_temp_directory"):
+        sd.download()
+    assert mock_error.called, "the controlled error dialog must fire"

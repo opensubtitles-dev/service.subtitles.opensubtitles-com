@@ -665,7 +665,7 @@ class SubtitleDownloader:
         valid = 1
         try:
             self.file = self.open_subtitles.download_subtitle(
-                {"file_id": self.params["id"], "sub_format": self.sub_format})
+                {"file_id": self.params.get("id"), "sub_format": self.sub_format})
         except AuthenticationError as e:
             error(__name__, 32003)
             valid = 0
