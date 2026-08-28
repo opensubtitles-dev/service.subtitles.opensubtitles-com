@@ -250,3 +250,30 @@ def test_long_mutation_keeps_lease_via_heartbeat():
         c.clear()
     # initial acquisition plus at least two heartbeat renewals (450 keys / 200)
     assert len(stamps) >= 3, f"expected lease renewals, saw {len(stamps)} lock writes"
+
+
+def test_double_entry_is_repaired_by_post_release_verification():
+    """Two writers confirming their token in the settle gap is possible -
+    the post-release verification must detect the lost update and re-merge."""
+    import json as _json
+    from unittest.mock import patch
+    from resources.lib.cache import Cache
+
+    c = Cache(key_prefix="dblentry")
+    real_set = c._win.setProperty
+    state = {"clobbered": False}
+
+    def clobbering_set(prop, value):
+        real_set(prop, value)
+        # simulate the concurrent double-entrant overwriting the index right
+        # after OUR index write, exactly once
+        if prop == c._index_key and not state["clobbered"] and "dblentry:mine" in value:
+            state["clobbered"] = True
+            real_set(prop, _json.dumps(["dblentry:other"]))
+
+    with patch.object(c._win, "setProperty", side_effect=clobbering_set):
+        c.set("mine", {"v": 1})
+
+    idx = set(_json.loads(c._win.getProperty(c._index_key)))
+    assert "dblentry:mine" in idx, "post-release verify must repair the lost update"
+    assert "dblentry:other" in idx, "the concurrent writer's key must survive the merge"
