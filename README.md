@@ -83,7 +83,7 @@
 
 ## 🆕 What's New — everything since the official Kodi repo version (v1.0.9)
 
-The official Kodi repository still ships **v1.0.9**. The current release is **v1.0.79** —
+The official Kodi repository still ships **v1.0.9**. The current release is **v1.0.80** —
 forty releases of work. If you are coming from the Kodi repo version, this is
 effectively a new add-on:
 

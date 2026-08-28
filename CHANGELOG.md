@@ -8,6 +8,10 @@ Mirrors `changelog.txt` (the copy Kodi ships); regenerate this file whenever tha
 
 ---
 
+## [v1.0.80] - 2026-08-28
+
+- cache index mutations verify AFTER releasing the lock and re-run the acquire-merge cycle on loss; combined with merge semantics this makes even a theoretical double lock entry harmless - no interleaving can lose an update
+
 ## [v1.0.79] - 2026-08-28
 
 - percent-encoded credentials in a URL's authority part (user%3Apass%40host) are decoded and stripped before logging

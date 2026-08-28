@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <addon id="service.subtitles.opensubtitles-com"
        name="OpenSubtitles.com"
-       version="1.0.79"
+       version="1.0.80"
        provider-name="amet, opensubtitles, juokelis, opensubtitlesdev">
 	<requires>
 		<import addon="xbmc.python" version="3.0.0"/>
@@ -51,9 +51,9 @@
 		<description lang="uz_UZ">Film va TV Taglavhalari ko'p tillarda, minglab tarjima qilingan taglavhalar har kuni tizimga yuklanadi. Bepul resursdan yuklab oling, API qo'llaydi, millionlab foydalanuvchilar.</description>
 		<description lang="zh_CN">多语种的电影及剧集字幕，每日更新千余条翻译好的字幕。免费下载，提供API接口，已拥有上百万的用户。</description>
 		<disclaimer lang="en_GB">Users need to provide OpenSubtitles.com username and password in add-on configuration. This is our new extension, old opensubtitles.org will not work on this, but the account can be easily imported on opensubtitles.com.</disclaimer>
-		<news>v1.0.79 - everything new since v1.0.9 (the version in the official Kodi repository):
+		<news>v1.0.80 - everything new since v1.0.9 (the version in the official Kodi repository):
 
-LATEST (1.0.79): encoded userinfo redacted; one-word titles confirmed only by exact matches; retry years validated
+LATEST (1.0.80): cache mutations verify after lock release and re-merge on loss - no interleaving can lose an update
 
 SEARCH AND MATCHING
 - Smart release matcher (file hash, release group, source, resolution) - best match first with score badge

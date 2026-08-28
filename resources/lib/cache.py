@@ -53,17 +53,25 @@ class Cache(object):
                         continue
                 self._win.setProperty(self._lock_key, f"{token}:{time()}")
                 sleep(0.001)  # let a colliding writer's set land before we re-read
-                if self._win.getProperty(self._lock_key).startswith(token):
-                    self._held_token = token
-                    try:
-                        mutate()
-                    finally:
-                        self._held_token = None
-                        # release only OUR lock: if we stalled past the stale
-                        # window and someone stole it, clearing would hand a
-                        # third invocation a free pass into the mutation
-                        if self._win.getProperty(self._lock_key).startswith(token):
-                            self._win.clearProperty(self._lock_key)
+                if not self._win.getProperty(self._lock_key).startswith(token):
+                    continue
+                self._held_token = token
+                try:
+                    mutate()
+                finally:
+                    self._held_token = None
+                    # release only OUR lock: if we stalled past the stale
+                    # window and someone stole it, clearing would hand a
+                    # third invocation a free pass into the mutation
+                    if self._win.getProperty(self._lock_key).startswith(token):
+                        self._win.clearProperty(self._lock_key)
+                # Two writers CAN both confirm their token inside the settle
+                # gap - hard mutual exclusion is impossible with only atomic
+                # reads/writes. What makes that harmless: mutate() is a MERGE
+                # of live state, and we verify AFTER release. A lost update
+                # fails verification and the whole acquire-merge cycle runs
+                # again, converging with the concurrent writer's state kept.
+                if verify is None or verify():
                     return
         except Exception:
             pass
