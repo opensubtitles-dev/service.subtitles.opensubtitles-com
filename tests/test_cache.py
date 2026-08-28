@@ -221,3 +221,32 @@ def test_stalled_holder_never_clears_stolen_lock():
     assert c._win.getProperty(c._lock_key).startswith("thief"), \
         "stalled holder must leave the thief's lock in place"
     c._win.clearProperty(c._lock_key)
+
+
+def test_long_mutation_keeps_lease_via_heartbeat():
+    """A clear over many entries renews its lease mid-mutation, so a
+    concurrent writer cannot see the lock as stale while the holder is
+    still working."""
+    import time as _time
+    from unittest.mock import patch
+    from resources.lib import cache as cache_mod
+    from resources.lib.cache import Cache
+
+    c = Cache(key_prefix="lease")
+    for i in range(450):
+        c._win.setProperty(f"lease:k{i}", "gz:x")
+    import json as _json
+    c._win.setProperty(c._index_key, _json.dumps([f"lease:k{i}" for i in range(450)]))
+
+    stamps = []
+    real_set = c._win.setProperty
+
+    def recording_set(prop, value):
+        if prop == c._lock_key:
+            stamps.append(value)
+        real_set(prop, value)
+
+    with patch.object(c._win, "setProperty", side_effect=recording_set):
+        c.clear()
+    # initial acquisition plus at least two heartbeat renewals (450 keys / 200)
+    assert len(stamps) >= 3, f"expected lease renewals, saw {len(stamps)} lock writes"

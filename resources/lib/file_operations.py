@@ -102,7 +102,7 @@ def hash_file(file_path, rar):
         buffer += f.readBytes(65536)
         f.close()
 
-    for x in range(int(65536 / byte_size) * 2):
+    for x in range(65536 // byte_size * 2):
         size = x * byte_size
         (l_value,) = struct.unpack(long_long_format, buffer[size:size + byte_size])
         hash_ += l_value

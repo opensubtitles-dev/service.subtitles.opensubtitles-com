@@ -298,10 +298,16 @@ def calculate_match_score(subtitle, video_filename, guessit_data=None, prefer_he
     if attributes.get("from_trusted"):
         score += 100.0
 
-    rating = float(attributes.get("ratings") or 0.0)
+    try:
+        rating = float(attributes.get("ratings") or 0.0)
+    except (TypeError, ValueError):
+        rating = 0.0
     score += (rating / 10.0) * 50.0
 
-    downloads = int(attributes.get("download_count") or 0)
+    try:
+        downloads = int(attributes.get("download_count") or 0)
+    except (TypeError, ValueError):
+        downloads = 0
     if downloads > 0:
         score += min(math.log10(downloads + 1) * 10.0, 50.0)
 

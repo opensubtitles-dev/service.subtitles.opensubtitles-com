@@ -55,11 +55,11 @@ def clean_temp_directory():
                     elif os.path.isdir(entry_path):
                         shutil.rmtree(entry_path, ignore_errors=True)
                 except Exception as err:
-                    log(__name__, f"Failed to clean temp file {entry_path}: {err}")
+                    log(__name__, f"Failed to clean temp file {entry_path}: {type(err).__name__}")
         else:
             os.makedirs(__temp__, exist_ok=True)
     except Exception as e:
-        log(__name__, f"Temp directory initialization error: {e}")
+        log(__name__, f"Temp directory initialization error: {type(e).__name__}")
 
 
 # Run initial cleanup on load
@@ -269,7 +269,7 @@ class SubtitleDownloader:
             try:
                 self.video_guessit = _call_guessit_api(self.video_filename)
             except Exception as e:
-                log(__name__, f"Failed to retrieve Guessit metadata for ranking: {e}")
+                log(__name__, f"Failed to retrieve Guessit metadata for ranking: {type(e).__name__}")
 
         # Extract ordered preferred languages for multi-language display
         from urllib.parse import unquote
@@ -578,7 +578,7 @@ class SubtitleDownloader:
         try:
             info = self.open_subtitles.get_feature_info(**ambiguous)
         except (ProviderError, ServiceUnavailable, TooManyRequests, ValueError) as e:
-            log(__name__, f"Feature lookup unavailable, will try both readings instead: {e}")
+            log(__name__, f"Feature lookup unavailable, will try both readings instead: {type(e).__name__}")
             return None
 
         if not info:
@@ -677,7 +677,7 @@ class SubtitleDownloader:
             error(__name__, 32272, e)
             valid = 0
         except DownloadLimitExceeded as e:
-            log(__name__, f"Download limit exceeded: {e}")
+            log(__name__, f"Download limit exceeded: {type(e).__name__}")
             if self.username=="":
                 error(__name__, 32006, e)
             else:
@@ -724,7 +724,7 @@ class SubtitleDownloader:
 
                 os.rename(tmp_path, subtitle_path)
             except Exception as e:
-                log(__name__, f"Failed to save subtitle file: {e}")
+                log(__name__, f"Failed to save subtitle file: {type(e).__name__}")
                 if os.path.exists(tmp_path):
                     try:
                         os.unlink(tmp_path)
@@ -795,7 +795,7 @@ class SubtitleDownloader:
                         prefer_hearing_impaired=prefer_hi
                     )
                 except Exception as e:
-                    log(__name__, f"Subtitle ranking failed, falling back to unranked order: {e!r}")
+                    log(__name__, f"Subtitle ranking failed, falling back to unranked order: {type(e).__name__}")
                     ranked_subtitles = self.subtitles
                     smart_ranking = False
 
@@ -854,7 +854,7 @@ class SubtitleDownloader:
                 except Exception as e:
                     # log the id only - the attributes dict is large and noisy
                     log(__name__, f"Skipping unusable subtitle entry "
-                                  f"{subtitle.get('id') if isinstance(subtitle, dict) else '?'}: {e!r}")
+                                  f"{subtitle.get('id') if isinstance(subtitle, dict) else '?'}: {type(e).__name__}")
                     continue
 
         self._inject_transcribe_row()
