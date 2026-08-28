@@ -254,7 +254,11 @@ class SubtitleDownloader:
                 log(__name__, f"Using basename as query fallback: {file_data['basename']}")
             elif media_data.get("query"):
                 log(__name__, f"Using parsed query from media_data: {media_data['query']}")
-            log(__name__, "media_data '%s' " % media_data)
+            # any value can be a library file URL with a stream token - redact
+            # every string that looks like one before logging
+            log(__name__, "media_data '%s' " % {
+                k: (redact_path(v) if isinstance(v, str) and "://" in v else v)
+                for k, v in media_data.items()})
 
         self.query = {**media_data, **file_data, **language_data}
 

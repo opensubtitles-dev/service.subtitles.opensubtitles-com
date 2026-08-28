@@ -284,3 +284,19 @@ def test_episode_subtitle_not_penalized_when_target_is_an_episode():
     sub2 = _provenance_sub("ep2", "Show.S04E01.1080p.WEB.H264-GROUP")
     score_for_movie = calculate_match_score(sub2, "Some.Movie.2024.1080p.mkv")
     assert score_for_episode > score_for_movie
+
+
+def test_rank_drops_non_object_entries_and_keeps_ranking():
+    """A non-object entry in the result list must be dropped, not allowed to
+    re-raise inside the score-failure handler and disable ranking for the
+    whole page."""
+    from resources.lib.matcher import rank_subtitles
+
+    good = {"id": "1", "attributes": {"language": "en",
+                                      "release": "Movie.2024.1080p.BluRay.x264-GRP",
+                                      "files": [{"file_name": "Movie.2024.1080p.BluRay.x264-GRP.srt"}]}}
+    ranked = rank_subtitles([None, "junk", 42, good],
+                            video_filename="Movie.2024.1080p.BluRay.x264-GRP.mkv",
+                            guessit_data=None, preferred_languages=["en"],
+                            smart_ranking=True)
+    assert ranked == [good] or (len(ranked) == 1 and ranked[0]["id"] == "1")
