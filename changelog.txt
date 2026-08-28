@@ -1,3 +1,6 @@
+v1.0.88 (2026-08-28)
+- both guessit clients log structural results only (year, type, title presence) - the parsed title itself never reaches the debug log; the static gate now also catches .get('title')-style payload pulls in log lines
+
 v1.0.87 (2026-08-28)
 - the final query summary and the look-alike gate messages no longer carry title values - the last three log lines with viewing history are cleared, verified by an end-to-end test that plants a title through the whole flow including a non-matching result set
 
