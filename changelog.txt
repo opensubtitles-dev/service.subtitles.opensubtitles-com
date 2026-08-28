@@ -1,3 +1,6 @@
+v1.0.76 (2026-08-28)
+- the initial InfoLabel metadata log line redacts URL-shaped values, closing the last log site where a playback integration's tokened URL could reach a shared debug log
+
 v1.0.75 (2026-08-28)
 - the media metadata debug log redacts every URL-shaped value, so a library entry resolving to a tokened file URL cannot leak into shared logs
 - non-object entries in the result list are dropped before ranking, so they can no longer re-raise inside the score-failure handler and disable smart ranking for the page

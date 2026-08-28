@@ -89,3 +89,23 @@ def test_specials_detection_only_matches_bare_s_labels():
     compound = run("S01E05")
     assert compound["season_number"] != "0"
     assert compound["episode_number"] == "S01E05"
+
+
+def test_infolabel_log_redacts_url_values():
+    """An InfoLabel carrying a tokened URL must be redacted in the initial
+    media-data log line."""
+    import xbmc
+    from unittest.mock import patch
+    from resources.lib import data_collector
+
+    labels = {"VideoPlayer.Year": "", "VideoPlayer.Season": "",
+              "VideoPlayer.Episode": "", "VideoPlayer.TVshowtitle": "",
+              "VideoPlayer.OriginalTitle": "http://cdn.example/t.mkv?token=SECRET-IL-TOKEN",
+              "VideoPlayer.TvShowDBID": "", "VideoPlayer.Title": ""}
+    logged = []
+    with patch.object(xbmc, "getInfoLabel", side_effect=lambda k: labels.get(k, "")), \
+         patch.object(data_collector, "get_file_path", return_value="/m/x.mkv"), \
+         patch.object(data_collector, "_jsonrpc", return_value=None), \
+         patch.object(xbmc, "log", side_effect=lambda msg, level=0: logged.append(str(msg))):
+        data_collector.get_media_data()
+    assert "SECRET-IL-TOKEN" not in "\n".join(l for l in logged if "Initial media data" in l)

@@ -459,7 +459,11 @@ def get_media_data():
             "parent_imdb_id": None,
             "imdb_id": None,
             "tmdb_id": None}
-    log(__name__, f"Initial media data from InfoLabels: {item}")
+    # a playback integration can put a tokened URL into an InfoLabel -
+    # redact every URL-shaped value before the mapping reaches the log
+    log(__name__, "Initial media data from InfoLabels: %s" % {
+        k: (redact_path(v) if isinstance(v, str) and "://" in v else v)
+        for k, v in item.items()})
     
     # Check if we're dealing with a non-library file (all InfoLabels empty)
     if not any([item["tv_show_title"], item["original_title"], item["year"], 
