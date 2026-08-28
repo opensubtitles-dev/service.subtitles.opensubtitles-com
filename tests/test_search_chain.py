@@ -404,3 +404,29 @@ def test_gate_skips_malformed_entries_instead_of_accepting_set():
                   {"attributes": {"feature_details": {"title": "Freaky Tales"},
                                   "release": "Freaky.Tales.2024.1080p"}}]
     assert sd._results_match_title(mixed_good, "Freaky Tales") is True
+
+
+def test_media_data_log_redacts_url_values():
+    """A library entry can resolve to a tokened file URL inside media_data -
+    every URL-shaped value must be redacted before logging."""
+    import xbmc
+    from unittest.mock import patch
+    from resources.lib.subtitle_downloader import SubtitleDownloader
+
+    sd = SubtitleDownloader.__new__(SubtitleDownloader)
+    sd.params = {"action": "search", "languages": "English"}
+    sd.sub_format = "srt"
+    sd.subtitles = {}
+    media = {"query": "Movie", "file_path": "http://nas.local/v.mkv?token=SECRET-LIB-TOKEN"}
+    logged = []
+    with patch("resources.lib.subtitle_downloader.get_file_path", return_value="/m/x.mkv"), \
+         patch("resources.lib.subtitle_downloader.get_file_data",
+               return_value={"filename": "x.mkv", "basename": "x.mkv"}), \
+         patch("resources.lib.subtitle_downloader.get_media_data", return_value=media), \
+         patch("resources.lib.subtitle_downloader.get_language_data",
+               return_value={"languages": "en"}), \
+         patch("resources.lib.subtitle_downloader._call_guessit_api", return_value=None), \
+         patch.object(sd, "_search_subtitles", return_value=({}, True)), \
+         patch.object(xbmc, "log", side_effect=lambda msg, level=0: logged.append(str(msg))):
+        sd.search()
+    assert "SECRET-LIB-TOKEN" not in "\n".join(logged)

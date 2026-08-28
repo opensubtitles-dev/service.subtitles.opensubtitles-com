@@ -199,3 +199,19 @@ def test_multi_language_top_picks_and_grouping():
     actual_ids = [s["id"] for s in ranked]
 
     assert actual_ids == expected_ids
+
+
+def test_rank_drops_non_object_entries_and_keeps_ranking():
+    """A non-object entry in the result list must be dropped, not allowed to
+    re-raise inside the score-failure handler and disable ranking for the
+    whole page."""
+    from resources.lib.matcher import rank_subtitles
+
+    good = {"id": "1", "attributes": {"language": "en",
+                                      "release": "Movie.2024.1080p.BluRay.x264-GRP",
+                                      "files": [{"file_name": "Movie.2024.1080p.BluRay.x264-GRP.srt"}]}}
+    ranked = rank_subtitles([None, "junk", 42, good],
+                            video_filename="Movie.2024.1080p.BluRay.x264-GRP.mkv",
+                            guessit_data=None, preferred_languages=["en"],
+                            smart_ranking=True)
+    assert ranked == [good] or (len(ranked) == 1 and ranked[0]["id"] == "1")

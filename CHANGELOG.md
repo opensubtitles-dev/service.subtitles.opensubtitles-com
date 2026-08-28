@@ -8,6 +8,11 @@ Mirrors `changelog.txt` (the copy Kodi ships); regenerate this file whenever tha
 
 ---
 
+## [v1.0.75] - 2026-08-28
+
+- the media metadata debug log redacts every URL-shaped value, so a library entry resolving to a tokened file URL cannot leak into shared logs
+- non-object entries in the result list are dropped before ranking, so they can no longer re-raise inside the score-failure handler and disable smart ranking for the page
+
 ## [v1.0.74] - 2026-08-28
 
 - redaction fails closed: a path still percent-decoding after twenty layers is dropped entirely (redacted placeholder in logs, empty filename for searches) instead of passing residue through

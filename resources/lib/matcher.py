@@ -320,6 +320,13 @@ def rank_subtitles(subtitles, video_filename, guessit_data=None, smart_ranking=T
     if not subtitles:
         return []
 
+    # a non-object entry cannot score, sort or render - drop it here so it
+    # cannot raise inside the except handler below (assigning _match_score
+    # to a string re-raised and disabled ranking for the whole page)
+    subtitles = [s for s in subtitles if isinstance(s, dict)]
+    if not subtitles:
+        return []
+
     # 1. Compute match scores for all subtitles if smart ranking enabled
     if smart_ranking and video_filename:
         for sub in subtitles:
