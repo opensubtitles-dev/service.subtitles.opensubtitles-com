@@ -8,6 +8,11 @@ Mirrors `changelog.txt` (the copy Kodi ships); regenerate this file whenever tha
 
 ---
 
+## [v1.0.84] - 2026-08-28
+
+- guessit log lines identify requests by cache-key prefix only - the playback-derived filename reaches no log line at all
+- a download invocation without an id parameter shows the proper error dialog instead of an uncaught KeyError
+
 ## [v1.0.83] - 2026-08-28
 
 - a null, empty or non-HTTP download link from the API raises a controlled provider error instead of a raw requests exception with no dialog

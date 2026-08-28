@@ -381,7 +381,9 @@ def _call_guessit_api(filename):
 
         cached = cache.get(cache_key)
         if cached is not None:
-            log(__name__, f"📋 Cache hit for guessit: {clean_filename}")
+            # key prefix only: the filename is playback-derived and belongs
+            # in no log line, even after safe_media_filename stripped it
+            log(__name__, f"📋 Cache hit for guessit: {cache_key[:16]}")
             return cached or None
 
         # Get API key from addon settings
@@ -401,7 +403,7 @@ def _call_guessit_api(filename):
         req.add_header("User-Agent", get_user_agent())
         req.add_header("Accept", "application/json")
 
-        log(__name__, f"🔍 Calling guessit API for: {clean_filename}")
+        log(__name__, f"🔍 Calling guessit API ({cache_key[:16]})")
 
         # Make the request with a safe timeout
         with urllib.request.urlopen(req, timeout=10) as response:
