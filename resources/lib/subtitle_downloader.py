@@ -327,11 +327,13 @@ class SubtitleDownloader:
                 ctokens = self._title_tokens(candidate)
                 if not ctokens or not wanted <= ctokens:
                     continue
-                # "Up", "It", "Her": one shared token means nothing when the
-                # candidate title is itself long - accept a single-token match
-                # only against a near-exact feature title
-                if single_token and len(ctokens) > 3:
-                    continue
+                # "Up", "It", "Her": one shared token means nothing - a
+                # single-token title is confirmed only by an exactly matching
+                # feature title (a trailing year token like "Up (2009)" aside)
+                if single_token:
+                    extras = ctokens - wanted
+                    if any(not (t.isdigit() and len(t) == 4) for t in extras):
+                        continue
                 return True
             # a release string is token soup ("...BluRay.x265..."), so a
             # single-token title can never be confirmed by it

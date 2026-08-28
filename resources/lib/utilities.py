@@ -62,7 +62,13 @@ def redact_path(path):
             return s
         from urllib.parse import urlsplit
         parts = urlsplit(s)
-        host = parts.netloc.rsplit("@", 1)[-1]      # drop user:pass@
+        # userinfo can hide behind percent-encoding ('user%3Apass%40host') -
+        # decode the authority to fixpoint BEFORE splitting the credentials off
+        netloc = _fully_unquote(parts.netloc)
+        if netloc is None:
+            return f"{parts.scheme}://[host redacted]"
+        had_userinfo = "@" in netloc
+        host = netloc.rsplit("@", 1)[-1]            # drop user:pass@
         # a percent-encoded '?token=' ('%3Ftoken%3D...', or nested
         # '%253F...') hides INSIDE the path component - decode to fixpoint
         # so every encoding layer surfaces, then strip
@@ -73,7 +79,7 @@ def redact_path(path):
         encoded_smuggle = "?" in clean_path or "#" in clean_path
         clean_path = clean_path.split("?", 1)[0].split("#", 1)[0]
         redacted = f"{parts.scheme}://{host}{clean_path}"
-        if parts.query or parts.fragment or encoded_smuggle or "@" in parts.netloc:
+        if parts.query or parts.fragment or encoded_smuggle or had_userinfo:
             redacted += "  [query/credentials redacted]"
         return redacted
     except Exception:

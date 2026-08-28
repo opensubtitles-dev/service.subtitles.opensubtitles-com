@@ -122,3 +122,12 @@ def test_get_params_always_returns_dict():
         assert get_params() == {}
     assert isinstance(get_params("x"), dict)
     assert get_params("action=search&languages=en") == {"action": "search", "languages": "en"}
+
+
+def test_redact_path_strips_percent_encoded_userinfo():
+    """'user%3Apass%40host' hides credentials in the AUTHORITY - decode the
+    netloc to fixpoint before splitting them off."""
+    from resources.lib.utilities import redact_path
+    out = redact_path("http://user%3ASECRET-USERPASS%40cdn.example/video.mkv")
+    assert "SECRET-USERPASS" not in out
+    assert "cdn.example" in out and "redacted" in out

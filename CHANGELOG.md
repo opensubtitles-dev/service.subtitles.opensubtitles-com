@@ -8,6 +8,12 @@ Mirrors `changelog.txt` (the copy Kodi ships); regenerate this file whenever tha
 
 ---
 
+## [v1.0.79] - 2026-08-28
+
+- percent-encoded credentials in a URL's authority part (user%3Apass%40host) are decoded and stripped before logging
+- a one-word title (Up, It, Her) is confirmed only by an exactly matching feature title (a year token aside), never by a longer title containing the word
+- the movie title retry validates its year, so an implausible InfoLabel year cannot fail the request and stop the fallback chain
+
 ## [v1.0.78] - 2026-08-28
 
 - update check compares ALL remote manifests and takes the highest version - a lagging feed could advertise an older release than GitHub already carried
