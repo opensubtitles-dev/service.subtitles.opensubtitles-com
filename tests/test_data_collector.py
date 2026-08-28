@@ -88,7 +88,9 @@ def test_specials_detection_only_matches_bare_s_labels():
 
     compound = run("S01E05")
     assert compound["season_number"] != "0"
-    assert compound["episode_number"] == "S01E05"
+    # a compound label is not a valid episode coordinate - intake validation
+    # drops it rather than letting it fail the API request downstream
+    assert compound["episode_number"] == ""
 
 
 def test_infolabel_log_redacts_url_values():

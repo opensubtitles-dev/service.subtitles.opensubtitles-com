@@ -8,6 +8,10 @@ Mirrors `changelog.txt` (the copy Kodi ships); regenerate this file whenever tha
 
 ---
 
+## [v1.0.82] - 2026-08-28
+
+- season, episode and year InfoLabels are validated at intake (specials sN labels convert first), so a malformed player value can never fail the request and stop the fallback chain
+
 ## [v1.0.81] - 2026-08-28
 
 - the scraper-written episodeguide field is size-capped (64KB) and rejected on DOCTYPE/ENTITY declarations before XML parsing, matching the remote-manifest protections
