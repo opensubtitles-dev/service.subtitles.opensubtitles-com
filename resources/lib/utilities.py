@@ -159,9 +159,13 @@ def error(module, msg_id=None, msg="", detail=""):
 
 
 def get_params(string=""):
-    param = []
+    # always a dict: an empty query string used to return a LIST, and any
+    # caller doing params.get(...) then crashed on the type mismatch
+    param = {}
     if string == "":
-        param_string = sys.argv[2][1:]
+        # a service invocation always carries argv[2], but RunScript and
+        # crafted invocations may not - never IndexError over it
+        param_string = sys.argv[2][1:] if len(sys.argv) > 2 else ""
     else:
         param_string = string
 

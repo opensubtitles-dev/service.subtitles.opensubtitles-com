@@ -1,3 +1,14 @@
+v1.0.78 (2026-08-28)
+- update check compares ALL remote manifests and takes the highest version - a lagging feed could advertise an older release than GitHub already carried
+- Clear Cache recounts statistics honestly instead of hardcoding zero - entries a concurrent invocation wrote during the clear stay counted
+- invocation parameter parsing always returns a mapping and tolerates short argv - RunScript-style calls could crash it
+- a malformed oshash property from a playback integration is dropped instead of failing the search request
+- a failed download stops cleanly after its error dialog instead of running the file-path logic with nothing to write
+- one subtitle row with a bad rating value, null title/release fields or a non-object attributes block renders (or is skipped) without costing the rest of the list
+- unranked sorting survives mixed-type votes/ratings fields
+- error dialogs no longer route the raw exception object into the debug log; connection-failure messages carry the exception class, never the request URL
+- static gate extended to catch payload dumps and exception objects in every log call form (f-string, %%-format, bare argument)
+
 v1.0.77 (2026-08-28)
 - guessit-derived season/episode/year validated at intake, so implausible values can never turn into a failing API request that stops the fallback chain
 - the cache index lock renews its lease during long clears (heartbeat), so a slow holder can no longer be mistaken for crashed and stolen from mid-mutation

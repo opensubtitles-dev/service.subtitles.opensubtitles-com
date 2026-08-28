@@ -829,7 +829,7 @@ def get_media_data():
         # '?token=...' must reach neither the search query nor the logs
         try:
             fallback_title = safe_media_filename(get_file_path()) or "Unknown"
-        except:
+        except Exception:
             fallback_title = "Unknown"
 
     item["query"] = fallback_title
@@ -1112,10 +1112,17 @@ def get_flag(language_code):
         "zh-cn": "zh",
         "zh-tw": "-"
     }
-    return language_list.get(language_code.lower(), language_code)
+    # language codes come from API payloads - never crash a list row over one
+    code = str(language_code or "").lower()
+    return language_list.get(code, code)
 
 
 def clean_feature_release_name(title, release, movie_name=""):
+    # API fields can be null - a None here must degrade to the other fields,
+    # not TypeError out of the row (the caller skips the whole entry)
+    title = title or ""
+    release = release or ""
+    movie_name = movie_name or ""
     if not title:
         if not movie_name:
             if not release:

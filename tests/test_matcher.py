@@ -215,3 +215,17 @@ def test_rank_drops_non_object_entries_and_keeps_ranking():
                             guessit_data=None, preferred_languages=["en"],
                             smart_ranking=True)
     assert ranked == [good] or (len(ranked) == 1 and ranked[0]["id"] == "1")
+
+
+def test_unranked_sort_survives_mixed_type_fields():
+    """votes/ratings as strings must not TypeError inside sorted() when smart
+    ranking is off."""
+    from resources.lib.matcher import rank_subtitles
+    subs = [{"id": "a", "attributes": {"language": "en", "votes": "12", "ratings": 8.0,
+                                       "download_count": 5, "release": "A"}},
+            {"id": "b", "attributes": {"language": "en", "votes": 3, "ratings": "SizeError",
+                                       "download_count": "9", "release": "B"}},
+            {"id": "c", "attributes": "not-a-dict"}]
+    ranked = rank_subtitles(subs, video_filename="", guessit_data=None,
+                            preferred_languages=["en"], smart_ranking=False)
+    assert [s["id"] for s in ranked if isinstance(s, dict)]  # no exception, entries present

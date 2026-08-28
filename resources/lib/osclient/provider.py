@@ -128,7 +128,7 @@ class OpenSubtitlesProvider:
             # code to report - reading one here raised AttributeError inside the handler
             # instead of surfacing the intended "service unavailable" message.
             logging(f"Connection error during login: {type(e).__name__}")
-            raise ServiceUnavailable(f"Connection error: {e!r}")
+            raise ServiceUnavailable(f"Connection error: {type(e).__name__}")
         except HTTPError as e:
             status_code = e.response.status_code
             logging(f"HTTP error during login: {status_code}")
@@ -163,7 +163,7 @@ class OpenSubtitlesProvider:
             r = self.session.get(user_info_url, headers=auth_headers, timeout=REQUEST_TIMEOUT)
             r.raise_for_status()
         except (ConnectionError, Timeout, ReadTimeout) as e:
-            raise ServiceUnavailable(f"Connection error: {e!r}")
+            raise ServiceUnavailable(f"Connection error: {type(e).__name__}")
         except HTTPError as e:
             status_code = e.response.status_code
             if status_code == 401:
@@ -212,7 +212,7 @@ class OpenSubtitlesProvider:
             logging(f"Feature lookup: {redact_path(r.url)} -> {r.status_code}")
             r.raise_for_status()
         except (ConnectionError, Timeout, ReadTimeout) as e:
-            raise ServiceUnavailable(f"Connection error: {e!r}")
+            raise ServiceUnavailable(f"Connection error: {type(e).__name__}")
         except HTTPError as e:
             status_code = e.response.status_code
             if status_code == 429:
@@ -347,7 +347,7 @@ class OpenSubtitlesProvider:
             r.raise_for_status()
         except (ConnectionError, Timeout, ReadTimeout) as e:
             logging(f"Connection error during search: {type(e).__name__}")
-            raise ServiceUnavailable(f"Connection error: {e!r}")
+            raise ServiceUnavailable(f"Connection error: {type(e).__name__}")
         except HTTPError as e:
             status_code = e.response.status_code
             logging(f"HTTP error during subtitle search: {type(e).__name__}")
@@ -470,7 +470,7 @@ class OpenSubtitlesProvider:
                     raise
         except (ConnectionError, Timeout, ReadTimeout) as e:
             logging(f"Connection error during download: {type(e).__name__}")
-            raise ServiceUnavailable(f"Connection error: {e!r}")
+            raise ServiceUnavailable(f"Connection error: {type(e).__name__}")
         except HTTPError as e:
             status_code = e.response.status_code
             if status_code == 401:

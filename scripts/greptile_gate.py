@@ -145,6 +145,39 @@ class Gate(ast.NodeVisitor):
         self.generic_visit(node)
 
     def _check_log_call(self, node):
+        # Non-f-string blind spots: bare Name arguments, %-format, .format()
+        for arg in node.args:
+            # log(__name__, attributes) / logging(params) - whole payload dumps
+            if isinstance(arg, ast.Name):
+                if arg.id in DICTISH_NAMES:
+                    self.flag(node, "G06", f"whole '{arg.id}' passed to log - "
+                                           "redact URL-shaped values first")
+                if arg.id in self.except_names:
+                    self.flag(node, "G03", f"raw exception '{arg.id}' passed to log "
+                                           "- log type(e).__name__")
+            # log("... %s" % media_data)
+            if isinstance(arg, ast.BinOp) and isinstance(arg.op, ast.Mod):
+                right = arg.right
+                names = [right] if isinstance(right, ast.Name) else (
+                    [e for e in right.elts if isinstance(e, ast.Name)]
+                    if isinstance(right, ast.Tuple) else [])
+                for n in names:
+                    if n.id in DICTISH_NAMES and not (
+                            isinstance(arg.right, ast.DictComp) or "redact" in
+                            (ast.get_source_segment(self.source, arg) or "")):
+                        self.flag(node, "G06", f"whole '{n.id}' %-formatted into log "
+                                               "- redact URL-shaped values first")
+                    if n.id in self.except_names:
+                        self.flag(node, "G03", f"raw exception '{n.id}' %-formatted "
+                                               "into log - log type(e).__name__")
+        # error(module, msg_id, e, ...) - the msg positional goes raw into log()
+        f = node.func
+        fname = f.id if isinstance(f, ast.Name) else (f.attr if isinstance(f, ast.Attribute) else "")
+        if fname == "error" and len(node.args) >= 3:
+            third = node.args[2]
+            if isinstance(third, ast.Name) and third.id in self.except_names:
+                self.flag(node, "G03", "exception object passed as error() msg - "
+                                       "it is logged raw; use detail= for the dialog")
         for fv in self._fstring_values(node):
             expr, src = fv.value, ast.get_source_segment(self.source, fv.value) or ""
             # G03: raw exception variable

@@ -109,3 +109,10 @@ def test_infolabel_log_redacts_url_values():
          patch.object(xbmc, "log", side_effect=lambda msg, level=0: logged.append(str(msg))):
         data_collector.get_media_data()
     assert "SECRET-IL-TOKEN" not in "\n".join(l for l in logged if "Initial media data" in l)
+
+
+def test_clean_feature_release_name_tolerates_none_fields():
+    from resources.lib.data_collector import clean_feature_release_name, get_flag
+    assert clean_feature_release_name("Title", None) .startswith("Title")
+    assert clean_feature_release_name(None, "Rel.2024") == "Rel.2024"
+    assert get_flag(None) == ""

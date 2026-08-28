@@ -110,3 +110,15 @@ def test_redaction_fails_closed_on_absurd_encoding_depth():
     assert "SECRET-DEEP" not in redact_path(url)
     assert "%" not in redact_path(url).split("://", 1)[1].split("  ")[0].replace("[path redacted]", "")
     assert safe_media_filename(url) == ""
+
+
+def test_get_params_always_returns_dict():
+    """An empty query string used to return a LIST - params.get() then
+    crashed with a type error."""
+    from resources.lib.utilities import get_params
+    import sys
+    from unittest.mock import patch
+    with patch.object(sys, "argv", ["plugin://x"]):     # short argv: RunScript-style
+        assert get_params() == {}
+    assert isinstance(get_params("x"), dict)
+    assert get_params("action=search&languages=en") == {"action": "search", "languages": "en"}
