@@ -478,6 +478,7 @@ def test_no_viewing_history_in_any_search_log():
     sd.params = {"action": "search", "languages": "English"}
     sd.sub_format = "srt"
     sd.subtitles = {}
+    sd.handle = 1
     secret = "SECRETMOVIETITLE"
     media = {"query": f"{secret} Part Two", "tv_show_title": secret,
              "original_title": secret, "year": "2024",
@@ -493,7 +494,9 @@ def test_no_viewing_history_in_any_search_log():
          patch("resources.lib.subtitle_downloader.get_language_data",
                return_value={"languages": "en"}), \
          patch("resources.lib.subtitle_downloader._call_guessit_api", return_value=None), \
-         patch.object(sd, "_search_subtitles", side_effect=[({}, True), ({}, True)]), \
+         patch.object(sd, "_search_subtitles", side_effect=[
+             ([{"attributes": {"feature_details": {"title": "Other"}, "release": "O"}}], True),
+             ([], True)]), \
          patch.object(xbmc, "log", side_effect=lambda msg, level=0: logged.append(str(msg))):
         sd.search()
     leaks = [l for l in logged if secret in l]

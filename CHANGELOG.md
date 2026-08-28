@@ -8,6 +8,10 @@ Mirrors `changelog.txt` (the copy Kodi ships); regenerate this file whenever tha
 
 ---
 
+## [v1.0.87] - 2026-08-28
+
+- the final query summary and the look-alike gate messages no longer carry title values - the last three log lines with viewing history are cleared, verified by an end-to-end test that plants a title through the whole flow including a non-matching result set
+
 ## [v1.0.86] - 2026-08-28
 
 - every structured mapping that reaches a log line is scrubbed through one recursive helper: titles, filenames and query values become presence markers at every nesting level (fallback attempt lists included), URLs lose query and credentials; end-to-end test plants a title through the whole search flow and asserts no log line carries it

@@ -44,7 +44,8 @@ COORD_NAMES = {"season", "episode", "season_number", "episode_number"}
 # viewing-history values: never in a log line (Kodi review doctrine)
 HISTORY_NAMES = {"filename", "basename", "stem", "playing_file", "fallback_title",
                  "clean_filename", "video_filename", "file_original_path",
-                 "movie_title", "show_title", "release"}
+                 "movie_title", "show_title", "release", "original_show_title",
+                 "original_title", "tv_show_title"}
 EXTERNAL_VALUE_HINTS = ("getInfoLabel", "getProperty", "getSetting", "orig_",
                         "params[", "params.get", ".get(")
 LOG_FUNC_NAMES = {"log", "logging", "error"}

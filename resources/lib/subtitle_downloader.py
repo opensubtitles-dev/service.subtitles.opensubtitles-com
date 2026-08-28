@@ -237,7 +237,7 @@ class SubtitleDownloader:
 
         self.subtitles, searched_ok = self._search_subtitles(self.query)
         if self.subtitles and not self._results_match_title(self.subtitles, expected_title):
-            log(__name__, f"{len(self.subtitles)} results, none matching '{expected_title}' - "
+            log(__name__, f"{len(self.subtitles)} results, none matching the expected title - "
                           f"holding them and trying the remaining attempts")
             held_back, self.subtitles = self.subtitles, None
 
@@ -262,7 +262,7 @@ class SubtitleDownloader:
             attempt_title = str(retry.get("query") or "") or expected_title
             if self.subtitles and not self._results_match_title(self.subtitles, attempt_title):
                 log(__name__, f"{len(self.subtitles)} results, still none matching "
-                              f"'{attempt_title}' - holding them and continuing")
+                              f"this attempt's title - holding them and continuing")
                 if held_back is None:
                     held_back = self.subtitles
                 self.subtitles = None
