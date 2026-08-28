@@ -149,3 +149,44 @@ def test_movie_title_attempt_validates_year():
     assert _valid_year("1900") == ""
     assert _valid_year("2024") == "2024"
     assert _valid_year("soon") == ""
+
+
+def test_episodeguide_rejects_entities_and_oversized_bodies():
+    """A scraper-written episodeguide with entity declarations or an absurd
+    size must be ignored, not parsed (ET expands entities)."""
+    import re
+    bomb = '<!DOCTYPE x [<!ENTITY a "aaaa">]><episodeguide>&a;</episodeguide>'
+    big = "<episodeguide>" + "x" * (70 * 1024) + "</episodeguide>"
+    for body in (bomb, big):
+        assert (len(body) > 64 * 1024
+                or re.search(r"<!\s*(DOCTYPE|ENTITY)", body, re.IGNORECASE)), \
+            "guard condition must match both hostile shapes"
+
+
+def test_episodeguide_guard_executes(monkeypatch):
+    import xbmc
+    from unittest.mock import patch
+    from resources.lib import data_collector
+    bomb = '<!DOCTYPE x [<!ENTITY a "aaaa">]><episodeguide>&a;</episodeguide>'
+    calls = {"parsed": False}
+    real_fromstring = data_collector.ET.fromstring
+
+    def spy(x):
+        calls["parsed"] = True
+        return real_fromstring(x)
+
+    labels = {"VideoPlayer.Year": "", "VideoPlayer.Season": "2", "VideoPlayer.Episode": "3",
+              "VideoPlayer.TVshowtitle": "Show", "VideoPlayer.OriginalTitle": "",
+              "VideoPlayer.TvShowDBID": "5", "VideoPlayer.Title": "Show"}
+
+    def fake_jsonrpc(method, params=None, use_cache=True):
+        if method == "VideoLibrary.GetTVShowDetails":
+            return {"tvshowdetails": {"episodeguide": bomb, "uniqueid": {}, "imdbnumber": ""}}
+        return None
+
+    with patch.object(xbmc, "getInfoLabel", side_effect=lambda k: labels.get(k, "")), \
+         patch.object(data_collector, "get_file_path", return_value="/tv/x.mkv"), \
+         patch.object(data_collector, "_jsonrpc", side_effect=fake_jsonrpc), \
+         patch.object(data_collector.ET, "fromstring", side_effect=spy):
+        data_collector.get_media_data()
+    assert not calls["parsed"], "entity-bearing episodeguide must never reach ET.fromstring"

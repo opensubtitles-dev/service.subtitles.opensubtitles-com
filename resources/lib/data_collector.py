@@ -1,6 +1,7 @@
 from urllib.parse import unquote, urlsplit
 from difflib import SequenceMatcher
 import json
+import re
 import xml.etree.ElementTree as ET
 
 import xbmc
@@ -674,6 +675,15 @@ def get_media_data():
                         # Method 2: Fallback to episodeguide if uniqueid didn't work
                         if not item["parent_tmdb_id"]:
                             episodeguideXML = tvshow_details.get("episodeguide")
+                            # scraper-written field: bound the size and reject
+                            # entity declarations before parsing, same as the
+                            # remote-manifest parser (ET expands entities)
+                            if episodeguideXML and (
+                                    len(str(episodeguideXML)) > 64 * 1024
+                                    or re.search(r"<!\s*(DOCTYPE|ENTITY)",
+                                                 str(episodeguideXML), re.IGNORECASE)):
+                                log(__name__, "Ignoring oversized or entity-bearing episodeguide")
+                                episodeguideXML = None
                             if episodeguideXML:
                                 try:
                                     episodeguide = ET.fromstring(episodeguideXML)
