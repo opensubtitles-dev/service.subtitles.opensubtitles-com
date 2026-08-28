@@ -124,7 +124,9 @@ def loggable_media(mapping):
     Recursion matters: fallback-attempt lists nest the same private keys."""
     def _clean(value):
         if isinstance(value, dict):
-            return {k: ("<set>" if v else "<empty>") if k in _HISTORY_KEYS
+            # lstrip("_"): request objects expose the same keys as _query etc.
+            return {k: ("<set>" if v else "<empty>")
+                    if str(k).lstrip("_") in _HISTORY_KEYS
                     else _clean(v) for k, v in value.items()}
         if isinstance(value, (list, tuple)):
             return [_clean(v) for v in value]

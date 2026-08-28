@@ -8,6 +8,12 @@ Mirrors `changelog.txt` (the copy Kodi ships); regenerate this file whenever tha
 
 ---
 
+## [v1.0.89] - 2026-08-28
+
+- search HTTP-error logging keeps only the server-authored message field - error bodies that echo request parameters (the query among them) never reach the log verbatim
+- request builders log parameter KEYS only; the per-property debug lines and underscore-keyed request internals that carried the query value are gone
+- the structured-log scrubber treats _query and friends like their public names
+
 ## [v1.0.88] - 2026-08-28
 
 - both guessit clients log structural results only (year, type, title presence) - the parsed title itself never reaches the debug log; the static gate now also catches .get('title')-style payload pulls in log lines

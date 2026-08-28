@@ -323,3 +323,26 @@ def test_download_model_fps_and_timeshift_coercion():
     assert req.timeshift == -2.5
     req.timeshift = "garbage"
     assert req.timeshift is None
+
+
+def test_search_error_body_never_logged_raw():
+    # HTTP-error bodies can echo the playback-derived query - only the
+    # server-authored message field may reach the log
+    import xbmc
+    p = OpenSubtitlesProvider(api_key="k", username="", password="")
+    mock_resp = MagicMock()
+    mock_resp.status_code = 400
+    mock_resp.text = '{"errors":["bad query SECRET-ECHOED-TITLE"],"message":"invalid parameters"}'
+    mock_resp.json.return_value = {"errors": ["bad query SECRET-ECHOED-TITLE"],
+                                   "message": "invalid parameters"}
+    http_error = HTTPError("400")
+    http_error.response = mock_resp
+    mock_resp.raise_for_status.side_effect = http_error
+    logged = []
+    with patch.object(p.session, "get", return_value=mock_resp), \
+         patch.object(xbmc, "log", side_effect=lambda msg, level=0: logged.append(str(msg))):
+        with pytest.raises(Exception):
+            p.search_subtitles({"query": "SECRET-ECHOED-TITLE", "languages": "en"})
+    joined = "\n".join(logged)
+    assert "SECRET-ECHOED-TITLE" not in joined
+    assert "invalid parameters" in joined
