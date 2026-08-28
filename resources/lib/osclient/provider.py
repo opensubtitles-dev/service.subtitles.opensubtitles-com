@@ -396,17 +396,10 @@ class OpenSubtitlesProvider:
             status_code = e.response.status_code
             logging(f"HTTP error during subtitle search: {type(e).__name__}")
 
-            # error bodies can echo request parameters (the playback-derived
-            # query among them) - log only the server-authored message field
-            try:
-                body = e.response.json()
-                detail = body.get("message") if isinstance(body, dict) else None
-            except Exception:
-                detail = None
-            if isinstance(detail, str) and detail:
-                logging(f"Search error message: {detail[:200]}")
-            else:
-                logging("Search error carried no parseable message")
+            # nothing from the error body reaches the log: any part of it -
+            # including the server's message field - can echo request
+            # parameters, and the query is playback-derived. The status code
+            # alone is what debugging needs.
 
             if status_code == 401:
                 logging("401 error - authentication required. Checking if login was attempted...")
