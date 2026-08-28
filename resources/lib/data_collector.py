@@ -653,7 +653,7 @@ def get_media_data():
                     original_show_title = normalize_string(tvshow_details.get("originaltitle") or "")
                     if original_show_title:
                         item["query"] = original_show_title
-                        log(__name__, f"Using show original title for query: '{original_show_title}'")
+                        log(__name__, "Using show original title for query")
 
                     uniqueids = tvshow_details.get("uniqueid", {})
                     if not isinstance(uniqueids, dict):
@@ -763,7 +763,7 @@ def get_media_data():
         
         # Last resort: search library by title and year
         if not item.get("imdb_id") and not item.get("tmdb_id"):
-            log(__name__, f"🔍 No IDs found, searching library by title: '{item['original_title']}' ({item.get('year')})")
+            log(__name__, f"🔍 No IDs found, searching library by title ({item.get('year')})")
             movie_imdb, movie_tmdb, file_path = _query_kodi_library_for_movie(item["original_title"], item.get("year"))
             if movie_imdb:
                 item["imdb_id"] = movie_imdb
@@ -999,7 +999,7 @@ def get_media_data():
     if "tvshowid" in item:
         del item["tvshowid"]
 
-    log(__name__, f"Media data result: {item.get('query')} - IMDb:{item.get('imdb_id') or item.get('parent_imdb_id')} TMDb:{item.get('tmdb_id') or item.get('parent_tmdb_id')}")
+    log(__name__, f"Media data result: query={'set' if item.get('query') else 'empty'} - IMDb:{item.get('imdb_id') or item.get('parent_imdb_id')} TMDb:{item.get('tmdb_id') or item.get('parent_tmdb_id')}")
 
     return item
 
