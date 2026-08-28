@@ -8,6 +8,10 @@ Mirrors `changelog.txt` (the copy Kodi ships); regenerate this file whenever tha
 
 ---
 
+## [v1.0.81] - 2026-08-28
+
+- the scraper-written episodeguide field is size-capped (64KB) and rejected on DOCTYPE/ENTITY declarations before XML parsing, matching the remote-manifest protections
+
 ## [v1.0.80] - 2026-08-28
 
 - cache index mutations verify AFTER releasing the lock and re-run the acquire-merge cycle on loss; combined with merge semantics this makes even a theoretical double lock entry harmless - no interleaving can lose an update
