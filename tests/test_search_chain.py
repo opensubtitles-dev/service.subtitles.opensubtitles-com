@@ -430,3 +430,18 @@ def test_media_data_log_redacts_url_values():
          patch.object(xbmc, "log", side_effect=lambda msg, level=0: logged.append(str(msg))):
         sd.search()
     assert "SECRET-LIB-TOKEN" not in "\n".join(logged)
+
+
+def test_single_word_gate_rejects_multiword_lookalikes():
+    """'Up' must not be confirmed by 'Up in Smoke' - only an exact title
+    (optionally with a year token) counts."""
+    from resources.lib.subtitle_downloader import SubtitleDownloader
+    sd = SubtitleDownloader.__new__(SubtitleDownloader)
+    smoke = [{"attributes": {"feature_details": {"title": "Up in Smoke",
+                                                 "movie_name": "Up in Smoke"},
+              "release": "Up.In.Smoke.1978.1080p"}}]
+    assert sd._results_match_title(smoke, "Up") is False
+    year_ok = [{"attributes": {"feature_details": {"title": "Up (2009)",
+                                                   "movie_name": "Up (2009)"},
+                "release": "Up.2009.1080p"}}]
+    assert sd._results_match_title(year_ok, "Up") is True

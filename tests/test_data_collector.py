@@ -141,3 +141,11 @@ def test_clean_feature_release_name_tolerates_none_fields():
     assert clean_feature_release_name("Title", None) .startswith("Title")
     assert clean_feature_release_name(None, "Rel.2024") == "Rel.2024"
     assert get_flag(None) == ""
+
+
+def test_movie_title_attempt_validates_year():
+    """A pre-1927 or garbage InfoLabel year must not enter the title retry."""
+    from resources.lib.data_collector import _valid_year
+    assert _valid_year("1900") == ""
+    assert _valid_year("2024") == "2024"
+    assert _valid_year("soon") == ""

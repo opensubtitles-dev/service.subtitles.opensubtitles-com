@@ -907,7 +907,9 @@ def get_media_data():
     else:
         # Movie search: If unique IMDb/TMDb ID is present, drop query and year from primary request
         if item.get("imdb_id") or item.get("tmdb_id"):
-            title_attempt = {"query": fallback_title, "year": item.get("year"),
+            # the raw InfoLabel year can be implausible - validated or dropped,
+            # never allowed to fail the retry request and stop the chain
+            title_attempt = {"query": fallback_title, "year": _valid_year(item.get("year")),
                              "imdb_id": None, "tmdb_id": None}
             item["query"] = ""
             item["year"] = None
