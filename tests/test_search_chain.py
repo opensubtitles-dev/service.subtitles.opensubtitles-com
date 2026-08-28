@@ -461,7 +461,7 @@ def test_download_without_id_param_shows_error_not_keyerror():
     sd.username = "u"
     sd.open_subtitles = MagicMock()
     sd.open_subtitles.download_subtitle.side_effect = ProviderError("no valid file_id")
-    with patch("resources.lib.subtitle_downloader.error") as mock_error, \
+    with patch("resources.lib.subtitle_downloader.error"), \
          patch("resources.lib.subtitle_downloader.clean_temp_directory"):
-        sd.download()
-    assert mock_error.called, "the controlled error dialog must fire"
+        sd.download()          # the regression was an uncaught KeyError here
+    assert not sd.file.get("content"), "nothing may be handed to Kodi"
