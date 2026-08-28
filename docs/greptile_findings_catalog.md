@@ -166,6 +166,34 @@ reads/writes but **no compare-and-swap**.
 
 ---
 
+## Self-audit round (v1.0.78) — found by simulating the reviewer, not by it
+
+A manual deep pass over every shipped file, hunting the same classes harder
+than the gate could, produced 13 more fixes before any reviewer saw them:
+
+| # | Finding | Class |
+|---|---------|-------|
+| 1 | Update check took the FIRST manifest answer; a lagging feed advertised an older version than GitHub carried → max across sources | 4 (first-non-empty-wins) |
+| 2 | Clear Cache hardcoded "0 items" although concurrent writes legitimately survive → recount | 6 (honest UX) |
+| 3 | `get_params()` returned a LIST for empty query strings; callers `.get()` crashed | 2 |
+| 4 | `sys.argv[2]` IndexError on RunScript-style short argv | 2 |
+| 5 | Malformed `videoinfo.current_oshash` went out as moviehash and failed the request | 2 |
+| 6 | Failed download continued into file-path logic; `params["language"]` could KeyError | 2 |
+| 7 | Whole `attributes` payload dumped per row in the render loop | 1 (bare-arg log, gate blind spot) |
+| 8 | Bad `ratings` value cost the entire row over a cosmetic icon | 2 |
+| 9 | `error(module, id, e)` call sites routed the raw exception into `log()` | 1 (call-shape blind spot) |
+| 10 | `ServiceUnavailable("Connection error: {e!r}")` embedded request URLs into dialogs | 1 |
+| 11 | Non-smart sort crashed on mixed str/int votes/ratings | 2 |
+| 12 | `clean_feature_release_name`/`get_flag` crashed on null API fields | 2 |
+| 13 | `_attrs()` helper: matcher dereferenced non-dict `attributes` in language grouping | 2 |
+
+Gate upgrades from this round: log-call checks now cover **bare Name
+arguments, %-formatting and the `error(…, e)` call shape**, not just
+f-strings. Lesson: whenever a finding is fixed, grep for the PATTERN, not the
+instance — 9 of these 13 were siblings of already-fixed findings.
+
+---
+
 ## Pre-ship procedure
 
 1. `python3 -m pytest` — includes the greptile gate, PO validation,
