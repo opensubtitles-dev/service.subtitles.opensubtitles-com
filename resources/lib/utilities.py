@@ -108,6 +108,35 @@ def safe_media_filename(path):
         return ""
 
 
+# Keys whose values are the user's viewing history (titles, filenames,
+# queries) - they must never appear verbatim in a shared debug log.
+_HISTORY_KEYS = {"query", "tv_show_title", "original_title", "basename",
+                 "filename", "file_path", "file_original_path",
+                 "video_filename", "release"}
+
+
+def loggable_media(mapping):
+    """Mapping safe for the debug log, applied RECURSIVELY.
+
+    URL values lose their query/credentials via redact_path; viewing-history
+    values (titles, filenames, search queries) are reduced to a set/empty
+    marker - presence is what debugging needs, the content is private.
+    Recursion matters: fallback-attempt lists nest the same private keys."""
+    def _clean(value):
+        if isinstance(value, dict):
+            return {k: ("<set>" if v else "<empty>") if k in _HISTORY_KEYS
+                    else _clean(v) for k, v in value.items()}
+        if isinstance(value, (list, tuple)):
+            return [_clean(v) for v in value]
+        if isinstance(value, str) and "://" in value:
+            return redact_path(value)
+        return value
+    try:
+        return _clean(dict(mapping))
+    except Exception:
+        return "[unloggable mapping]"
+
+
 def log(module, msg):
     xbmc.log(f"### [{__addon_name__}:{module}] - {msg}", level=xbmc.LOGDEBUG)
 

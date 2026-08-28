@@ -8,6 +8,10 @@ Mirrors `changelog.txt` (the copy Kodi ships); regenerate this file whenever tha
 
 ---
 
+## [v1.0.86] - 2026-08-28
+
+- every structured mapping that reaches a log line is scrubbed through one recursive helper: titles, filenames and query values become presence markers at every nesting level (fallback attempt lists included), URLs lose query and credentials; end-to-end test plants a title through the whole search flow and asserts no log line carries it
+
 ## [v1.0.85] - 2026-08-28
 
 - viewing history removed from logging entirely: playback filenames, parsed titles and query values no longer appear in any debug log line - only structural information (coordinates, ratios, cache-key prefixes) remains

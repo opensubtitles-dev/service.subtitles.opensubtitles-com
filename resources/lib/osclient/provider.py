@@ -48,11 +48,8 @@ def _redacted_mapping(mapping):
     source) can embed access tokens - run each through redact_path so the
     secret-bearing query string never reaches Kodi's log.
     """
-    try:
-        return {k: redact_path(v) if isinstance(v, str) and "://" in v else v
-                for k, v in dict(mapping).items()}
-    except Exception:
-        return "[unloggable mapping]"
+    from resources.lib.utilities import loggable_media
+    return loggable_media(mapping)
 
 
 def query_to_params(query, _type):

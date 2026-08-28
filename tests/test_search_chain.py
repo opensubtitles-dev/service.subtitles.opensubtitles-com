@@ -465,3 +465,36 @@ def test_download_without_id_param_shows_error_not_keyerror():
          patch("resources.lib.subtitle_downloader.clean_temp_directory"):
         sd.download()          # the regression was an uncaught KeyError here
     assert not sd.file.get("content"), "nothing may be handed to Kodi"
+
+
+def test_no_viewing_history_in_any_search_log():
+    """End-to-end: a distinctive title planted as query/basename/show title
+    must appear in NO log line during a full search flow."""
+    import xbmc
+    from unittest.mock import patch
+    from resources.lib.subtitle_downloader import SubtitleDownloader
+
+    sd = SubtitleDownloader.__new__(SubtitleDownloader)
+    sd.params = {"action": "search", "languages": "English"}
+    sd.sub_format = "srt"
+    sd.subtitles = {}
+    secret = "SECRETMOVIETITLE"
+    media = {"query": f"{secret} Part Two", "tv_show_title": secret,
+             "original_title": secret, "year": "2024",
+             "search_fallbacks": [{"query": f"{secret} Part Two", "year": None,
+                                   "imdb_id": None, "tmdb_id": None,
+                                   "parent_imdb_id": None, "parent_tmdb_id": None}]}
+    logged = []
+    with patch("resources.lib.subtitle_downloader.get_file_path",
+               return_value=f"/movies/{secret}.mkv"), \
+         patch("resources.lib.subtitle_downloader.get_file_data",
+               return_value={"filename": f"{secret}.mkv", "basename": f"{secret}.mkv"}), \
+         patch("resources.lib.subtitle_downloader.get_media_data", return_value=media), \
+         patch("resources.lib.subtitle_downloader.get_language_data",
+               return_value={"languages": "en"}), \
+         patch("resources.lib.subtitle_downloader._call_guessit_api", return_value=None), \
+         patch.object(sd, "_search_subtitles", side_effect=[({}, True), ({}, True)]), \
+         patch.object(xbmc, "log", side_effect=lambda msg, level=0: logged.append(str(msg))):
+        sd.search()
+    leaks = [l for l in logged if secret in l]
+    assert not leaks, f"viewing history leaked: {leaks[:3]}"

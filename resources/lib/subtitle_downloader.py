@@ -21,7 +21,7 @@ from resources.lib.exceptions import AuthenticationError, ConfigurationError, Do
 from resources.lib.file_operations import get_file_data
 from resources.lib.matcher import rank_subtitles, get_match_display_tag
 from resources.lib.osclient.provider import OpenSubtitlesProvider
-from resources.lib.utilities import get_params, log, error, redact_path, TEMP_MAX_AGE_SECONDS
+from resources.lib.utilities import get_params, log, error, redact_path, loggable_media, TEMP_MAX_AGE_SECONDS
 
 __addon__ = xbmcaddon.Addon("service.subtitles.opensubtitles-com")
 __scriptid__ = __addon__.getAddonInfo("id")
@@ -130,10 +130,8 @@ class SubtitleDownloader:
         file_data = get_file_data(get_file_path())
         language_data = get_language_data(self.params)
 
-        # file_original_path can be a tokened stream URL - redact before logging
-        log(__name__, "file_data '%s' " % {
-            k: (redact_path(v) if k == "file_original_path" else v)
-            for k, v in file_data.items()})
+        # URLs redacted, filenames/titles reduced to presence markers
+        log(__name__, "file_data '%s' " % loggable_media(file_data))
         log(__name__, "language_data '%s' " % language_data)  # greptile-ok: filter flags and language codes only, never paths
 
         # if there's query passed we use it, don't try to pull media data from VideoPlayer
@@ -149,11 +147,7 @@ class SubtitleDownloader:
                 log(__name__, "Using basename as query fallback")
             elif media_data.get("query"):
                 log(__name__, "Using parsed query from media_data")
-            # any value can be a library file URL with a stream token - redact
-            # every string that looks like one before logging
-            log(__name__, "media_data '%s' " % {
-                k: (redact_path(v) if isinstance(v, str) and "://" in v else v)
-                for k, v in media_data.items()})
+            log(__name__, "media_data '%s' " % loggable_media(media_data))
 
         self.query = {**media_data, **file_data, **language_data}
 
@@ -259,7 +253,7 @@ class SubtitleDownloader:
             for id_field in ("imdb_id", "tmdb_id", "parent_imdb_id", "parent_tmdb_id"):
                 if id_field not in attempt:
                     retry[id_field] = None
-            log(__name__, f"No results, retrying with: {({k: v for k, v in attempt.items() if v})}")
+            log(__name__, f"No results, retrying with: {loggable_media({k: v for k, v in attempt.items() if v})}")
             self.subtitles, searched_ok = self._search_subtitles(retry)
             # Gate against the title THIS attempt searched for: on an id-first
             # plan the primary query is empty, and gating fallback title
