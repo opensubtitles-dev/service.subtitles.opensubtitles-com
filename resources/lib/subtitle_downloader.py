@@ -674,7 +674,7 @@ class SubtitleDownloader:
             # Not the download quota - the AI credits balance. Own dialog text,
             # otherwise the generic limit message misleads (seen live).
             log(__name__, f"AI credits exhausted: {type(e).__name__}")
-            error(__name__, 32272, e)
+            error(__name__, 32272)
             valid = 0
         except DownloadLimitExceeded as e:
             log(__name__, f"Download limit exceeded: {type(e).__name__}")
