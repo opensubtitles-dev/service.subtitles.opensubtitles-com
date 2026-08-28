@@ -166,7 +166,7 @@ def _query_kodi_library_for_movie(movie_title, year=None, dbid=None):
             if result and "movies" in result and result["movies"]:
                 matching_movies = []
                 for movie in result["movies"]:
-                    movie_title_lib = movie.get('title', '').lower()
+                    movie_title_lib = str(movie.get('title') or '').lower()
                     search_title_lower = movie_title.lower()
 
                     if (search_title_lower in movie_title_lib or
@@ -264,7 +264,7 @@ def _query_kodi_library_for_show(show_title, year=None):
         if result and "tvshows" in result and result["tvshows"]:
             matching_shows = []
             for show in result["tvshows"]:
-                show_title_lib = show.get('title', '').lower()
+                show_title_lib = str(show.get('title') or '').lower()
                 search_title_lower = show_title.lower()
                 if (search_title_lower in show_title_lib or
                     show_title_lib in search_title_lower):
@@ -407,6 +407,10 @@ def _call_guessit_api(filename):
         with urllib.request.urlopen(req, timeout=10) as response:
             if response.getcode() == 200:
                 data = json.loads(response.read().decode("utf-8"))
+                # cache only object shapes: a cached list/scalar would come
+                # back on every later call and crash .get() consumers
+                if not isinstance(data, dict):
+                    data = None
                 cache.set(cache_key, data or {}, expires=60 * 60 * 24 * 30)
                 if isinstance(data, dict):
                     # summary only: the full payload echoes the filename and

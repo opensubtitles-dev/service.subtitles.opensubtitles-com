@@ -399,7 +399,8 @@ class OpenSubtitlesProvider:
 
             # Log the error response body for debugging (no secrets on this endpoint)
             try:
-                logging(f"Search error response body: {e.response.text}")
+                # capped: error bodies echo request parameters back
+                logging(f"Search error response body: {e.response.text[:300]}")
             except Exception:
                 logging("Failed to get search error response text")
 
@@ -542,7 +543,7 @@ class OpenSubtitlesProvider:
             elif status_code == 406:
                 raise DownloadLimitExceeded(f"Daily download limit reached: {e.response.reason}")
             elif status_code == 503:
-                raise ProviderError(e)
+                raise ProviderError("Server error (503) on download.")
             else:
                 raise ProviderError(f"Bad status code on download: {status_code}")
 
@@ -562,6 +563,10 @@ class OpenSubtitlesProvider:
         try:
             subtitle = r.json()
             download_link = subtitle["link"]
+            # a null/empty/non-HTTP link would raise a raw requests URL error
+            # out of Session.get with no error dialog - reject it here
+            if not isinstance(download_link, str) or not download_link.startswith(("http://", "https://")):
+                raise TypeError("link is not a valid HTTP URL")
         except (ValueError, KeyError, TypeError):
             # Log what actually came back - decisive for debugging the new AI
             # download flow. Bodies here are progress/status payloads, never secrets.
