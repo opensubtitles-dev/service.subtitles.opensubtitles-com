@@ -288,7 +288,7 @@ class OpenSubtitlesProvider:
 
         cached = self.cache.get(cache_key)
         if cached is not None:
-            logging(f"CACHE HIT: guessit for {clean_filename}")
+            logging(f"CACHE HIT: guessit for {cache_key[-16:]}")
             return cached or None
 
         params = {"filename": clean_filename}
