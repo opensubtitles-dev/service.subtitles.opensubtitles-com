@@ -1,5 +1,6 @@
 
 import os
+import re
 import struct
 
 import xbmcvfs, xbmc
@@ -33,7 +34,14 @@ def get_file_data(file_original_path):
             except (TypeError, ValueError):
                 log(__name__, "Ignoring malformed videoinfo.current_size property")
         if orig_oshash:
-            item["moviehash"] = orig_oshash
+            # property values come from whatever add-on populated them - only
+            # a well-formed 16-hex hash may go out as moviehash; anything else
+            # would fail the request and stop the fallback chain
+            oshash = str(orig_oshash).strip().lower()
+            if re.fullmatch(r"[0-9a-f]{16}", oshash):
+                item["moviehash"] = oshash
+            else:
+                log(__name__, "Ignoring malformed videoinfo.current_oshash property")
 
         if any((orig_path, orig_size, orig_oshash)):
             return item

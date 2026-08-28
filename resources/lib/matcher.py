@@ -38,6 +38,12 @@ EDITIONS = {
 }
 
 
+def _attrs(subtitle):
+    """The entry's attributes as a dict - {} for any malformed shape."""
+    attributes = subtitle.get("attributes") if isinstance(subtitle, dict) else None
+    return attributes if isinstance(attributes, dict) else {}
+
+
 def sanitize_filename(filename):
     """Strips extension, directory path, and special punctuation for comparison."""
     if not filename:
@@ -181,7 +187,7 @@ def calculate_match_score(subtitle, video_filename, guessit_data=None, prefer_he
     Higher score indicates higher sync confidence and release match accuracy.
     """
     score = 0.0
-    attributes = subtitle.get("attributes", {})
+    attributes = _attrs(subtitle)
 
     # 1. Moviehash Bit-Exact Match (Ultimate Accuracy)
     if attributes.get("moviehash_match"):
@@ -326,7 +332,7 @@ def get_match_display_tag(subtitle):
     Returns a clean, colorized Kodi match badge string for display in the subtitle list (e.g. [COLOR yellow](+95)[/COLOR]).
     Omits text tag for exact moviehash matches as Kodi natively renders the SYNC icon.
     """
-    attributes = subtitle.get("attributes", {})
+    attributes = _attrs(subtitle)
     if attributes.get("moviehash_match"):
         return ""
 
@@ -382,12 +388,22 @@ def rank_subtitles(subtitles, video_filename, guessit_data=None, smart_ranking=T
                 sub["_match_score"] = 0.0
         sort_key = lambda s: s.get("_match_score", 0.0)
     else:
-        sort_key = lambda s: (
-            bool(s.get("attributes", {}).get("from_trusted", False)),
-            s.get("attributes", {}).get("votes", 0) or 0,
-            s.get("attributes", {}).get("ratings", 0) or 0,
-            s.get("attributes", {}).get("download_count", 0) or 0
-        )
+        def _num(value):
+            # API fields are not guaranteed numeric ("SizeError" scalars have
+            # shipped) - a str/int mix inside sorted() raises TypeError
+            try:
+                return float(value or 0)
+            except (TypeError, ValueError):
+                return 0.0
+
+        def sort_key(s):
+            attributes = s.get("attributes")
+            if not isinstance(attributes, dict):
+                attributes = {}
+            return (bool(attributes.get("from_trusted", False)),
+                    _num(attributes.get("votes")),
+                    _num(attributes.get("ratings")),
+                    _num(attributes.get("download_count")))
 
     # 2. If no preferred languages list provided, sort everything globally
     if not preferred_languages:
@@ -396,7 +412,7 @@ def rank_subtitles(subtitles, video_filename, guessit_data=None, smart_ranking=T
     # 3. Group and sort subtitles by language
     lang_map = {}
     for sub in subtitles:
-        lang = str(sub.get("attributes", {}).get("language", "")).lower()
+        lang = str(_attrs(sub).get("language", "")).lower()
         if lang not in lang_map:
             lang_map[lang] = []
         lang_map[lang].append(sub)

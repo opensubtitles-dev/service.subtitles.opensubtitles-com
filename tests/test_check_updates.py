@@ -266,3 +266,24 @@ def test_unknown_origin_timeout_message_mentions_pinning():
     import check_updates
     src = inspect.getsource(check_updates.check_updates)
     assert "from a different repository" in src
+
+
+def test_latest_remote_version_is_max_across_manifests():
+    """The Pages feed can lag GitHub - "first answer wins" advertised an older
+    version; the maximum across sources must win."""
+    from unittest.mock import patch, MagicMock
+    import check_updates
+
+    bodies = iter(['<addon id="service.subtitles.opensubtitles-com" version="1.0.70"/>',
+                   '<addon id="service.subtitles.opensubtitles-com" version="1.0.77"/>',
+                   '<addon id="service.subtitles.opensubtitles-com" version="1.0.76"/>'])
+
+    def fake_get(url, **kw):
+        resp = MagicMock()
+        resp.status_code = 200
+        body = next(bodies).encode()
+        resp.iter_content = lambda chunk_size: iter([body])
+        return resp
+
+    with patch.object(check_updates.requests, "get", side_effect=fake_get):
+        assert check_updates.fetch_latest_remote_version() == "1.0.77"

@@ -237,3 +237,25 @@ def test_multipart_rar_last_split_index_is_integer():
     assert isinstance(index, int)
     assert get_last_split("/m/video.part01.rar", index) == "/m/video.part14.rar"
     assert get_last_split("/m/video.001", index) == "/m/video.014"
+
+
+def test_malformed_oshash_property_is_dropped(monkeypatch):
+    """Only a well-formed 16-hex hash may go out as moviehash - garbage from a
+    playback integration would fail the request and stop the fallbacks."""
+    import xbmc
+    from unittest.mock import patch
+    from resources.lib import file_operations
+
+    props = {"Window(10000).Property(videoinfo.current_path)": "/movies/x.mkv",
+             "Window(10000).Property(videoinfo.current_size)": "700000000",
+             "Window(10000).Property(videoinfo.current_oshash)": "not-a-hash!"}
+    with patch.object(xbmc, "getInfoLabel", side_effect=lambda k: props.get(k, "")), \
+         patch.object(file_operations, "hash_file", return_value=(0, "")):
+        item = file_operations.get_file_data("http://cdn.example/v.mkv")
+    assert "moviehash" not in item or not item["moviehash"]
+
+    props["Window(10000).Property(videoinfo.current_oshash)"] = "0123456789ABCDEF"
+    with patch.object(xbmc, "getInfoLabel", side_effect=lambda k: props.get(k, "")), \
+         patch.object(file_operations, "hash_file", return_value=(0, "")):
+        item = file_operations.get_file_data("http://cdn.example/v.mkv")
+    assert item["moviehash"] == "0123456789abcdef"

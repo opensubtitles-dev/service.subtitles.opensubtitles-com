@@ -125,8 +125,13 @@ def _read_capped(resp, cap=MANIFEST_MAX_BYTES):
 
 
 def fetch_latest_remote_version():
-    """Queries remote repositories and returns latest remote version string or None."""
+    """Highest version across all remote manifests, or None.
+
+    The Pages-built feed can lag the GitHub manifests by a build cycle, so
+    "first source that answers" could advertise an older version than one a
+    later source carries - collect every answer and keep the maximum."""
     headers = {"User-Agent": get_user_agent()}
+    best = None
     for url in REMOTE_MANIFEST_URLS:
         try:
             resp = requests.get(url, headers=headers, timeout=6, stream=True)
@@ -135,11 +140,11 @@ def fetch_latest_remote_version():
                 if body is None:
                     continue
                 v = extract_remote_version(body)
-                if v:
-                    return v
+                if v and (best is None or parse_version_tuple(v) > parse_version_tuple(best)):
+                    best = v
         except Exception:
             continue
-    return None
+    return best
 
 
 def fast_track_repo_state():

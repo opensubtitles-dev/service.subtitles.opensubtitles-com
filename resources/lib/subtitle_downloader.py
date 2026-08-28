@@ -208,7 +208,7 @@ class SubtitleDownloader:
             # The user has seen the dialog; leave a None provider so
             # handle_action ends the listing cleanly instead of a later
             # AttributeError mid-search.
-            error(__name__, 32002, e)
+            error(__name__, 32002)
             self.open_subtitles = None
 
     def handle_action(self):
@@ -239,7 +239,7 @@ class SubtitleDownloader:
         log(__name__, "file_data '%s' " % {
             k: (redact_path(v) if k == "file_original_path" else v)
             for k, v in file_data.items()})
-        log(__name__, "language_data '%s' " % language_data)
+        log(__name__, "language_data '%s' " % language_data)  # greptile-ok: filter flags and language codes only, never paths
 
         # if there's query passed we use it, don't try to pull media data from VideoPlayer
         if query:
@@ -646,13 +646,13 @@ class SubtitleDownloader:
         try:
             return self.open_subtitles.search_subtitles(query), True
         except TooManyRequests as e:
-            error(__name__, 32007, e, detail=str(e))
+            error(__name__, 32007, detail=str(e))
         except ServiceUnavailable as e:
-            error(__name__, 32008, e, detail=str(e))
+            error(__name__, 32008, detail=str(e))
         except ProviderError as e:
-            error(__name__, 32009, e, detail=str(e))
+            error(__name__, 32009, detail=str(e))
         except ValueError as e:
-            error(__name__, 32001, e, detail=str(e))
+            error(__name__, 32001, detail=str(e))
         return None, False
 
     def download(self):
@@ -665,10 +665,10 @@ class SubtitleDownloader:
             self.file = self.open_subtitles.download_subtitle(
                 {"file_id": self.params["id"], "sub_format": self.sub_format})
         except AuthenticationError as e:
-            error(__name__, 32003, e)
+            error(__name__, 32003)
             valid = 0
         except BadUsernameError as e:
-            error(__name__, 32214, e)
+            error(__name__, 32214)
             valid = 0
         except AICreditsExhausted as e:
             # Not the download quota - the AI credits balance. Own dialog text,
@@ -679,39 +679,45 @@ class SubtitleDownloader:
         except DownloadLimitExceeded as e:
             log(__name__, f"Download limit exceeded: {type(e).__name__}")
             if self.username=="":
-                error(__name__, 32006, e)
+                error(__name__, 32006)
             else:
-                error(__name__, 32004, e)
+                error(__name__, 32004)
             valid = 0
         except TooManyRequests as e:
-            error(__name__, 32007, e, detail=str(e))
+            error(__name__, 32007, detail=str(e))
             valid = 0
         except ServiceUnavailable as e:
-            error(__name__, 32008, e, detail=str(e))
+            error(__name__, 32008, detail=str(e))
             valid = 0
         except ProviderError as e:
-            error(__name__, 32009, e, detail=str(e))
+            error(__name__, 32009, detail=str(e))
             valid = 0
         except ValueError as e:
-            error(__name__, 32001, e, detail=str(e))
+            error(__name__, 32001, detail=str(e))
             valid = 0
 
         clean_temp_directory()
+        if valid != 1:
+            # the user saw the error dialog; nothing to hand to Kodi
+            return
         dir_path = __temp__
 
-        # Kodi lang-code difference vs OS.com API langcodes return
-        if self.params["language"].lower() == 'pt-pt':
-            self.params["language"] = 'pt'
-        elif self.params["language"].lower() == 'pt-pb':
-            self.params["language"] = 'pb'
+        # Invocation params are external input - a crafted or truncated URL
+        # must not KeyError here. Kodi lang-code difference vs API codes:
+        language_param = str(self.params.get("language") or "en").lower()
+        if language_param == 'pt-pt':
+            language_param = 'pt'
+        elif language_param == 'pt-pb':
+            language_param = 'pb'
+        self.params["language"] = language_param
 
-        subtitle_path = unique_subtitle_path(dir_path, self.params["language"], self.sub_format)
+        subtitle_path = unique_subtitle_path(dir_path, language_param, self.sub_format)
         tmp_path = subtitle_path + ".tmp"
         log(__name__, f"download subtitle_path: {subtitle_path}")
 
         # Only hand Kodi a subtitle entry when the download actually succeeded; the
         # directory was wiped above, so on failure the path points at nothing.
-        if valid == 1 and self.file.get("content"):
+        if self.file.get("content"):
             try:
                 with open(tmp_path, "wb") as tmp_file:
                     tmp_file.write(self.file["content"])
@@ -806,7 +812,6 @@ class SubtitleDownloader:
                 try:
                     attributes = subtitle["attributes"]
                     language = convert_language(attributes["language"], True)
-                    log(__name__, attributes)
                     clean_name = clean_feature_release_name(attributes["feature_details"]["title"], attributes["release"],
                                                             attributes["feature_details"]["movie_name"])
 
@@ -840,8 +845,12 @@ class SubtitleDownloader:
 
                     list_item = xbmcgui.ListItem(label=language,
                                                  label2=clean_name)
+                    try:
+                        rating_icon = str(int(round(float(attributes.get("ratings") or 0) / 2)))
+                    except (TypeError, ValueError):
+                        rating_icon = "0"
                     list_item.setArt({
-                        "icon": str(int(round(float(attributes.get("ratings") or 0) / 2))),
+                        "icon": rating_icon,
                         "thumb": get_flag(attributes["language"])})
 
                     is_sync = bool(attributes.get("moviehash_match"))

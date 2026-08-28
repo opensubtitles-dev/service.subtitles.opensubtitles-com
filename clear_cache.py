@@ -23,7 +23,7 @@ if _res is not None and not any(os.path.normpath(p).startswith(_addon_path)
         del sys.modules[_module]
 # -----------------------------------------------------------------------------------
 
-from resources.lib.cache import Cache
+from resources.lib.cache import Cache, sync_cache_stats_setting
 from resources.lib.utilities import TEMP_MAX_AGE_SECONDS
 
 __addon__ = xbmcaddon.Addon("service.subtitles.opensubtitles-com")
@@ -67,7 +67,9 @@ def clear_cache():
                     pass
 
     kb_cleared = round(total_bytes / 1024, 2)
-    __addon__.setSetting("cache_stats", "0 items (0.0 KB)")
+    # recount instead of hardcoding "0 items": entries written by a concurrent
+    # invocation during the clear legitimately survive and must stay counted
+    sync_cache_stats_setting()
     msg = f"Cache cleared: {total_items} items ({kb_cleared} KB freed)"
     if files_deleted:
         msg += f" | {files_deleted} temp files deleted"
