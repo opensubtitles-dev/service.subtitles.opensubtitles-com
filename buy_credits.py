@@ -64,7 +64,7 @@ def main():
     try:
         provider.login()
     except Exception as e:
-        log(__name__, f"Buy credits: login failed ({e})")
+        log(__name__, f"Buy credits: login failed ({type(e).__name__})")
         dialog.ok(__addon_name__, __language__(32253))
         return
 

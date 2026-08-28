@@ -8,6 +8,14 @@ Mirrors `changelog.txt` (the copy Kodi ships); regenerate this file whenever tha
 
 ---
 
+## [v2.0.0-audit1] - 2026-08-28
+
+- deep privacy/robustness audit of the 2.0 feature code (25 findings): the background service, transcription pipeline, upload dry-run, browser/QR helpers and credit purchase flow no longer put any playback-derived value (filenames, titles, track names, release strings, storage paths) into the debug log
+- transcription client hardened: non-object API bodies raise controlled errors, result URLs must be http(s), ffmpeg error text is scrubbed of file paths, engine lists are shape-checked
+- download-JSON error log carries status and emptiness only - zero response bytes
+- auto-download fallback attempts carry the wanted languages; unknown account-problem keys degrade instead of raising; transcribe action ends the listing cleanly when the provider never initialized
+- static gate now covers every root entry script (buy_credits, show_qr, service_monitor) and six more viewing-history value names
+
 ## [v2.0.0] - 2026-08-20
 
 NEW GENERATION RELEASE - rebuilt around the background service

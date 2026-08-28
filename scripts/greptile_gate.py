@@ -34,7 +34,8 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # the shipped set only - dev tooling and tests are not reviewed upstream
 SHIPPED_DIRS = ("resources/lib",)
 SHIPPED_ROOT_GLOBS = ("service.py", "clear_cache.py", "check_updates.py",
-                      "test_connection.py")
+                      "test_connection.py", "buy_credits.py", "show_qr.py",
+                      "service_monitor.py")
 
 TYPE_NAMES = {"str", "list", "dict", "int", "float", "tuple", "set", "bytes"}
 DICTISH_NAMES = {"item", "data", "media_data", "params", "query", "result",
@@ -45,7 +46,8 @@ COORD_NAMES = {"season", "episode", "season_number", "episode_number"}
 HISTORY_NAMES = {"filename", "basename", "stem", "playing_file", "fallback_title",
                  "clean_filename", "video_filename", "file_original_path",
                  "movie_title", "show_title", "release", "original_show_title",
-                 "original_title", "tv_show_title"}
+                 "original_title", "tv_show_title", "sub_name", "sub_path",
+                 "release_name", "video_stem", "media_path", "target"}
 EXTERNAL_VALUE_HINTS = ("getInfoLabel", "getProperty", "getSetting", "orig_",
                         "params[", "params.get", ".get(")
 LOG_FUNC_NAMES = {"log", "logging", "error"}

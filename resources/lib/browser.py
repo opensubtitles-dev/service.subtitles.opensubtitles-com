@@ -13,7 +13,7 @@ Kodi has NO cross-platform browser API - what exists differs per platform:
 
 import xbmc
 
-from resources.lib.utilities import log
+from resources.lib.utilities import log, redact_path
 
 
 def can_open_browser():
@@ -30,12 +30,12 @@ def open_url(url):
     try:
         if xbmc.getCondVisibility("System.Platform.Android"):
             xbmc.executebuiltin(f"StartAndroidActivity(,android.intent.action.VIEW,,{url})")
-            log(__name__, f"Opened in Android browser: {url}")
+            log(__name__, f"Opened in Android browser: {redact_path(url)}")
             return True
         if can_open_browser():
             import webbrowser
             if webbrowser.open(url):
-                log(__name__, f"Opened in desktop browser: {url}")
+                log(__name__, f"Opened in desktop browser: {redact_path(url)}")
                 return True
     except Exception as e:
         log(__name__, f"Browser launch failed ({type(e).__name__}), QR remains the way")

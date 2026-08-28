@@ -190,7 +190,7 @@ def extract_audio(ffmpeg, file_path, progress=None):
     cmd = [ffmpeg, "-nostdin", "-v", "error", "-i", file_path,
            "-vn", "-sn", "-ac", "1", "-ar", "16000", "-c:a", "aac", "-b:a", "48k",
            "-movflags", "+faststart", out_path]
-    log(f"extracting audio: {' '.join(cmd)}")
+    log("extracting audio track (mono 16kHz AAC)")
     proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
     while proc.poll() is None:
         if progress and progress.iscanceled():
@@ -198,8 +198,10 @@ def extract_audio(ffmpeg, file_path, progress=None):
             raise UserCancelled()
         time.sleep(0.5)
     if proc.returncode != 0 or not os.path.exists(out_path):
-        err = (proc.stderr.read() or b"").decode(errors="replace")[:200]
-        raise TranscriptionError(f"ffmpeg audio extraction failed: {err}")
+        err = (proc.stderr.read() or b"").decode(errors="replace")
+        # ffmpeg error text embeds the input path (viewing history) - scrub it
+        err = err.replace(file_path, "<video>").replace(out_path, "<audio>")[:200]
+        raise TranscriptionError(f"ffmpeg audio extraction failed (exit {proc.returncode}): {err}")
     return out_path
 
 
@@ -227,7 +229,11 @@ class TranscriptionClient:
         if r.status_code == 404:
             raise NotDeployed("transcription API not available on this server")
         r.raise_for_status()
-        return r.json()
+        body = r.json()
+        # valid JSON is not necessarily an object - callers .get() the result
+        if not isinstance(body, dict):
+            raise TranscriptionError("unexpected non-object response from the transcription API")
+        return body
 
     def list_apis(self):
         """GET /ai/info/transcription - engines, languages and per-second price."""
@@ -276,7 +282,7 @@ class MockTranscriptionClient:
 
     def create_job(self, api_name, language, media_path, progress=None):
         log(f"MOCK transcription job: api={api_name} lang={language} "
-            f"file={media_path} ({os.path.getsize(media_path)} bytes)")
+            f"({os.path.getsize(media_path)} bytes)")
         if progress:
             progress.update(60, "Mock upload complete")
         return {"status": "CREATED", "correlation_id": "mock-1"}
@@ -299,7 +305,10 @@ def _pick_engine(apis, language):
         raise TranscriptionError("the server offers no transcription engines")
     usable = []
     for api in apis:
-        codes = {l.get("language_code") for l in api.get("languages_supported") or []}
+        if not isinstance(api, dict):
+            continue
+        codes = {l.get("language_code") for l in (api.get("languages_supported") or [])
+                 if isinstance(l, dict)}
         if not codes or language in codes or "auto" in codes:
             usable.append(api)
     if not usable:
@@ -323,6 +332,10 @@ def _save_completed_result(session, state):
     if url and str(url).startswith("file://"):
         return str(url)[7:]
     if url:
+        # same rule as download links: a null/garbage url must raise a
+        # controlled error, not a raw requests exception
+        if not str(url).startswith(("http://", "https://")):
+            raise TranscriptionError("transcription result carried an invalid url")
         r = session.get(url, headers={"User-Agent": get_user_agent()}, timeout=120)
         r.raise_for_status()
         with open(out, "wb") as f:
@@ -359,7 +372,8 @@ def run_transcription(session, token, file_data, language, mock=False):
     audio = None
     try:
         engine = _pick_engine(client.list_apis(), language)
-        codes = {l.get("language_code") for l in engine.get("languages_supported") or []}
+        codes = {l.get("language_code") for l in (engine.get("languages_supported") or [])
+                 if isinstance(l, dict)}
         job_language = language if language in codes else "auto"
 
         if source == "ffmpeg":
@@ -372,7 +386,7 @@ def run_transcription(session, token, file_data, language, mock=False):
         job = client.create_job(engine.get("name"), job_language, upload_path, progress)
         correlation_id = job.get("correlation_id")
         if not correlation_id:
-            raise TranscriptionError(f"no correlation_id in response: {job}")
+            raise TranscriptionError(f"no correlation_id in response (keys: {sorted(job.keys())})")
 
         start = time.time()
         while time.time() - start < POLL_MAX_SECONDS:

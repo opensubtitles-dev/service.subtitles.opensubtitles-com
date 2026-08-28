@@ -890,6 +890,11 @@ class SubtitleDownloader:
         resulting subtitle file to Kodi exactly like a download would."""
         from resources.lib import transcriber
         mock = (__addon__.getSetting("test_transcribe_mock") or "").lower() in ("true", "1")
+        if self.open_subtitles is None and not mock:
+            # provider never came up (missing API key) - the user already saw
+            # the configuration dialog; end the listing cleanly
+            xbmcplugin.endOfDirectory(self.handle)
+            return
         try:
             if not mock and not getattr(self.open_subtitles, "user_token", None):
                 self.open_subtitles.login()

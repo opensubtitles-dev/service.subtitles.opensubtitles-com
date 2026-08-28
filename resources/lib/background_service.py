@@ -10,7 +10,7 @@ import xbmcgui
 import xbmcaddon
 import xbmcvfs
 
-from resources.lib.utilities import log, normalize_string, redact_path, safe_media_filename
+from resources.lib.utilities import log, normalize_string, redact_path, safe_media_filename, loggable_media
 from resources.lib.data_collector import (
     get_media_data,
     get_file_path,
@@ -102,6 +102,9 @@ def notify_account_problem(problem, addon=None, fingerprint=None):
     silence would read as success.
     """
     addon = addon or xbmcaddon.Addon("service.subtitles.opensubtitles-com")
+    if problem not in ACCOUNT_PROBLEMS:
+        log(__name__, f"Unknown account problem key {problem!r}, no alert shown")
+        return
     heading_id, message_id = ACCOUNT_PROBLEMS[problem]
     if fingerprint is None:
         fingerprint = credentials_fingerprint(addon.getSetting("OSuser"), addon.getSetting("OSpass"))
@@ -297,7 +300,7 @@ class OpenSubtitlesPlayer(xbmc.Player):
                 "media": {},
                 "settle_until": time.time() + 5,
             }
-            log(__name__, f"Upload dry-run: tracking local sidecar {sub_name} "
+            log(__name__, f"Upload dry-run: tracking a local sidecar subtitle "
                           f"(lang={sub_language or 'unknown'}, {len(candidates)} candidate(s))")
         except Exception as e:
             log(__name__, f"Upload dry-run: sidecar tracking failed ({type(e).__name__})")
@@ -410,9 +413,9 @@ class OpenSubtitlesPlayer(xbmc.Player):
             xbmc.executeJSONRPC(json.dumps(
                 {"jsonrpc": "2.0", "id": 1, "method": "Player.AddSubtitle",
                  "params": {"playerid": player_id, "subtitle": sub_path}}))
-            log(__name__, f"Auto-download: added alternative subtitle stream {sub_path}")
+            log(__name__, "Auto-download: added an alternative subtitle stream")
         except Exception as e:
-            log(__name__, f"Auto-download: could not add stream {sub_path} ({type(e).__name__})")
+            log(__name__, f"Auto-download: could not add a stream ({type(e).__name__})")
 
     def _subtitle_destination_dir(self, video_file_path):
         """Directory where the user's Kodi wants downloaded subtitles kept.
@@ -448,19 +451,19 @@ class OpenSubtitlesPlayer(xbmc.Player):
             if xbmcvfs.exists(target):
                 xbmcvfs.delete(target)
             if xbmcvfs.copy(source_path, target):
-                log(__name__, f"Auto-download: stored subtitle at {target}")
+                log(__name__, "Auto-download: stored subtitle beside the video")
                 return target
-            log(__name__, f"Auto-download: xbmcvfs.copy refused {target}, trying direct write")
+            log(__name__, "Auto-download: xbmcvfs.copy refused the target, trying direct write")
         except Exception as e:
-            log(__name__, f"Auto-download: xbmcvfs copy to {target} raised {type(e).__name__}, trying direct write")
+            log(__name__, f"Auto-download: xbmcvfs copy raised {type(e).__name__}, trying direct write")
 
         try:
             import shutil
             shutil.copyfile(source_path, target)
-            log(__name__, f"Auto-download: stored subtitle at {target} (direct write)")
+            log(__name__, "Auto-download: stored subtitle beside the video (direct write)")
             return target
         except OSError as e:
-            log(__name__, f"Auto-download: cannot write {target}: {type(e).__name__} - "
+            log(__name__, f"Auto-download: cannot write the target ({type(e).__name__}) - "
                           f"keeping session-only temp copy")
             return None
 
@@ -472,10 +475,13 @@ class OpenSubtitlesPlayer(xbmc.Player):
 
         try:
             state = self._active_subtitle_state()
-            log(__name__, f"Auto-download: subtitle state (enabled, lang, name) = {state}")
+            # the track NAME often carries the movie title - log presence only
+            state_summary = ((state[0], state[1], "named" if state[2] else "")
+                             if state else None)
+            log(__name__, f"Auto-download: subtitle state = {state_summary}")
             if state and state[0] and (state[1] or state[2]):
                 log(__name__, f"Auto-download: a subtitle is already enabled "
-                              f"(lang={state[1]!r}, name={state[2]!r}), skipping")
+                              f"(lang={state[1]!r}), skipping")
                 return
 
             # Never fight Kodi's own "Auto download first subtitle": both firing means
@@ -492,9 +498,7 @@ class OpenSubtitlesPlayer(xbmc.Player):
                 return
 
             media_data = get_media_data()
-            log(__name__, "Auto-download: media data = %s" % {
-                k: (redact_path(v) if isinstance(v, str) and "://" in v else v)
-                for k, v in media_data.items()})
+            log(__name__, "Auto-download: media data = %s" % loggable_media(media_data))
             if not media_data:
                 log(__name__, "Auto-download: no media data collected, aborting")
                 return
@@ -519,7 +523,7 @@ class OpenSubtitlesPlayer(xbmc.Player):
             provider = OpenSubtitlesProvider(api_key, username, password)
 
             # Search subtitles
-            log(__name__, f"⚡ Auto-search executing for: {video_filename or media_data.get('query')}")
+            log(__name__, "⚡ Auto-search executing")
             subtitles = provider.search_subtitles(media_data)
             
             # Retry fallback if empty
@@ -527,7 +531,8 @@ class OpenSubtitlesPlayer(xbmc.Player):
                 for fb in media_data["search_fallbacks"]:
                     if self.monitor and self.monitor.abortRequested():
                         return
-                    subtitles = provider.search_subtitles(fb)
+                    # each attempt is self-contained but must carry the languages
+                    subtitles = provider.search_subtitles({**fb, "languages": ",".join(wanted_langs)})
                     if subtitles:
                         break
 
@@ -568,7 +573,7 @@ class OpenSubtitlesPlayer(xbmc.Player):
             if not picks:
                 picks = [(str(ranked[0]["attributes"].get("language", "")).lower(), ranked[0])]
             log(__name__, f"Auto-download: top pick per language = "
-                          f"{[(l, s['attributes'].get('release', '')[:40]) for l, s in picks]}")
+                          f"{[(l, (s.get('id') or (s['attributes'].get('files') or [{}])[0].get('file_id'))) for l, s in picks]}")
 
             temp_dir = xbmcvfs.translatePath("special://temp/")
             # Persist where the user's Kodi wants subtitles, named the way Kodi
@@ -576,7 +581,8 @@ class OpenSubtitlesPlayer(xbmc.Player):
             # automatically without any search.
             dest_dir = self._subtitle_destination_dir(file_path)
             video_stem = os.path.splitext(safe_media_filename(file_path))[0] if file_path else ""
-            log(__name__, f"Auto-download: storage dir = {dest_dir or 'special://temp (session only)'}")
+            storage_kind = "video folder or custom dir" if dest_dir else "special://temp (session only)"
+            log(__name__, f"Auto-download: storage = {storage_kind}")
 
             loaded = []  # (lang, sub, path, file_id) per successful download
             for lang, sub in picks:
@@ -621,8 +627,7 @@ class OpenSubtitlesPlayer(xbmc.Player):
             attributes = sub["attributes"]
             loaded_langs = [entry[0] for entry in loaded]
             release_name = attributes.get("release") or attributes.get("feature_details", {}).get("title") or "OpenSubtitles"
-            log(__name__, f"Auto-download: applied {lang} ({release_name[:50]}), "
-                          f"loaded languages: {loaded_langs}")
+            log(__name__, f"Auto-download: applied {lang}, loaded languages: {loaded_langs}")
 
             # Always tell the user a subtitle was silently applied - an unannounced
             # subtitle looks like it came from nowhere (setting removed 2026-08-19).

@@ -13,7 +13,7 @@ import xbmcgui
 import xbmcvfs
 
 from resources.lib.browser import can_open_browser, open_url
-from resources.lib.utilities import log
+from resources.lib.utilities import log, redact_path
 
 __addon__ = xbmcaddon.Addon("service.subtitles.opensubtitles-com")
 
@@ -90,7 +90,7 @@ def show_qr(url, heading):
         xbmcgui.Dialog().ok(heading, url)
         return
 
-    log(__name__, f"Showing QR dialog for {url}")
+    log(__name__, f"Showing QR dialog for {redact_path(url)}")
     window = QRWindow(png_path, heading, url, url=url)
     window.doModal()
     del window

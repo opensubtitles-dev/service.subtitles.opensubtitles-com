@@ -49,7 +49,8 @@ def check_upload_eligibility(session, consent_enabled):
                "auto-upload enabled in settings" if consent_enabled else "auto-upload disabled")
 
     sub_path = (session or {}).get("sub_path") or ""
-    ok &= check("subtitle-known", bool(sub_path), sub_path or "no subtitle tracked this session")
+    ok &= check("subtitle-known", bool(sub_path),
+                "a subtitle file is tracked" if sub_path else "no subtitle tracked this session")
 
     origin = (session or {}).get("origin", "unknown")
     ok &= check("origin", origin != "opensubtitles",
@@ -81,9 +82,9 @@ def check_upload_eligibility(session, consent_enabled):
 
     # --- file checks (only meaningful when a path is known) -----------------
     if not sub_path or not os.path.isfile(sub_path):
-        check("file-exists", False, f"not found: {sub_path!r}")
+        check("file-exists", False, "tracked file is missing")
         return False, checks
-    check("file-exists", True, sub_path)
+    check("file-exists", True, "tracked file present")
 
     size = os.path.getsize(sub_path)
     ok &= check("file-size", MIN_SIZE_BYTES <= size <= MAX_SIZE_BYTES,

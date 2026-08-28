@@ -565,10 +565,10 @@ class OpenSubtitlesProvider:
             if not isinstance(download_link, str) or not download_link.startswith(("http://", "https://")):
                 raise TypeError("link is not a valid HTTP URL")
         except (ValueError, KeyError, TypeError):
-            # Log what actually came back - decisive for debugging the new AI
-            # download flow. Bodies here are progress/status payloads, never secrets.
+            # status + emptiness only - not one byte of a response body may
+            # reach the log (it can echo request context)
             logging(f"Invalid download JSON from {redact_path(r.url)}: "
-                    f"status={r.status_code}, body[:200]={r.text[:200]!r}")
+                    f"status={r.status_code}, empty={not (r.text or '').strip()}")
             # Observed live: the server answers 200 with an EMPTY body when the
             # account has no AI credits left. Name the real problem to the user
             # instead of a generic JSON error. (Server-side fix requested.)
