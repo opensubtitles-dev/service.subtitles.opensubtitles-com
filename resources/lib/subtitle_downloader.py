@@ -673,7 +673,7 @@ class SubtitleDownloader:
         except AICreditsExhausted as e:
             # Not the download quota - the AI credits balance. Own dialog text,
             # otherwise the generic limit message misleads (seen live).
-            log(__name__, f"AI credits exhausted: {e}")
+            log(__name__, f"AI credits exhausted: {type(e).__name__}")
             error(__name__, 32272, e)
             valid = 0
         except DownloadLimitExceeded as e:
@@ -878,7 +878,7 @@ class SubtitleDownloader:
             url = f"plugin://{__scriptid__}/?action=transcribe&language={language}"
             xbmcplugin.addDirectoryItem(handle=self.handle, url=url, listitem=list_item, isFolder=False)
         except Exception as e:
-            log(__name__, f"transcribe row injection failed: {e!r}")
+            log(__name__, f"transcribe row injection failed: {type(e).__name__}")
 
     def transcribe(self):
         """action=transcribe - run the AI transcription pipeline and hand the
@@ -914,7 +914,7 @@ class SubtitleDownloader:
                                 "AI transcription is not available on the server yet.\n"
                                 "The feature is being rolled out - please try a later version.")
         except Exception as e:
-            log(__name__, f"transcription failed: {e!r}")
+            log(__name__, f"transcription failed: {type(e).__name__}")
             xbmcgui.Dialog().ok(__addon__.getAddonInfo("name"),
                                 f"AI transcription failed:\n[I]{str(e)[:120]}[/I]")
         xbmcplugin.endOfDirectory(self.handle)

@@ -10,7 +10,7 @@ import xbmcgui
 import xbmcaddon
 import xbmcvfs
 
-from resources.lib.utilities import log, normalize_string
+from resources.lib.utilities import log, normalize_string, redact_path, safe_media_filename
 from resources.lib.data_collector import (
     get_media_data,
     get_file_path,
@@ -204,7 +204,7 @@ class OpenSubtitlesPlayer(xbmc.Player):
             val_rate = __addon__.getSetting("prompt_rating")
             self.prompt_rating_enabled = val_rate.lower() in ("true", "1") if val_rate else False
         except Exception as e:
-            log(__name__, f"Error reading settings: {e}")
+            log(__name__, f"Error reading settings: {type(e).__name__}")
             self.auto_download_enabled = False
             self.prompt_rating_enabled = False
 
@@ -215,21 +215,21 @@ class OpenSubtitlesPlayer(xbmc.Player):
                 return
             self._handle_playback_started()
         except Exception as e:
-            log(__name__, f"Exception in onAVStarted: {e}")
+            log(__name__, f"Exception in onAVStarted: {type(e).__name__}")
 
     def onPlayBackStopped(self):
         """Called by Kodi when playback is stopped by user."""
         try:
             self._handle_playback_ended(natural_end=False)
         except Exception as e:
-            log(__name__, f"Exception in onPlayBackStopped: {e}")
+            log(__name__, f"Exception in onPlayBackStopped: {type(e).__name__}")
 
     def onPlayBackEnded(self):
         """Called by Kodi when video reaches its natural end."""
         try:
             self._handle_playback_ended(natural_end=True)
         except Exception as e:
-            log(__name__, f"Exception in onPlayBackEnded: {e}")
+            log(__name__, f"Exception in onPlayBackEnded: {type(e).__name__}")
 
     def _handle_playback_started(self):
         self.reload_settings()
@@ -270,7 +270,7 @@ class OpenSubtitlesPlayer(xbmc.Player):
                     ("http://", "https://", "plugin://", "pvr://", "upnp://")):
                 return
             folder = os.path.dirname(file_path)
-            stem = os.path.splitext(os.path.basename(file_path))[0]
+            stem = os.path.splitext(safe_media_filename(file_path))[0]
             candidates = sorted(
                 name for name in os.listdir(folder)
                 if name.startswith(stem) and name.lower().endswith((".srt", ".vtt", ".ass", ".ssa"))
@@ -300,7 +300,7 @@ class OpenSubtitlesPlayer(xbmc.Player):
             log(__name__, f"Upload dry-run: tracking local sidecar {sub_name} "
                           f"(lang={sub_language or 'unknown'}, {len(candidates)} candidate(s))")
         except Exception as e:
-            log(__name__, f"Upload dry-run: sidecar tracking failed ({e})")
+            log(__name__, f"Upload dry-run: sidecar tracking failed ({type(e).__name__})")
 
     def onAVChange(self):
         """Fires on any audio/video/subtitle stream change - including our own
@@ -339,7 +339,7 @@ class OpenSubtitlesPlayer(xbmc.Player):
             return (bool(props.get("subtitleenabled")),
                     current.get("language", ""), current.get("name", ""))
         except Exception as e:
-            log(__name__, f"Auto-download: subtitle state probe failed ({e}), proceeding anyway")
+            log(__name__, f"Auto-download: subtitle state probe failed ({type(e).__name__}), proceeding anyway")
             return None
 
     def _kodi_setting(self, name):
@@ -350,7 +350,7 @@ class OpenSubtitlesPlayer(xbmc.Player):
                  "params": {"setting": name}}
             ))).get("result", {}).get("value")
         except Exception as e:
-            log(__name__, f"Kodi setting {name} unreadable ({e})")
+            log(__name__, f"Kodi setting {name} unreadable ({type(e).__name__})")
             return None
 
     def _preferred_subtitle_languages(self):
@@ -412,7 +412,7 @@ class OpenSubtitlesPlayer(xbmc.Player):
                  "params": {"playerid": player_id, "subtitle": sub_path}}))
             log(__name__, f"Auto-download: added alternative subtitle stream {sub_path}")
         except Exception as e:
-            log(__name__, f"Auto-download: could not add stream {sub_path} ({e})")
+            log(__name__, f"Auto-download: could not add stream {sub_path} ({type(e).__name__})")
 
     def _subtitle_destination_dir(self, video_file_path):
         """Directory where the user's Kodi wants downloaded subtitles kept.
@@ -432,7 +432,7 @@ class OpenSubtitlesPlayer(xbmc.Player):
             custom = xbmcvfs.translatePath("special://subtitles") or ""
             return custom or None
         except Exception as e:
-            log(__name__, f"Auto-download: could not resolve subtitle storage dir ({e})")
+            log(__name__, f"Auto-download: could not resolve subtitle storage dir ({type(e).__name__})")
             return None
 
     def _store_subtitle_copy(self, source_path, target):
@@ -452,7 +452,7 @@ class OpenSubtitlesPlayer(xbmc.Player):
                 return target
             log(__name__, f"Auto-download: xbmcvfs.copy refused {target}, trying direct write")
         except Exception as e:
-            log(__name__, f"Auto-download: xbmcvfs copy to {target} raised {e}, trying direct write")
+            log(__name__, f"Auto-download: xbmcvfs copy to {target} raised {type(e).__name__}, trying direct write")
 
         try:
             import shutil
@@ -460,7 +460,7 @@ class OpenSubtitlesPlayer(xbmc.Player):
             log(__name__, f"Auto-download: stored subtitle at {target} (direct write)")
             return target
         except OSError as e:
-            log(__name__, f"Auto-download: cannot write {target}: {e!r} - "
+            log(__name__, f"Auto-download: cannot write {target}: {type(e).__name__} - "
                           f"keeping session-only temp copy")
             return None
 
@@ -492,13 +492,15 @@ class OpenSubtitlesPlayer(xbmc.Player):
                 return
 
             media_data = get_media_data()
-            log(__name__, f"Auto-download: media data = {media_data}")
+            log(__name__, "Auto-download: media data = %s" % {
+                k: (redact_path(v) if isinstance(v, str) and "://" in v else v)
+                for k, v in media_data.items()})
             if not media_data:
                 log(__name__, "Auto-download: no media data collected, aborting")
                 return
 
             file_path = get_file_path()
-            video_filename = os.path.basename(file_path) if file_path else ""
+            video_filename = safe_media_filename(file_path) if file_path else ""
 
             # Search across ALL of the user's subtitle languages in one API call,
             # so one top pick per language can be offered afterwards.
@@ -573,7 +575,7 @@ class OpenSubtitlesPlayer(xbmc.Player):
             # names them (<video>.<lang>.srt) so future plays pick them up
             # automatically without any search.
             dest_dir = self._subtitle_destination_dir(file_path)
-            video_stem = os.path.splitext(os.path.basename(file_path))[0] if file_path else ""
+            video_stem = os.path.splitext(safe_media_filename(file_path))[0] if file_path else ""
             log(__name__, f"Auto-download: storage dir = {dest_dir or 'special://temp (session only)'}")
 
             loaded = []  # (lang, sub, path, file_id) per successful download
@@ -584,7 +586,7 @@ class OpenSubtitlesPlayer(xbmc.Player):
                 try:
                     download_data = provider.download_subtitle({"file_id": file_id})
                 except Exception as e:
-                    log(__name__, f"Auto-download: {lang} download failed ({e}), continuing")
+                    log(__name__, f"Auto-download: {lang} download failed ({type(e).__name__}), continuing")
                     continue
                 content = download_data.get("content")
                 if not content:
@@ -662,7 +664,7 @@ class OpenSubtitlesPlayer(xbmc.Player):
             notify_account_problem("bad_username")
         except Exception as e:
             # Anything else (offline, 5xx, quota, no results) is transient: log only.
-            log(__name__, f"Error in auto-download execution: {e}")
+            log(__name__, f"Error in auto-download execution: {type(e).__name__}")
 
     def _handle_playback_ended(self, natural_end=False):
         if not self.active_session:
@@ -680,7 +682,7 @@ class OpenSubtitlesPlayer(xbmc.Player):
                 session, _dev_setting_on("auto_upload_subtitles"))
             log(__name__, format_resume(eligible, upload_checks))
         except Exception as e:
-            log(__name__, f"Upload dry-run evaluation failed: {e}")
+            log(__name__, f"Upload dry-run evaluation failed: {type(e).__name__}")
 
         # Rating prompt only for sessions with something to rate
         if self.prompt_rating_enabled and session.get("subtitle_id"):
@@ -772,7 +774,7 @@ class OpenSubtitlesPlayer(xbmc.Player):
             log(__name__, "Rating vote rejected: credentials no longer valid")
             notify_account_problem("invalid")
         except Exception as e:
-            log(__name__, f"Error during post-playback rating: {e}")
+            log(__name__, f"Error during post-playback rating: {type(e).__name__}")
 
 
 UPDATE_CHECK_EVERY = 24 * 60 * 60  # once per day

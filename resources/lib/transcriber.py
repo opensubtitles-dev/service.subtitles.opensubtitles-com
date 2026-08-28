@@ -22,7 +22,7 @@ import xbmcaddon
 import xbmcgui
 import xbmcvfs
 
-from resources.lib.utilities import log as _log, get_user_agent
+from resources.lib.utilities import log as _log, get_user_agent, safe_media_filename
 
 __addon__ = xbmcaddon.Addon("service.subtitles.opensubtitles-com")
 
@@ -98,7 +98,7 @@ def _benchmark_ffmpeg(ffmpeg):
             return None
         return round(BENCH_SECONDS_AUDIO / elapsed, 1)
     except Exception as e:
-        log(f"ffmpeg benchmark failed: {e!r}")
+        log(f"ffmpeg benchmark failed: {type(e).__name__}")
         return None
 
 
@@ -120,7 +120,7 @@ def _benchmark_io():
         elapsed = max(time.time() - start, 0.001)
         return round(read / (1024 * 1024) / elapsed, 1)
     except Exception as e:
-        log(f"io benchmark failed: {e!r}")
+        log(f"io benchmark failed: {type(e).__name__}")
         return None
     finally:
         try:
@@ -160,7 +160,7 @@ def get_capabilities():
         with open(path, "w") as f:
             json.dump(caps, f, indent=2, sort_keys=True)
     except Exception as e:
-        log(f"caps cache write failed: {e!r}")
+        log(f"caps cache write failed: {type(e).__name__}")
     log(f"capabilities: {caps}")
     return caps
 
@@ -250,7 +250,7 @@ class TranscriptionClient:
             r = self.session.post(
                 API_URL + API_TRANSCRIBE,
                 params={"api": api_name, "language": language},
-                files={"file": (os.path.basename(media_path), f)},
+                files={"file": (safe_media_filename(media_path), f)},
                 headers=self.headers, timeout=600)
         return self._check(r)
 

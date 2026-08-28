@@ -56,8 +56,16 @@ def check_upload_eligibility(session, consent_enabled):
                 f"origin={origin}" + (" (already on OpenSubtitles - nothing to share)"
                                       if origin == "opensubtitles" else ""))
 
-    total = float((session or {}).get("total_time") or 0)
-    position = float((session or {}).get("last_position") or 0)
+    def _num(value):
+        # session fields come from Kodi player state - malformed values must
+        # not abort the eligibility check
+        try:
+            return float(value or 0)
+        except (TypeError, ValueError):
+            return 0.0
+
+    total = _num((session or {}).get("total_time"))
+    position = _num((session or {}).get("last_position"))
     ratio = (position / total) if total > 0 else 0.0
     ok &= check("watched-80pct", total > 0 and ratio >= MIN_WATCHED_RATIO,
                 f"watched {position:.0f}s of {total:.0f}s ({ratio:.0%})")

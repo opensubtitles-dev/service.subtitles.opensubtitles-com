@@ -199,7 +199,7 @@ class OpenSubtitlesProvider:
             credits = r.json().get("data", {}).get("credits")
             return int(credits) if credits is not None else None
         except Exception as e:
-            logging(f"AI credits unavailable: {e!r}")
+            logging(f"AI credits unavailable: {type(e).__name__}")
             return None
 
     def get_ai_credit_offers(self):
@@ -217,7 +217,7 @@ class OpenSubtitlesProvider:
             offers = r.json().get("data") or []
             return [o for o in offers if o.get("checkout_url")]
         except Exception as e:
-            logging(f"AI credit offers unavailable: {e!r}")
+            logging(f"AI credit offers unavailable: {type(e).__name__}")
             return []
 
     def get_feature_info(self, imdb_id=None, tmdb_id=None):
@@ -554,7 +554,7 @@ class OpenSubtitlesProvider:
         # endpoint is new/untested server-side.)
         while "wait_for_translation" in (r.url or "") and ai_retries < 3:
             ai_retries += 1
-            logging(f"AI translation still in progress (redirected to {r.url}), "
+            logging(f"AI translation still in progress (redirected to {redact_path(r.url)}), "
                     f"retry {ai_retries}/3 in 5s")
             time.sleep(5)
             r = _post_download()
@@ -565,7 +565,7 @@ class OpenSubtitlesProvider:
         except (ValueError, KeyError, TypeError):
             # Log what actually came back - decisive for debugging the new AI
             # download flow. Bodies here are progress/status payloads, never secrets.
-            logging(f"Invalid download JSON from {r.url}: "
+            logging(f"Invalid download JSON from {redact_path(r.url)}: "
                     f"status={r.status_code}, body[:200]={r.text[:200]!r}")
             # Observed live: the server answers 200 with an EMPTY body when the
             # account has no AI credits left. Name the real problem to the user
@@ -628,7 +628,7 @@ class OpenSubtitlesProvider:
             try:
                 self.login()  # populates the JWT bearer in self.headers
             except Exception as e:
-                logging(f"Login failed before submitting rating: {e}")
+                logging(f"Login failed before submitting rating: {type(e).__name__}")
                 return False
 
         url = self.base_url + "subtitles/rate"
@@ -640,7 +640,7 @@ class OpenSubtitlesProvider:
         try:
             resp = self.session.post(url, json=payload, headers=headers, timeout=10)
             if resp.status_code in (200, 201):
-                logging(f"Submitted rating for subtitle {subtitle_id}: {payload}")
+                logging(f"Submitted rating for subtitle {subtitle_id}: rating={payload.get('rating') if isinstance(payload, dict) else None}")
                 return True
             if resp.status_code == 404:
                 logging("Rating endpoint not deployed on API yet (404) - feedback dropped")
@@ -648,5 +648,5 @@ class OpenSubtitlesProvider:
             logging(f"Rating submission response code {resp.status_code}: {resp.text[:100]}")
             return False
         except Exception as e:
-            logging(f"Error submitting subtitle rating: {e}")
+            logging(f"Error submitting subtitle rating: {type(e).__name__}")
             return False

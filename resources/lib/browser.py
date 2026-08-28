@@ -38,5 +38,5 @@ def open_url(url):
                 log(__name__, f"Opened in desktop browser: {url}")
                 return True
     except Exception as e:
-        log(__name__, f"Browser launch failed ({e}), QR remains the way")
+        log(__name__, f"Browser launch failed ({type(e).__name__}), QR remains the way")
     return False

@@ -86,7 +86,7 @@ def show_qr(url, heading):
         generate_qr_png(url, png_path)
     except Exception as e:
         # No picture is still better served than nothing: fall back to text.
-        log(__name__, f"QR generation failed ({e}), showing plain URL instead")
+        log(__name__, f"QR generation failed ({type(e).__name__}), showing plain URL instead")
         xbmcgui.Dialog().ok(heading, url)
         return
 
