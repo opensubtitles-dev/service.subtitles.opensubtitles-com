@@ -415,11 +415,10 @@ def _call_guessit_api(filename):
                     data = None
                 cache.set(cache_key, data or {}, expires=60 * 60 * 24 * 30)
                 if isinstance(data, dict):
-                    # summary only: the full payload echoes the filename and
-                    # whatever else the derivation carried into the request
+                    # structural only - the parsed title is viewing history
                     log(__name__, "✅ Guessit parsed (cached): "
-                                  f"title={data.get('title')!r} year={data.get('year')} "
-                                  f"type={data.get('type')}")
+                                  f"title={'set' if data.get('title') else 'empty'} "
+                                  f"year={data.get('year')} type={data.get('type')}")
                 else:
                     log(__name__, "✅ Guessit response cached (non-object payload)")
                 return data

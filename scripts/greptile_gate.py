@@ -197,7 +197,15 @@ class Gate(ast.NodeVisitor):
             if isinstance(expr, ast.Attribute) and expr.attr == "url":
                 self.flag(node, "G05", "raw .url in log - the prepared URL repeats "
                                        "every parameter; wrap in redact_path")
-            # G12: playback-derived names are the user's viewing history
+            # G12: playback-derived names are the user's viewing history -
+            # bare names AND .get('title'/'query'/...) pulls from payloads
+            if (isinstance(expr, ast.Call) and isinstance(expr.func, ast.Attribute)
+                    and expr.func.attr == "get" and expr.args
+                    and isinstance(expr.args[0], ast.Constant)
+                    and expr.args[0].value in ("title", "query", "filename", "release",
+                                               "movie_name", "original_title")):
+                self.flag(node, "G12", f".get('{expr.args[0].value}') in log - "
+                                       "playback-derived viewing history must not reach logs")
             if isinstance(expr, ast.Name) and expr.id in HISTORY_NAMES:
                 self.flag(node, "G12", f"'{expr.id}' in log - playback-derived "
                                        "viewing history must not reach logs")
