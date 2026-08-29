@@ -2,6 +2,7 @@
 from typing import Union
 import json
 import hashlib
+import time
 
 from requests import Session, ConnectionError, HTTPError, ReadTimeout, Timeout, RequestException
 

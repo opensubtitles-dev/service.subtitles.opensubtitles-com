@@ -8,6 +8,10 @@ Mirrors `changelog.txt` (the copy Kodi ships); regenerate this file whenever tha
 
 ---
 
+## [v1.0.91] - 2026-08-29
+
+- rate-limit courtesy: a 429 response's Retry-After is persisted to a shared cooldown that every invocation honors before opening a connection - short holds are slept away, longer ones show an honest wait time
+
 ## [v1.0.90] - 2026-08-28
 
 - search error handling logs the HTTP status code only: not one byte of any error response body reaches the log, closing the last conceivable echo channel for playback-derived values
