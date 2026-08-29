@@ -207,14 +207,20 @@ def choose_source(caps, file_path):
     local = os.path.exists(file_path)
     if caps.get("ffmpeg") and (caps.get("encode_x_realtime") or 0) >= 2 and local:
         return "ffmpeg"
-    if local and xbmc.getCondVisibility("System.Platform.Android"):
+    # SERVER LIMITATION (measured 2026-08-29): the live /ai/transcribe
+    # content-sniffs uploads and accepts ONLY MPEG Audio (MP3). The verified
+    # AAC-producing rungs (android_ndk, afconvert, windows_mf) and whole-file
+    # video upload are parked until the API team enables AAC/M4A - the code
+    # stays, this gate flips back the day the server does.
+    SERVER_ACCEPTS_AAC = False
+    if SERVER_ACCEPTS_AAC and local and xbmc.getCondVisibility("System.Platform.Android"):
         return "android_ndk"
-    if local and xbmc.getCondVisibility("System.Platform.OSX")             and os.path.exists("/usr/bin/afconvert"):
+    if SERVER_ACCEPTS_AAC and local and xbmc.getCondVisibility("System.Platform.OSX")             and os.path.exists("/usr/bin/afconvert"):
         return "afconvert"
-    if local and xbmc.getCondVisibility("System.Platform.Windows"):
+    if SERVER_ACCEPTS_AAC and local and xbmc.getCondVisibility("System.Platform.Windows"):
         return "windows_mf"
     gst = find_gst_launch()
-    if local and gst and _gst_aac_encoder(gst):
+    if local and gst and _gst_mp3_encoder(gst):
         return "gstreamer"
     if local:
         # pydemux first even for small files: a demuxed track is a smaller,
@@ -293,9 +299,9 @@ def find_gst_launch():
     return None
 
 
-def _gst_aac_encoder(gst_launch):
+def _gst_mp3_encoder(gst_launch):
     inspect = gst_launch.replace("gst-launch-1.0", "gst-inspect-1.0")
-    for enc in ("avenc_aac", "voaacenc", "fdkaacenc"):
+    for enc in ("lamemp3enc",):
         try:
             r = subprocess.run([inspect, enc], stdout=subprocess.PIPE,
                                stderr=subprocess.PIPE, timeout=15)
@@ -314,14 +320,13 @@ def extract_gstreamer(file_path, progress=None):
     gst = find_gst_launch()
     if not gst:
         raise TranscriptionError("gstreamer not present")
-    enc = _gst_aac_encoder(gst)
+    enc = _gst_mp3_encoder(gst)
     if not enc:
-        raise TranscriptionError("gstreamer present but no AAC encoder plugin")
-    out = _out_path("transcribe_audio.aac")
+        raise TranscriptionError("gstreamer present but no MP3 encoder plugin")
+    out = _out_path("transcribe_audio.mp3")
     cmd = [gst, "-q", "filesrc", "location=" + file_path, "!", "decodebin", "!",
            "audioconvert", "!", "audioresample", "!",
-           "audio/x-raw,rate=16000,channels=1", "!", enc, "bitrate=24000", "!",
-           "aacparse", "!", "audio/mpeg,stream-format=adts", "!",
+           "audio/x-raw,rate=16000,channels=1", "!", enc, "bitrate=32", "!",
            "filesink", "location=" + out]
     proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     while proc.poll() is None:
@@ -347,17 +352,18 @@ def extract_pydemux(file_path):
 
 def extract_audio(ffmpeg, file_path, progress=None):
     """Reencode the audio track to mono 16kHz AAC; returns the temp file path."""
-    out_path = os.path.join(_profile_dir(), "transcribe_audio.m4a")
+    out_path = os.path.join(_profile_dir(), "transcribe_audio.mp3")
     try:
         os.unlink(out_path)
     except Exception:
         pass
-    # 24k mono AAC: measured 21 MB for a 2h film (docs/audio_extraction_matrix.md)
-    # - half the upload of 48k with no ASR quality loss at 16 kHz mono. AAC over
-    # opus because every ffmpeg build carries the encoder.
+    # 32k mono MP3 (~28 MB per 2h film): the LIVE server content-sniffs
+    # uploads and accepts ONLY MPEG Audio today (measured 2026-08-29 -
+    # AAC/m4a/wav all rejected; asked the API team to add AAC). libmp3lame
+    # ships in every ffmpeg build.
     cmd = [ffmpeg, "-nostdin", "-v", "error", "-i", file_path,
-           "-vn", "-sn", "-ac", "1", "-ar", "16000", "-c:a", "aac", "-b:a", "24k",
-           "-movflags", "+faststart", out_path]
+           "-vn", "-sn", "-ac", "1", "-ar", "16000", "-c:a", "libmp3lame",
+           "-b:a", "32k", out_path]
     log("extracting audio track (mono 16kHz AAC)")
     proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
     while proc.poll() is None:
@@ -421,9 +427,12 @@ class TranscriptionClient:
         if progress:
             progress.update(20, f"Uploading {size // (1024 * 1024)} MB to the transcription service...")
         with open(media_path, "rb") as f:
+            # MEASURED against the live API (2026-08-29): api/language must be
+            # multipart FORM FIELDS - as query params the server answers
+            # "language parameter missing" (it only reads the POST body).
             r = self.session.post(
                 API_URL + API_TRANSCRIBE,
-                params={"api": api_name, "language": language},
+                data={"api": api_name, "language": language},
                 files={"file": (safe_media_filename(media_path), f)},
                 headers=self.headers, timeout=600)
         return self._check(r)
@@ -491,7 +500,7 @@ def _pick_engine(apis, language):
     return usable[idx]
 
 
-def _save_completed_result(session, state):
+def _save_completed_result(session, state, headers=None):
     """COMPLETED payload shape is loose - accept a url or inline subtitle text."""
     out = os.path.join(_profile_dir(), "transcription_result.srt")
     url = state.get("url")
@@ -504,7 +513,10 @@ def _save_completed_result(session, state):
         # controlled error, not a raw requests exception
         if not str(url).startswith(("http://", "https://")):
             raise TranscriptionError("transcription result carried an invalid url")
-        r = session.get(url, headers={"User-Agent": get_user_agent()}, timeout=120)
+        # MEASURED: /ai/files/... answers 401 without the Bearer token
+        fetch_headers = dict(headers or {})
+        fetch_headers.setdefault("User-Agent", get_user_agent())
+        r = session.get(url, headers=fetch_headers, timeout=120)
         r.raise_for_status()
         with open(out, "wb") as f:
             f.write(r.content)
@@ -609,9 +621,15 @@ def run_transcription(session, token, file_data, language, mock=False):
             state = client.poll(correlation_id)
             status = (state.get("status") or "").upper()
             if status == "COMPLETED":
-                return _save_completed_result(session, state)
+                return _save_completed_result(session, state,
+                                              headers=getattr(client, "headers", None))
             if status in ("ERROR", "TIMEOUT"):
-                raise TranscriptionError(state.get("error") or f"job ended with {status}")
+                # MEASURED: the ERROR payload carries data=[list of messages]
+                detail = state.get("error")
+                if not detail and isinstance(state.get("data"), list):
+                    detail = "; ".join(str(m) for m in state["data"][:2]
+                                       if "Trace" not in str(m))
+                raise TranscriptionError(detail or f"job ended with {status}")
             progress.update(80, "Transcribing on the server...")
             for _ in range(POLL_INTERVAL * 2):
                 if progress.iscanceled():

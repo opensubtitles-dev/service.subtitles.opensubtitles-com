@@ -61,16 +61,18 @@ def test_choose_source_ladder(tmp_path):
         assert transcriber.choose_source(slow, str(local)) == "pydemux"
         assert transcriber.choose_source(slow, "/gone.mkv") == "too_big"
 
+    # AAC-producing rungs are gated off while the live server accepts only
+    # MPEG Audio (measured 2026-08-29). They come back when the gate flips.
     def android(cond):
         return "Android" in cond
     with patch.object(xbmc, "getCondVisibility", side_effect=android):
-        assert transcriber.choose_source(slow, str(local)) == "android_ndk"
+        assert transcriber.choose_source(slow, str(local)) == "pydemux"
 
     def osx(cond):
         return "OSX" in cond
     with patch.object(xbmc, "getCondVisibility", side_effect=osx), \
          patch("os.path.exists", side_effect=lambda p: p in (str(local), "/usr/bin/afconvert")):
-        assert transcriber.choose_source(slow, str(local)) == "afconvert"
+        assert transcriber.choose_source(slow, str(local)) == "pydemux"
 
 def test_mock_pipeline_end_to_end(profile, tmp_path):
     media = tmp_path / "episode.mkv"
@@ -122,7 +124,7 @@ def test_real_client_create_job_sends_spec_shape(tmp_path):
     job = client.create_job("aws", "auto", str(media))
     assert job["correlation_id"] == "abc123"
     kwargs = session.post.call_args.kwargs
-    assert kwargs["params"] == {"api": "aws", "language": "auto"}
+    assert kwargs["data"] == {"api": "aws", "language": "auto"}   # form fields, measured
     assert "file" in kwargs["files"]
     assert kwargs["headers"]["Authorization"] == "Bearer tok"
 
@@ -133,13 +135,14 @@ def test_completed_result_accepts_inline_subtitle(profile):
     assert open(path).read().startswith("1\n")
 
 
-def test_extraction_targets_24k_mono_aac():
-    """docs/audio_extraction_matrix.md: 24k mono AAC = 21 MB per 2h film with a
-    universal encoder - the extraction command must stay pinned to it."""
+def test_extraction_targets_32k_mono_mp3():
+    """The LIVE server accepts only MPEG Audio (measured 2026-08-29) - the
+    ffmpeg extraction must stay pinned to 32k mono MP3 until AAC is enabled
+    server-side."""
     import inspect
     from resources.lib import transcriber
     src = inspect.getsource(transcriber.extract_audio)
-    for token in ('"-ac", "1"', '"-ar", "16000"', '"24k"', '"aac"'):
+    for token in ('"-ac", "1"', '"-ar", "16000"', '"32k"', '"libmp3lame"'):
         assert token in src, f"extraction lost {token}"
 
 
@@ -178,7 +181,7 @@ def test_gstreamer_rung_probes_and_validates_output(tmp_path, monkeypatch):
             transcriber.extract_gstreamer("/v/x.mkv")
 
     with patch.object(transcriber, "find_gst_launch", return_value="/usr/bin/gst-launch-1.0"), \
-         patch.object(transcriber, "_gst_aac_encoder", return_value=None):
+         patch.object(transcriber, "_gst_mp3_encoder", return_value=None):
         with pytest.raises(transcriber.TranscriptionError):
             transcriber.extract_gstreamer("/v/x.mkv")
 
@@ -196,8 +199,8 @@ def test_gstreamer_rung_probes_and_validates_output(tmp_path, monkeypatch):
         return FakeProc()
 
     with patch.object(transcriber, "find_gst_launch", return_value="/usr/bin/gst-launch-1.0"), \
-         patch.object(transcriber, "_gst_aac_encoder", return_value="avenc_aac"), \
+         patch.object(transcriber, "_gst_mp3_encoder", return_value="lamemp3enc"), \
          patch.object(transcriber, "_profile_dir", return_value=str(tmp_path)), \
          patch.object(transcriber.subprocess, "Popen", side_effect=fake_popen):
         result = transcriber.extract_gstreamer("/v/x.mkv")
-    assert result.endswith(".aac") and os.path.getsize(result) > 0
+    assert result.endswith(".mp3") and os.path.getsize(result) > 0

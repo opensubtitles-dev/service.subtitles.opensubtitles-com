@@ -110,3 +110,37 @@ as everywhere.
 - AMediaDataSource callback shim for SMB/NFS on Android (rung 2 currently
   assumes fd-able local/mounted files) — or fall through to rung 4.
 - Whether the probe's findings justify skipping rung 4 entirely.
+
+
+## LIVE API measurements (2026-08-29, real jobs run)
+
+The endpoint is DEPLOYED and works end-to-end (12 s speech -> accurate SRT in
+~20 s, 1 credit billed). Contract corrections vs the draft, all measured:
+
+1. `api` and `language` are multipart FORM FIELDS - as query params the server
+   answers "language parameter missing" (POST body only).
+2. **The server content-sniffs uploads and accepts ONLY MPEG Audio (MP3).**
+   m4a/AAC and WAV -> "media format not valid"; raw ADTS passes the sniff but
+   fails the duration probe. Extensions are ignored (a lying .m4a with MP3
+   payload is accepted). CONSEQUENCE: the AAC-producing rungs (android_ndk,
+   afconvert, windows_mf) and whole-file video upload are gated OFF in
+   choose_source (SERVER_ACCEPTS_AAC = False) until the API adds AAC.
+   ffmpeg and GStreamer rungs emit 32k mono MP3 (~28 MB / 2h).
+3. Engines really offered: aws 0.132, openai 0.033, assemblyAI 0.0225,
+   nano 0.0075 (per second; minimum charge observed: 1 credit). "nano" was
+   routed to assemblyAI server-side.
+4. COMPLETED payload: {"correlation_id", "status", "data": {"id",
+   "file_name", "url", "seconds_count", "unit_price", "total_price",
+   "credits_left", "task": {...}}} - the url is under data (handled).
+5. The result URL (/ai/files/...) requires Api-Key + Bearer (401 bare).
+6. ERROR payload: "data" is a LIST of message strings (incl. a PHP trace) -
+   the client joins the first non-trace messages for the user dialog.
+
+### Requests for the API team (restores the verified no-install matrix)
+
+- Accept AAC (ADTS + M4A): re-enables Android (NDK encoder has no MP3),
+  macOS afconvert and Windows MF rungs - all client code is done and
+  device-verified, one server change flips them on.
+- Accept video containers <= 100 MB (server-side demux): restores the
+  whole-file rung for ffmpeg-less platforms.
+- ADTS duration probe: decode-based duration instead of header-based.
