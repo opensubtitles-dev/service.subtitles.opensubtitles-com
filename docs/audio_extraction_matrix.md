@@ -74,9 +74,22 @@ Conclusions:
   promote into `resources/lib/` once the Android probe verdict confirms the
   exec()-blocked population needs it.
 
+## Done since first draft (all verified 2026-08-29)
+
+- MKV pure-Python demux spike: `scripts/spike_pydemux_mkv.py` — full EBML
+  parser (SimpleBlock AND BlockGroup, all three lacing modes), streaming
+  reads, 10 min extracted in 0.14 s, output BYTE-IDENTICAL to the MP4 route,
+  decodes clean. A realistic 64 kbps source → ~57 MB per 2 h (fits the cap).
+- Android probe run on real Kodi 21.3 (headless emulator, API 31 aarch64) —
+  verdict above; probe's vfs test fixed (tempfile has no /tmp on Android).
+- Per-OS install hints shipped: `transcriber.ffmpeg_install_hint()` (brew /
+  winget / ffmpeg-tools add-on / honest Android statement), wired into the
+  failure dialog.
+
 ## Open items
 
-- MKV pure-Python demux spike (EBML SimpleBlock reader → ADTS).
-- Android probe run on a real box: exec test + `tools.ffmpeg-tools`-style
-  path availability (`adb logcat -d | grep TRANSCRIPTION-PROBE-RESULT`).
-- Capability dialog per-OS install hints (brew/winget/ffmpeg-tools add-on).
+- Implement the Android NDK ctypes rung (AMediaExtractor + AMediaCodec) - the
+  next 2.x milestone; probe says every symbol is there.
+- Promote the demux spikes into `resources/lib/` alongside that work.
+- Optional: re-run the probe on an API 28 (Android 9) image for completeness
+  (the NDK APIs used exist since API 21, so no blocker is expected).
