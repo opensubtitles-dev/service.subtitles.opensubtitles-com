@@ -102,11 +102,33 @@ No built-in CLI transcoder exists. Today's no-install coverage = rungs 4+5:
 | **AudioToolbox/ExtAudioFile via ctypes** — the same engine afconvert uses, system framework, dlopen-legal like Android's | **UNIMPLEMENTED/UNTESTED** — would give MP4-family + demuxed-track conversion, the iOS analog of the macOS chain |
 | exec of anything | IMPOSSIBLE |
 
+## Campaign results 2026-08-29 (real systems, not reasoning)
+
+- **Windows (real Server 2022 via GitHub Actions)**: the MF-ctypes engine
+  WORKS - MP4+AAC, MKV+{AAC, FLAC, MP3} transcode and decode clean on the
+  first real run. AC3/EAC3/DTS: hr 0xC00D36B4 (no decoder on SERVER images;
+  consumer Win10/11 ships msac3dec - AC3 EXPECTED there, honest-UNTESTED).
+  pydemux full grid PASS.
+- **Linux (real Ubuntu 24.04 runner + docker)**: GStreamer rung PASSES THE
+  ENTIRE GRID incl. DTS (and Opus/PCM in the docker run); TS needs
+  plugins-bad (verified both ways). pydemux full grid PASS **including on
+  Python 3.6.15** (the Kodi Matrix floor).
+- **LibreELEC 12.0.2 (real image booted in QEMU)**: confirmed no ffmpeg in
+  the OS; pydemux PASSES on its Python 3.11; the `tools.ffmpeg-tools`
+  add-on zip from the official LE repo unpacks to exactly our probed path
+  and our EXACT rung-1 extraction command produced a valid 24k mono m4a.
+  Every LibreELEC claim in this document is now VERIFIED.
+- **macOS runner (arm64)**: afconvert chain green for everything but DTS -
+  independent machine confirms the local results.
+- The `audio-matrix.yml` workflow re-runs all of this on every change to
+  the extraction modules - the matrix cannot silently rot.
+
 ## Honest summary of gaps (ranked by user impact)
 
 1. **Android AC3/EAC3/DTS decode** — engine ready, needs a real-box run.
-2. **Windows Media Foundation ctypes engine** — feasible, unbuilt; until
-   then Windows-without-ffmpeg only covers AAC/MP3-track sources.
+2. **Windows AC3/EAC3 via MF** — engine built and VERIFIED on real Windows
+   for AAC/FLAC/MP3/MP4; Dolby decoders absent on Server images, expected
+   present on consumer Windows — needs one run on a real desktop.
 3. **Server acceptance of raw .ac3/.mp3/.flac uploads** — one question to
    the API team; a "yes" widens every no-tool platform at zero client cost.
 4. macOS DTS — no system decoder exists; unfixable without install.
