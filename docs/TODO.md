@@ -2,9 +2,16 @@
 
 ---
 
+## ✅ Shipped in 2.0 (was roadmap)
+
+* **Silent auto-download on playback** - background service downloads the top pick per preferred language, stores beside the video with Kodi naming, notifies honestly. (former item 1)
+* **Post-playback rating dialog** - 5-star select + sync yes/no, sent to the PROPOSED /subtitles/rate endpoint. (former item 4)
+* **AI transcription pipeline** - expert toggle, capability probe, 6-rung no-install audio extraction ladder verified on Android/Windows/Linux/macOS/LibreELEC (docs/audio_support_matrix.md).
+* **Subtitle-sync plumbing** - [SYNC] dialog row + delay-nudge offer behind subtitle_sync_enabled; engine arrives from project subsync (docs/subtitle_sync_plan.md).
+
 ## 🚀 Future Roadmap & Planned Enhancements
 
-### 1. ⚡ Silent Auto-Download & Auto-Search on Playback (`xbmc.service`)
+### 1. (shipped - see above)
 * **Description**: Optional background service running via Kodi's `xbmc.service` extension point that detects when video playback begins and automatically searches for subtitles.
 * **Key Behaviors**:
   * If enabled, automatically downloads and applies the #1 ranked subtitle without requiring user interaction.

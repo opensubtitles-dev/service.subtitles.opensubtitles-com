@@ -11,15 +11,15 @@ This file provides a complete technical handover for Claude / next AI agent taki
   * `fork` = `opensubtitles/service.subtitles.opensubtitles-com` - the WORKBENCH. `develop` tracks `fork/develop`; all routine pushes land here (pre-push preflight gate). Users never see it.
   * `origin` = `opensubtitles-dev/service.subtitles.opensubtitles-com` - the MAIN repo (issues, CI, releases). Its master is a LIVE TRIGGER: every push auto-rebuilds gh-pages via `deploy-repository.yml` and publishes to `https://kodi.opensubtitles.com` (the URL baked into every installed repository add-on). Push `origin` master only as a deliberate release act.
 * **Branch Strategy**:
-  * **`v1.0.15`**: **FROZEN**. Pull Request [#42](https://github.com/opensubtitles-dev/service.subtitles.opensubtitles-com/pull/42) submitted upstream. Do not modify.
-  * **`develop`**: **ACTIVE**. Current version is bumped to `2.0.0` (NEW GENERATION release). All new features (service monitor, badges, interceptor, auto-download, rating) are developed here.
+  * **`fix-kodi-http-browse` (= both masters)**: the COMPLETED 1.x line, ended at v1.0.91. The official submission is **xbmc/repo-scripts PR #2888** (v1.0.90, Greptile 5/5, awaiting human Team Kodi review). HARD RULE: no xbmc/* PR action without Brano's approval given TWICE, and no further 1.x work unless explicitly asked.
+  * **`develop`**: **THE ONLY ACTIVE LINE** (v2.0.0). Everything happens here: background service (auto-download, rating prompts, account alerts, update checks), AI transcription with the 6-rung audio extraction ladder (ffmpeg / Android-NDK-ctypes / afconvert / GStreamer / Windows-MF-ctypes / pure-Python demux - see docs/audio_support_matrix.md, all device/CI-verified), subtitle-sync plumbing awaiting the external `subsync` engine (resources/lib/syncer.py socket), upload dry-run, QR/credits flows, Retry-After rate-limit courtesy.
 
 ---
 
 ## 2. 🧪 Testing & Validation Commands
 
 ```bash
-# Run complete test suite (167 passing tests)
+# Run complete test suite (307 passing tests)
 python3 -m pytest
 
 # Run repository packager and generate ZIPs + addons.xml + checksums
