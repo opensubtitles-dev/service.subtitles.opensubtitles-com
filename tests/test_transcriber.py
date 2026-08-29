@@ -165,3 +165,39 @@ def test_install_hint_is_platform_specific_and_honest():
         assert "does not allow" in hint and "100 MB" in hint  # honest, no false promise
     with patch.object(xbmc, "getCondVisibility", return_value=False):
         assert "package manager" in ffmpeg_install_hint()
+
+
+def test_gstreamer_rung_probes_and_validates_output(tmp_path, monkeypatch):
+    """extract_gstreamer: probes binary + encoder plugin, rejects empty
+    output, honest errors when absent."""
+    from unittest.mock import patch, MagicMock
+    from resources.lib import transcriber
+
+    with patch.object(transcriber, "find_gst_launch", return_value=None):
+        with pytest.raises(transcriber.TranscriptionError):
+            transcriber.extract_gstreamer("/v/x.mkv")
+
+    with patch.object(transcriber, "find_gst_launch", return_value="/usr/bin/gst-launch-1.0"), \
+         patch.object(transcriber, "_gst_aac_encoder", return_value=None):
+        with pytest.raises(transcriber.TranscriptionError):
+            transcriber.extract_gstreamer("/v/x.mkv")
+
+    out_file = {"path": None}
+
+    class FakeProc:
+        returncode = 0
+        def poll(self):
+            with open(out_file["path"], "wb") as f:
+                f.write(b"\xff\xf1" + b"\x00" * 64)
+            return 0
+
+    def fake_popen(cmd, **kw):
+        out_file["path"] = cmd[-1].split("location=", 1)[1]
+        return FakeProc()
+
+    with patch.object(transcriber, "find_gst_launch", return_value="/usr/bin/gst-launch-1.0"), \
+         patch.object(transcriber, "_gst_aac_encoder", return_value="avenc_aac"), \
+         patch.object(transcriber, "_profile_dir", return_value=str(tmp_path)), \
+         patch.object(transcriber.subprocess, "Popen", side_effect=fake_popen):
+        result = transcriber.extract_gstreamer("/v/x.mkv")
+    assert result.endswith(".aac") and os.path.getsize(result) > 0

@@ -53,15 +53,17 @@
 		<description lang="uz_UZ">Film va TV Taglavhalari ko'p tillarda, minglab tarjima qilingan taglavhalar har kuni tizimga yuklanadi. Bepul resursdan yuklab oling, API qo'llaydi, millionlab foydalanuvchilar.</description>
 		<description lang="zh_CN">多语种的电影及剧集字幕，每日更新千余条翻译好的字幕。免费下载，提供API接口，已拥有上百万的用户。</description>
 		<disclaimer lang="en_GB">Users need to provide OpenSubtitles.com username and password in add-on configuration. This is our new extension, old opensubtitles.org will not work on this, but the account can be easily imported on opensubtitles.com.</disclaimer>
-		<news>v2.0.0 (2026-08-20)
+		<news>v2.0.0 (2026-08-29)
 NEW GENERATION RELEASE
 - Multi-language auto-download: best subtitle per preferred language, saved next to the movie (honors Kodi storage settings)
 - Post-playback rating: 1-5 stars plus sync verdict
+- AI transcription (experimental): generate subtitles for videos that have none, on every platform without installing anything
 - On-demand AI translations: marked in results, patient downloads, credits handling
-- Background service: account alerts, daily update check
+- Background service: account alerts, daily update check, rate-limit courtesy
 - QR codes for registration, VIP and AI credit purchase
-- Smart ranking: AI/machine translations ranked below human ones
-- Includes all v1.0.16 fixes: RunScript import guard, non-IMDb episode ids, listing resilience, packaging manifest</news>
+- Smart ranking: AI/machine translations ranked below human ones; wrong-year and look-alike search fixes
+- Privacy: no credentials, tokens, filenames or titles ever reach the debug log
+- Includes every 1.x fix through v1.0.91</news>
 		<platform>all</platform>
 		<license>GPL-2.0-only</license>
 		<forum>https://forum.opensubtitles.com/t/new-opensubtitles-com-kodi-subtitles-addon/1673</forum>
