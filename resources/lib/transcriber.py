@@ -191,18 +191,89 @@ def get_capabilities():
 
 
 def choose_source(caps, file_path):
-    """Pick the rung for this playback: 'ffmpeg' | 'upload' | 'too_big'.
+    """Pick the rung for this playback (docs/audio_extraction_matrix.md).
 
-    The real API accepts one multipart file of max 100 MB - no URL mode - so
-    for anything larger the local ffmpeg audio extraction is not an
-    optimization, it is the only way in (2h of 48k mono AAC ~= 42 MB, fits).
+    Doctrine: try EVERY native possibility before an install hint, and the
+    install hint before giving up. Order:
+      ffmpeg       - full transcode, where a viable binary exists
+      android_ndk  - full transcode via AMediaCodec ctypes (probe-verified);
+                     falls back internally to NDK demux of an AAC track
+      afconvert    - macOS built-in: direct for MP4-family, via the pure-
+                     Python demuxer for MKV+AAC (no install, ever)
+      pydemux      - pure-Python AAC demux, any platform, no tools at all
+      upload       - whole file when it fits the server's 100 MB cap
+      too_big      - honest dialog with the platform's install hint
     """
     local = os.path.exists(file_path)
     if caps.get("ffmpeg") and (caps.get("encode_x_realtime") or 0) >= 2 and local:
         return "ffmpeg"
-    if local and os.path.getsize(file_path) <= MAX_UPLOAD_BYTES:
-        return "upload"
+    if local and xbmc.getCondVisibility("System.Platform.Android"):
+        return "android_ndk"
+    if local and xbmc.getCondVisibility("System.Platform.OSX")             and os.path.exists("/usr/bin/afconvert"):
+        return "afconvert"
+    if local:
+        # pydemux first even for small files: a demuxed track is a smaller,
+        # cleaner upload; the rung itself falls back to the whole file when
+        # the container defeats it and the file fits the cap
+        return "pydemux"
     return "too_big"
+
+
+def _out_path(name):
+    return os.path.join(_profile_dir(), name)
+
+
+def extract_android(file_path, progress=None):
+    """Android rung: AMediaCodec transcode, else NDK AAC demux if it fits."""
+    from resources.lib import android_audio
+    out = _out_path("transcribe_audio.aac")
+    try:
+        android_audio.transcode(file_path, out, progress=progress)
+        return out
+    except android_audio.AndroidAudioError as e:
+        log(f"NDK transcode unavailable ({type(e).__name__}), trying NDK demux")
+    android_audio.extract_aac(file_path, out)      # raises on non-AAC tracks
+    if os.path.getsize(out) > MAX_UPLOAD_BYTES:
+        raise TranscriptionError(
+            "the audio track alone is over the server's 100 MB limit")
+    return out
+
+
+def extract_afconvert(file_path, progress=None):
+    """macOS rung: system afconvert, no install. MKV goes through the
+    pure-Python demuxer first (afconvert cannot read Matroska)."""
+    from resources.lib.audio_demux import extract_audio_track, UnsupportedSource
+    src = file_path
+    demuxed = None
+    if not file_path.lower().endswith((".mp4", ".m4v", ".mov")):
+        demuxed = _out_path("transcribe_demux.aac")
+        extract_audio_track(file_path, demuxed)     # raises UnsupportedSource
+        src = demuxed
+    out = _out_path("transcribe_audio.m4a")
+    cmd = ["/usr/bin/afconvert", "-f", "m4af", "-d", "aac@16000",
+           "-b", "24000", "--mix", "-o", out, src]
+    proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                          timeout=1800)
+    if demuxed:
+        try:
+            os.unlink(demuxed)
+        except Exception:
+            pass
+    if proc.returncode != 0 or not os.path.exists(out):
+        raise TranscriptionError(
+            f"afconvert could not process this audio (exit {proc.returncode})")
+    return out
+
+
+def extract_pydemux(file_path):
+    """Last tool-free rung: pure-Python AAC demux, if the result fits."""
+    from resources.lib.audio_demux import extract_audio_track
+    out = _out_path("transcribe_audio.aac")
+    extract_audio_track(file_path, out)             # raises UnsupportedSource
+    if os.path.getsize(out) > MAX_UPLOAD_BYTES:
+        raise TranscriptionError(
+            "the audio track alone is over the server's 100 MB limit")
+    return out
 
 
 def extract_audio(ffmpeg, file_path, progress=None):
@@ -404,12 +475,33 @@ def run_transcription(session, token, file_data, language, mock=False):
                  if isinstance(l, dict)}
         job_language = language if language in codes else "auto"
 
+        upload_path = file_path
         if source == "ffmpeg":
             progress.update(5, "Extracting audio track...")
             audio = extract_audio(caps["ffmpeg"], file_path, progress)
             upload_path = audio
-        else:
-            upload_path = file_path
+        elif source == "android_ndk":
+            progress.update(5, "Extracting audio (device decoder)...")
+            audio = extract_android(file_path, progress)
+            upload_path = audio
+        elif source == "afconvert":
+            progress.update(5, "Extracting audio (macOS converter)...")
+            audio = extract_afconvert(file_path, progress)
+            upload_path = audio
+        elif source == "pydemux":
+            progress.update(5, "Extracting audio track...")
+            from resources.lib.audio_demux import UnsupportedSource
+            try:
+                audio = extract_pydemux(file_path)
+                upload_path = audio
+            except UnsupportedSource as e:
+                # nothing native worked - whole file if it fits, else honest
+                log(f"pure-Python demux unavailable ({type(e).__name__})")
+                if os.path.getsize(file_path) > MAX_UPLOAD_BYTES:
+                    raise TranscriptionError(
+                        "This video's audio cannot be extracted on this platform and "
+                        "the file is over the server's 100 MB upload limit.\n"
+                        + ffmpeg_install_hint())
 
         job = client.create_job(engine.get("name"), job_language, upload_path, progress)
         correlation_id = job.get("correlation_id")

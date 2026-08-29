@@ -43,20 +43,34 @@ def test_capabilities_cache_invalidates_when_ffmpeg_vanishes(profile):
 
 
 def test_choose_source_ladder(tmp_path):
-    local = tmp_path / "movie.mkv"
-    local.write_text("x")
-    big = tmp_path / "big.mkv"
-    big.write_bytes(b"x")
-    fast = {"ffmpeg": "/usr/bin/ffmpeg", "encode_x_realtime": 8.0}
-    slow = {"ffmpeg": "/usr/bin/ffmpeg", "encode_x_realtime": 1.2}
-    none = {"ffmpeg": "", "encode_x_realtime": None}
-    assert transcriber.choose_source(fast, str(local)) == "ffmpeg"
-    assert transcriber.choose_source(slow, str(local)) == "upload"   # small file fits the 100 MB cap
-    assert transcriber.choose_source(none, str(local)) == "upload"
-    with patch.object(transcriber.os.path, "getsize", return_value=transcriber.MAX_UPLOAD_BYTES + 1):
-        assert transcriber.choose_source(none, str(big)) == "too_big"
-    assert transcriber.choose_source(none, "https://cdn/stream.m3u8") == "too_big"  # no URL mode in the API
+    """The rung ladder (docs/audio_extraction_matrix.md): ffmpeg first, then
+    the platform-native routes, then pure-Python demux - never a premature
+    install hint while a native route remains."""
+    from unittest.mock import patch
+    import xbmc
+    from resources.lib import transcriber
 
+    local = tmp_path / "movie.mkv"
+    local.write_bytes(b"x" * 1024)
+    fast = {"ffmpeg": "/usr/bin/ffmpeg", "encode_x_realtime": 8.0}
+    slow = {"ffmpeg": "", "encode_x_realtime": None}
+
+    with patch.object(xbmc, "getCondVisibility", return_value=False), \
+         patch("os.path.exists", side_effect=lambda p: p == str(local)):
+        assert transcriber.choose_source(fast, str(local)) == "ffmpeg"
+        assert transcriber.choose_source(slow, str(local)) == "pydemux"
+        assert transcriber.choose_source(slow, "/gone.mkv") == "too_big"
+
+    def android(cond):
+        return "Android" in cond
+    with patch.object(xbmc, "getCondVisibility", side_effect=android):
+        assert transcriber.choose_source(slow, str(local)) == "android_ndk"
+
+    def osx(cond):
+        return "OSX" in cond
+    with patch.object(xbmc, "getCondVisibility", side_effect=osx), \
+         patch("os.path.exists", side_effect=lambda p: p in (str(local), "/usr/bin/afconvert")):
+        assert transcriber.choose_source(slow, str(local)) == "afconvert"
 
 def test_mock_pipeline_end_to_end(profile, tmp_path):
     media = tmp_path / "episode.mkv"

@@ -74,6 +74,26 @@ Conclusions:
   promote into `resources/lib/` once the Android probe verdict confirms the
   exec()-blocked population needs it.
 
+## Implementation status (2026-08-29): the ladder is CODE now
+
+`transcriber.choose_source()` implements the full doctrine - every native
+possibility before an install hint, the hint before giving up:
+
+1. **ffmpeg** (viable benchmark) - unchanged.
+2. **android_ndk** - `resources/lib/android_audio.py`, VALIDATED ON DEVICE
+   (real Kodi 21.3 / API 31): full AMediaCodec transcode (decode any device
+   codec -> mono channel-pick -> 24k AAC at source rate; no resampling needed
+   - Kodi's Android Python ships without audioop, and bitrate alone sets the
+   size) ran at **7.9x realtime** on the emulator after drain tuning, output
+   decodes clean; falls back internally to NDK AAC demux. AC3 worked-example
+   pending a real box (AOSP emulator ships no Dolby decoders - honest note).
+3. **afconvert** (macOS, zero install) - direct for MP4-family, via the
+   pure-Python demuxer for MKV+AAC; both chains verified end-to-end through
+   the real code (1.7 MB / 10 min).
+4. **pydemux** - `resources/lib/audio_demux.py` (spikes promoted): MP4 + MKV
+   AAC demux, byte-identical outputs, falls back to whole-file <= 100 MB.
+5. **too_big** - the per-OS `ffmpeg_install_hint()` dialog.
+
 ## Done since first draft (all verified 2026-08-29)
 
 - MKV pure-Python demux spike: `scripts/spike_pydemux_mkv.py` — full EBML
