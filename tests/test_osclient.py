@@ -409,3 +409,42 @@ def test_search_error_body_never_logged_raw():
     joined = "\n".join(logged)
     assert "SECRET-ECHOED-TITLE" not in joined
     assert "invalid parameters" not in joined, "no byte of the error body may be logged"
+
+
+def test_429_retry_after_is_persisted_and_respected():
+    """A 429's Retry-After becomes a shared cooldown: the NEXT call raises
+    immediately with the remaining wait, without touching the network."""
+    import time as _time
+    import xbmcgui
+    from resources.lib.exceptions import TooManyRequests
+    from resources.lib.osclient import provider as prov
+
+    xbmcgui.Window(10000).setProperty(prov._RATE_LIMIT_PROP, "")
+    p = OpenSubtitlesProvider(api_key="k", username="", password="")
+    resp = MagicMock()
+    resp.status_code = 429
+    resp.headers = {"Retry-After": "120"}
+    err = HTTPError("429"); err.response = resp
+    resp.raise_for_status.side_effect = err
+    with patch.object(p.session, "get", return_value=resp) as net:
+        with pytest.raises(TooManyRequests) as e1:
+            p.search_subtitles({"query": "X", "languages": "en"})
+        assert "120" in str(e1.value) or "119" in str(e1.value)
+        assert net.call_count == 1
+        # second call: cooldown enforced BEFORE any network use
+        with pytest.raises(TooManyRequests) as e2:
+            p.search_subtitles({"query": "Y", "languages": "en"})
+        assert net.call_count == 1, "cooldown must prevent the second request"
+        assert "seconds" in str(e2.value)
+    xbmcgui.Window(10000).setProperty(prov._RATE_LIMIT_PROP, "")
+
+
+def test_short_cooldown_is_slept_not_raised():
+    import time as _time
+    import xbmcgui
+    from resources.lib.osclient import provider as prov
+    xbmcgui.Window(10000).setProperty(prov._RATE_LIMIT_PROP, str(_time.time() + 0.2))
+    t0 = _time.time()
+    prov._respect_rate_limit()          # must return after ~0.2s, not raise
+    assert _time.time() - t0 >= 0.15
+    xbmcgui.Window(10000).setProperty(prov._RATE_LIMIT_PROP, "")

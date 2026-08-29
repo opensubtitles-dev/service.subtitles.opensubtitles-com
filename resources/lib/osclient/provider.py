@@ -42,6 +42,55 @@ def logging(msg):
     return log(__name__, msg)
 
 
+# --- Cross-invocation rate-limit courtesy ----------------------------------
+# A 429's Retry-After is persisted to a window property, so EVERY invocation
+# (search plugin, background service, settings scripts - each its own Python
+# interpreter) respects one shared cooldown instead of hammering the API in
+# turn. Pattern borrowed from the napiprojekt add-on's persisted throttle.
+_RATE_LIMIT_PROP = "os_com:rate_limited_until"
+_RATE_LIMIT_MAX_WAIT = 3.0     # sleep short holds away; raise on longer ones
+_RATE_LIMIT_FALLBACK = 10.0    # 429 without a usable Retry-After header
+
+
+def _note_rate_limit(response):
+    """Records a 429's Retry-After so all invocations back off together."""
+    try:
+        retry_after = float((response.headers or {}).get("Retry-After",
+                                                         _RATE_LIMIT_FALLBACK))
+    except (AttributeError, TypeError, ValueError):
+        retry_after = _RATE_LIMIT_FALLBACK
+    retry_after = min(max(retry_after, _RATE_LIMIT_FALLBACK), 3600)
+    try:
+        import xbmcgui
+        xbmcgui.Window(10000).setProperty(_RATE_LIMIT_PROP,
+                                          str(time.time() + retry_after))
+    except Exception:
+        pass
+    return retry_after
+
+
+def _respect_rate_limit():
+    """Honors a recorded cooldown BEFORE opening a connection.
+
+    Short holds are slept away (the user never notices); longer ones raise
+    TooManyRequests immediately - better an honest dialog now than a frozen
+    search that fails with the same message later."""
+    try:
+        import xbmcgui
+        raw = xbmcgui.Window(10000).getProperty(_RATE_LIMIT_PROP)
+        remaining = float(raw) - time.time() if raw else 0.0
+    except Exception:
+        return          # an unreadable hold must never block a request
+    if remaining <= 0:
+        return
+    if remaining <= _RATE_LIMIT_MAX_WAIT:
+        logging(f"Rate-limit courtesy: waiting {remaining:.1f}s")
+        time.sleep(remaining)
+        return
+    raise TooManyRequests(
+        f"Rate limit reached (429 Too Many Requests). Please wait {int(remaining)} seconds.")
+
+
 def _redacted_mapping(mapping):
     """Copy of a query/params mapping safe for the debug log.
 
@@ -113,6 +162,7 @@ class OpenSubtitlesProvider:
         login_url = API_URL + API_LOGIN
         login_body = {"username": self.username, "password": self.password}
 
+        _respect_rate_limit()
         logging(f"Login attempt to: {login_url}")
 
         try:
@@ -137,7 +187,8 @@ class OpenSubtitlesProvider:
             elif status_code == 400:
                 raise BadUsernameError(f"Login failed (400 Bad Request): Make sure to enter your username and not your email.")
             elif status_code == 429:
-                raise TooManyRequests("Rate limit reached (429 Too Many Requests). Please wait a moment.")
+                wait = _note_rate_limit(e.response)
+                raise TooManyRequests(f"Rate limit reached (429 Too Many Requests). Please wait {int(wait)} seconds.")
             elif 500 <= status_code <= 599:
                 raise ServiceUnavailable(f"Server error ({status_code}): OpenSubtitles.com is currently experiencing issues.")
             else:
@@ -155,6 +206,7 @@ class OpenSubtitlesProvider:
         user_info_url = API_URL + API_USER_INFO
         auth_headers = {"Authorization": "Bearer " + self.user_token}
 
+        _respect_rate_limit()
         logging(f"Fetching user info from: {user_info_url}")
 
         try:
@@ -167,7 +219,8 @@ class OpenSubtitlesProvider:
             if status_code == 401:
                 raise AuthenticationError(f"Authentication failed (401 Unauthorized).")
             elif status_code == 429:
-                raise TooManyRequests("Rate limit reached (429 Too Many Requests).")
+                wait = _note_rate_limit(e.response)
+                raise TooManyRequests(f"Rate limit reached (429 Too Many Requests). Please wait {int(wait)} seconds.")
             elif 500 <= status_code <= 599:
                 raise ServiceUnavailable(f"Server error ({status_code}): OpenSubtitles.com is currently unavailable.")
             else:
@@ -250,6 +303,7 @@ class OpenSubtitlesProvider:
         except HTTPError as e:
             status_code = e.response.status_code
             if status_code == 429:
+                _note_rate_limit(e.response)
                 raise TooManyRequests()
             raise ProviderError(f"Bad status code on feature lookup: {status_code}")
 
@@ -378,6 +432,7 @@ class OpenSubtitlesProvider:
 
         logging(f"User token cached: {bool(self.user_token)}")
 
+        _respect_rate_limit()
         try:
             # build query request
             subtitles_url = API_URL + API_SUBTITLES
@@ -405,7 +460,8 @@ class OpenSubtitlesProvider:
                 logging("401 error - authentication required. Checking if login was attempted...")
                 raise ProviderError(f"Authentication failed during search (401 Unauthorized)")
             elif status_code == 429:
-                raise TooManyRequests("Rate limit reached (429 Too Many Requests).")
+                wait = _note_rate_limit(e.response)
+                raise TooManyRequests(f"Rate limit reached (429 Too Many Requests). Please wait {int(wait)} seconds.")
             elif 500 <= status_code <= 599:
                 raise ServiceUnavailable(f"Server error ({status_code}): OpenSubtitles.com is currently experiencing issues.")
             else:
@@ -489,6 +545,7 @@ class OpenSubtitlesProvider:
         download_params = {"file_id": params["file_id"], "sub_format": "srt"}
 
         def _post_download():
+            _respect_rate_limit()
             headers = {}
             if self.user_token:
                 headers = {"Authorization": "Bearer " + self.user_token}
