@@ -245,6 +245,15 @@
                     <default>false</default>
                     <control type="toggle" />
                 </setting>
+                <!-- EXPERIMENTAL: subtitle synchronization plumbing
+                     (docs/subtitle_sync_plan.md). Adds a "[SYNC] Fix timing"
+                     row to searches and the delay-nudge offer; the engine
+                     itself arrives from project subsync in a later build. -->
+                <setting id="subtitle_sync_enabled" type="boolean" label="32276">
+                    <level>3</level>
+                    <default>false</default>
+                    <control type="toggle" />
+                </setting>
             </group>
         </category>
         <category id="debug" label="32103">

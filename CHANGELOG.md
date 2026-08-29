@@ -8,6 +8,12 @@ Mirrors `changelog.txt` (the copy Kodi ships); regenerate this file whenever tha
 
 ---
 
+## [v2.0.0-sync-plumbing] - 2026-08-29
+
+- subtitle synchronization plumbing behind the expert toggle subtitle_sync_enabled (docs/subtitle_sync_plan.md): a [SYNC] row in every search and a once-per-session offer when the user keeps nudging Kodi's subtitle delay
+- resources/lib/syncer.py is the engine socket with a documented drop-in contract - the alignment engine itself arrives from project subsync when finished; until then both paths show an honest coming-soon dialog
+- the last subtitle we hand to Kodi is recorded so the sync action can find "the subtitle currently shown"
+
 ## [v2.0.0-audit1] - 2026-08-28
 
 - deep privacy/robustness audit of the 2.0 feature code (25 findings): the background service, transcription pipeline, upload dry-run, browser/QR helpers and credit purchase flow no longer put any playback-derived value (filenames, titles, track names, release strings, storage paths) into the debug log

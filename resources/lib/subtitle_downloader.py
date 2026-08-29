@@ -25,6 +25,7 @@ from resources.lib.utilities import get_params, log, error, redact_path, loggabl
 
 __addon__ = xbmcaddon.Addon("service.subtitles.opensubtitles-com")
 __scriptid__ = __addon__.getAddonInfo("id")
+__language__ = __addon__.getLocalizedString
 
 __profile__ = xbmcvfs.translatePath(__addon__.getAddonInfo("profile"))
 __temp__ = xbmcvfs.translatePath(os.path.join(__profile__, "temp", ""))
@@ -230,6 +231,8 @@ class SubtitleDownloader:
             self.download()
         elif self.params["action"] == "transcribe":
             self.transcribe()
+        elif self.params["action"] == "sync":
+            self.sync()
 
     def search(self, query=""):
         file_data = get_file_data(get_file_path())
@@ -752,6 +755,11 @@ class SubtitleDownloader:
                 except Exception:
                     pass
 
+            try:
+                # the sync action needs to find "the subtitle currently shown"
+                xbmcgui.Window(10000).setProperty("os_com:last_loaded_subtitle", subtitle_path)
+            except Exception:
+                pass
             list_item = xbmcgui.ListItem(label=subtitle_path)
             xbmcplugin.addDirectoryItem(handle=self.handle, url=subtitle_path, listitem=list_item, isFolder=False)
 
@@ -863,7 +871,62 @@ class SubtitleDownloader:
                     continue
 
         self._inject_transcribe_row()
+        self._inject_sync_row()
         xbmcplugin.endOfDirectory(self.handle)
+
+    def _inject_sync_row(self):
+        """EXPERIMENTAL (expert setting subtitle_sync_enabled): one row that
+        fixes the timing of the CURRENTLY ACTIVE subtitle when picked
+        (docs/subtitle_sync_plan.md). Never allowed to break the listing."""
+        try:
+            from resources.lib import syncer
+            if not syncer.is_enabled():
+                return
+            language = (self.params.get("preferredlanguage")
+                        or (self.params.get("languages") or "en").split(",")[0])
+            list_item = xbmcgui.ListItem(
+                label=language,
+                label2="[COLOR cyan][SYNC][/COLOR] " + __language__(32277))
+            list_item.setArt({"icon": "0", "thumb": get_flag(convert_language(language, True) or "en")})
+            url = f"plugin://{__scriptid__}/?action=sync"
+            xbmcplugin.addDirectoryItem(handle=self.handle, url=url, listitem=list_item, isFolder=False)
+        except Exception as e:
+            log(__name__, f"sync row injection failed: {type(e).__name__}")
+
+    def sync(self):
+        """action=sync - synchronize the active subtitle via the syncer socket.
+
+        Resolution of "the active subtitle" follows the design doc: the
+        background service's session knows the path for anything we loaded;
+        a video-folder sidecar is the fallback. Until the subsync engine is
+        bundled this shows the honest coming-soon dialog."""
+        from resources.lib import syncer
+        try:
+            sub_path = self._active_subtitle_path()
+            result = syncer.sync_subtitle(sub_path, video_path=get_file_path())
+            corrected = (result or {}).get("path")
+            if corrected and os.path.exists(str(corrected)):
+                list_item = xbmcgui.ListItem(label=str(corrected))
+                xbmcplugin.addDirectoryItem(handle=self.handle, url=str(corrected),
+                                            listitem=list_item, isFolder=False)
+        except syncer.EngineNotAvailable:
+            xbmcgui.Dialog().ok(__addon__.getAddonInfo("name"), __language__(32279))
+        except syncer.SyncError as e:
+            xbmcgui.Dialog().ok(__addon__.getAddonInfo("name"),
+                                f"Synchronization failed:\n[I]{str(e)[:120]}[/I]")
+        except Exception as e:
+            log(__name__, f"sync action failed: {type(e).__name__}")
+        xbmcplugin.endOfDirectory(self.handle)
+
+    def _active_subtitle_path(self):
+        """Best-effort path of the subtitle currently shown, or "" when unknown."""
+        try:
+            props = xbmcgui.Window(10000).getProperty("os_com:last_loaded_subtitle")
+            if props and os.path.exists(props):
+                return props
+        except Exception:
+            pass
+        return ""
 
     def _inject_transcribe_row(self):
         """EXPERIMENTAL (expert setting ai_transcription_enabled): one extra row

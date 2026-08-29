@@ -263,3 +263,19 @@ msgstr ""
 msgctxt "#32274"
 msgid "Test: Mock transcription server (pipeline runs without network)"
 msgstr ""
+
+msgctxt "#32276"
+msgid "Subtitle synchronization: offer fixing timing of the current subtitle (experimental)"
+msgstr ""
+
+msgctxt "#32277"
+msgid "[SYNC] Fix timing of the current subtitle"
+msgstr ""
+
+msgctxt "#32278"
+msgid "Try automatic subtitle synchronization?"
+msgstr ""
+
+msgctxt "#32279"
+msgid "The synchronization engine is still under development and will activate in a future update."
+msgstr ""

@@ -623,6 +623,10 @@ class OpenSubtitlesPlayer(xbmc.Player):
 
             lang, sub, sub_path, file_id = primary
             self.setSubtitles(sub_path)
+            try:
+                xbmcgui.Window(10000).setProperty("os_com:last_loaded_subtitle", sub_path)
+            except Exception:
+                pass
 
             attributes = sub["attributes"]
             loaded_langs = [entry[0] for entry in loaded]
@@ -866,6 +870,29 @@ def check_for_update_silently():
         log(__name__, f"Update check: up to date (v{current})")
 
 
+def _offer_sync(player, session):
+    """Yes/no offer fired by the delay-nudge detector; runs the syncer socket."""
+    try:
+        if not xbmcgui.Dialog().yesno(__addon_name__, __language__(32278),
+                                      autoclose=15000):
+            return
+        from resources.lib import syncer
+        result = syncer.sync_subtitle(session.get("sub_path"),
+                                      session=session)
+        corrected = (result or {}).get("path")
+        if corrected and os.path.exists(str(corrected)):
+            player.setSubtitles(str(corrected))
+            xbmcgui.Window(10000).setProperty("os_com:last_loaded_subtitle", str(corrected))
+            offset = (result or {}).get("offset_ms")
+            xbmcgui.Dialog().notification(
+                __addon_name__, f"Subtitle retimed ({offset:+d} ms)" if offset is not None
+                else "Subtitle synchronized", _addon_icon(), 3500)
+    except syncer.EngineNotAvailable:
+        xbmcgui.Dialog().ok(__addon_name__, __language__(32279))
+    except Exception as e:
+        log(__name__, f"sync offer failed: {type(e).__name__}")
+
+
 def run_service():
     """Main entrypoint for xbmc.service background monitor."""
     player = OpenSubtitlesPlayer()
@@ -895,6 +922,15 @@ def run_service():
                 delay = xbmc.getInfoLabel("Player.SubtitleDelay") or ""
                 if delay:
                     session["subtitle_delay"] = delay
+                    # Repeated delay nudges = the user is struggling with bad
+                    # sync: offer automatic synchronization exactly once
+                    # (docs/subtitle_sync_plan.md, invocation tier 2).
+                    from resources.lib import syncer
+                    if (syncer.is_enabled() and syncer.engine_available()
+                            and time.time() > session.get("settle_until", 0)
+                            and syncer.register_delay_sample(session, delay)):
+                        threading.Thread(target=_offer_sync, args=(player, dict(session)),
+                                         daemon=True).start()
         except Exception:
             pass  # player state races a stop; next tick corrects it
 
