@@ -43,9 +43,12 @@ POLL_INTERVAL = 5
 POLL_MAX_SECONDS = 15 * 60
 UPLOAD_CHUNK = 4 * 1024 * 1024
 
-# Common install locations Kodi's PATH may not include (macOS brew, Linux opt)
+# Common install locations Kodi's PATH may not include (macOS brew, Linux
+# opt, and the LibreELEC/CoreELEC ffmpeg-tools add-on - the sanctioned way to
+# get an ffmpeg CLI on those systems; docs/audio_extraction_matrix.md)
 FFMPEG_EXTRA_PATHS = ("/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg",
-                      "/usr/bin/ffmpeg", "/opt/bin/ffmpeg")
+                      "/usr/bin/ffmpeg", "/opt/bin/ffmpeg",
+                      "/storage/.kodi/addons/tools.ffmpeg-tools/bin/ffmpeg")
 
 
 def log(msg):
@@ -187,8 +190,11 @@ def extract_audio(ffmpeg, file_path, progress=None):
         os.unlink(out_path)
     except Exception:
         pass
+    # 24k mono AAC: measured 21 MB for a 2h film (docs/audio_extraction_matrix.md)
+    # - half the upload of 48k with no ASR quality loss at 16 kHz mono. AAC over
+    # opus because every ffmpeg build carries the encoder.
     cmd = [ffmpeg, "-nostdin", "-v", "error", "-i", file_path,
-           "-vn", "-sn", "-ac", "1", "-ar", "16000", "-c:a", "aac", "-b:a", "48k",
+           "-vn", "-sn", "-ac", "1", "-ar", "16000", "-c:a", "aac", "-b:a", "24k",
            "-movflags", "+faststart", out_path]
     log("extracting audio track (mono 16kHz AAC)")
     proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)

@@ -117,3 +117,18 @@ def test_completed_result_accepts_inline_subtitle(profile):
     state = {"status": "COMPLETED", "subtitles": "1\n00:00:01,000 --> 00:00:02,000\nhello\n"}
     path = transcriber._save_completed_result(MagicMock(), state)
     assert open(path).read().startswith("1\n")
+
+
+def test_extraction_targets_24k_mono_aac():
+    """docs/audio_extraction_matrix.md: 24k mono AAC = 21 MB per 2h film with a
+    universal encoder - the extraction command must stay pinned to it."""
+    import inspect
+    from resources.lib import transcriber
+    src = inspect.getsource(transcriber.extract_audio)
+    for token in ('"-ac", "1"', '"-ar", "16000"', '"24k"', '"aac"'):
+        assert token in src, f"extraction lost {token}"
+
+
+def test_ffmpeg_probe_covers_libreelec_tools_addon():
+    from resources.lib.transcriber import FFMPEG_EXTRA_PATHS
+    assert any("tools.ffmpeg-tools" in p for p in FFMPEG_EXTRA_PATHS)
