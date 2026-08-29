@@ -1,0 +1,46 @@
+name: Audio extraction matrix
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - 'resources/lib/audio_demux.py'
+      - 'resources/lib/windows_audio.py'
+      - 'resources/lib/android_audio.py'
+      - 'resources/lib/transcriber.py'
+      - 'scripts/audio_matrix_ci.py'
+      - '.github/workflows/audio-matrix.yml'
+  workflow_dispatch:
+
+jobs:
+  matrix:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5accf3d184ca4b0d1b21fdcb2fb03aca0
+
+      - name: Install ffmpeg + GStreamer (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg gstreamer1.0-tools \
+            gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
+            gstreamer1.0-plugins-bad gstreamer1.0-libav
+
+      - name: Install ffmpeg (macOS)
+        if: runner.os == 'macOS'
+        run: which ffmpeg || brew install --quiet ffmpeg
+
+      - name: Install ffmpeg (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
+            choco install -y --no-progress ffmpeg
+          }
+
+      - name: Run the extraction matrix
+        run: python3 scripts/audio_matrix_ci.py

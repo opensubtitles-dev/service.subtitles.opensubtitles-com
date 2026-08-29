@@ -211,6 +211,11 @@ def choose_source(caps, file_path):
         return "android_ndk"
     if local and xbmc.getCondVisibility("System.Platform.OSX")             and os.path.exists("/usr/bin/afconvert"):
         return "afconvert"
+    if local and xbmc.getCondVisibility("System.Platform.Windows"):
+        return "windows_mf"
+    gst = find_gst_launch()
+    if local and gst and _gst_aac_encoder(gst):
+        return "gstreamer"
     if local:
         # pydemux first even for small files: a demuxed track is a smaller,
         # cleaner upload; the rung itself falls back to the whole file when
@@ -267,6 +272,65 @@ def extract_afconvert(file_path, progress=None):
     if proc.returncode != 0 or not os.path.exists(out):
         raise TranscriptionError(
             f"afconvert could not process this audio (exit {proc.returncode})")
+    return out
+
+
+def find_gst_launch():
+    """gst-launch-1.0 if present - GStreamer rides along with most Linux
+    desktops (GNOME/KDE media stacks) and, with gst-libav's avenc_aac,
+    covers EVERY codec in the matrix including DTS/Opus/PCM (measured on
+    Ubuntu 24.04, docs/audio_support_matrix.md)."""
+    try:
+        from shutil import which
+        found = which("gst-launch-1.0")
+        if found:
+            return found
+    except Exception:
+        pass
+    for candidate in ("/usr/bin/gst-launch-1.0", "/usr/local/bin/gst-launch-1.0"):
+        if os.path.exists(candidate) and os.access(candidate, os.X_OK):
+            return candidate
+    return None
+
+
+def _gst_aac_encoder(gst_launch):
+    inspect = gst_launch.replace("gst-launch-1.0", "gst-inspect-1.0")
+    for enc in ("avenc_aac", "voaacenc", "fdkaacenc"):
+        try:
+            r = subprocess.run([inspect, enc], stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE, timeout=15)
+            if r.returncode == 0:
+                return enc
+        except Exception:
+            continue
+    return None
+
+
+def extract_gstreamer(file_path, progress=None):
+    """Linux no-ffmpeg rung: decodebin -> 16 kHz mono -> AAC 24k ADTS.
+
+    Pipeline verified against the full grid (all MKV codecs incl. DTS/Opus/
+    PCM, TS with plugins-bad, AVI); outputs decode clean."""
+    gst = find_gst_launch()
+    if not gst:
+        raise TranscriptionError("gstreamer not present")
+    enc = _gst_aac_encoder(gst)
+    if not enc:
+        raise TranscriptionError("gstreamer present but no AAC encoder plugin")
+    out = _out_path("transcribe_audio.aac")
+    cmd = [gst, "-q", "filesrc", "location=" + file_path, "!", "decodebin", "!",
+           "audioconvert", "!", "audioresample", "!",
+           "audio/x-raw,rate=16000,channels=1", "!", enc, "bitrate=24000", "!",
+           "aacparse", "!", "audio/mpeg,stream-format=adts", "!",
+           "filesink", "location=" + out]
+    proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    while proc.poll() is None:
+        if progress and progress.iscanceled():
+            proc.kill()
+            raise UserCancelled()
+        time.sleep(0.5)
+    if proc.returncode != 0 or not os.path.exists(out) or not os.path.getsize(out):
+        raise TranscriptionError(f"gstreamer pipeline failed (exit {proc.returncode})")
     return out
 
 
@@ -493,6 +557,31 @@ def run_transcription(session, token, file_data, language, mock=False):
             progress.update(5, "Extracting audio (macOS converter)...")
             audio = extract_afconvert(file_path, progress)
             upload_path = audio
+        elif source == "gstreamer":
+            progress.update(5, "Extracting audio (GStreamer)...")
+            audio = extract_gstreamer(file_path, progress)
+            upload_path = audio
+        elif source == "windows_mf":
+            progress.update(5, "Extracting audio (Windows decoder)...")
+            from resources.lib import windows_audio
+            try:
+                mf_out = _out_path("transcribe_audio.m4a")
+                windows_audio.transcode(file_path, mf_out, progress)
+                audio = mf_out
+                upload_path = audio
+            except windows_audio.WindowsAudioError as e:
+                # MF codec/feature gaps vary by edition - fall to pydemux
+                log(f"Media Foundation route unavailable ({type(e).__name__})")
+                from resources.lib.audio_demux import UnsupportedSource
+                try:
+                    audio = extract_pydemux(file_path)
+                    upload_path = audio
+                except UnsupportedSource:
+                    if os.path.getsize(file_path) > MAX_UPLOAD_BYTES:
+                        raise TranscriptionError(
+                            "This video's audio cannot be extracted on this platform and "
+                            "the file is over the server's 100 MB upload limit.\n"
+                            + ffmpeg_install_hint())
         elif source == "pydemux":
             progress.update(5, "Extracting audio track...")
             from resources.lib.audio_demux import UnsupportedSource
