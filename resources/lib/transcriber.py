@@ -240,13 +240,18 @@ def extract_android(file_path, progress=None):
 
 
 def extract_afconvert(file_path, progress=None):
-    """macOS rung: system afconvert, no install. MKV goes through the
-    pure-Python demuxer first (afconvert cannot read Matroska)."""
-    from resources.lib.audio_demux import extract_audio_track, UnsupportedSource
+    """macOS rung: system afconvert, no install ever.
+
+    Direct for the MP4 family; everything else goes through the pure-Python
+    demuxer first - which now yields raw AC3/EAC3/MP3/FLAC tracks too, all of
+    which afconvert decodes (measured). Output must carry the right extension:
+    afconvert trusts it (measured)."""
+    from resources.lib.audio_demux import (extract_audio_track, probe_extension,
+                                           UnsupportedSource)
     src = file_path
     demuxed = None
     if not file_path.lower().endswith((".mp4", ".m4v", ".mov")):
-        demuxed = _out_path("transcribe_demux.aac")
+        demuxed = _out_path("transcribe_demux" + probe_extension(file_path))
         extract_audio_track(file_path, demuxed)     # raises UnsupportedSource
         src = demuxed
     out = _out_path("transcribe_audio.m4a")
@@ -266,9 +271,9 @@ def extract_afconvert(file_path, progress=None):
 
 
 def extract_pydemux(file_path):
-    """Last tool-free rung: pure-Python AAC demux, if the result fits."""
-    from resources.lib.audio_demux import extract_audio_track
-    out = _out_path("transcribe_audio.aac")
+    """Last tool-free rung: pure-Python track demux, if the result fits."""
+    from resources.lib.audio_demux import extract_audio_track, probe_extension
+    out = _out_path("transcribe_audio" + probe_extension(file_path))
     extract_audio_track(file_path, out)             # raises UnsupportedSource
     if os.path.getsize(out) > MAX_UPLOAD_BYTES:
         raise TranscriptionError(

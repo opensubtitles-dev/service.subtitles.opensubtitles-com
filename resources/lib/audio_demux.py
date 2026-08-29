@@ -176,8 +176,29 @@ def _read_element(f):
     return eid, size, id_len + size_len
 
 
+_MKV_AUDIO = {
+    "A_AAC": ("aac", ".aac"),
+    "A_AC3": ("raw", ".ac3"),
+    "A_EAC3": ("raw", ".eac3"),
+    "A_MPEG/L3": ("raw", ".mp3"),
+    "A_DTS": ("raw", ".dts"),
+    "A_FLAC": ("flac", ".flac"),
+}
+# "raw" tracks are self-framing elementary streams that survive plain
+# concatenation of their block frames; afconvert on macOS reads raw
+# AC3/EAC3/MP3/FLAC directly (measured, docs/audio_extraction_matrix.md).
+
+
+def _mkv_kind(codec):
+    for known, spec in _MKV_AUDIO.items():
+        if codec == known or codec.startswith(known + "/"):
+            return spec[0]
+    return None
+
+
 def _parse_tracks(f, end):
-    """Returns (aac_track_number, AudioSpecificConfig) or (None, None)."""
+    """Returns (track_number, codec_id, CodecPrivate) of the first
+    extractable audio track, or (None, "", b"")."""
     while f.tell() < end:
         eid, size, _ = _read_element(f)
         if eid is None:
@@ -201,10 +222,13 @@ def _parse_tracks(f, end):
             else:
                 f.seek(csize, 1)
             f.seek(payload_at + csize)
-        if codec.startswith("A_AAC") and number is not None and len(private) >= 2:
-            return number, private
+        if number is not None and _mkv_kind(codec):
+            if _mkv_kind(codec) == "aac" and len(private) < 2:
+                pass        # AAC without ASC cannot be ADTS-framed - skip it
+            else:
+                return number, codec, private
         f.seek(entry_end)
-    return None, None
+    return None, "", b""
 
 
 def _block_frames(data, want_track):
@@ -281,7 +305,8 @@ def _adts_header(asc, frame_len):
 def extract_mkv(path_in, path_out):
     frames_out = 0
     with open(path_in, "rb") as f, open(path_out, "wb") as out:
-        track, asc = None, None
+        track, codec, private = None, "", b""
+        kind, asc = "aac", b""
         # top level: EBML header then Segment
         while True:
             eid, size, _ = _read_element(f)
@@ -296,9 +321,15 @@ def extract_mkv(path_in, path_out):
                 if ceid is None:
                     break
                 if ceid == TRACKS:
-                    track, asc = _parse_tracks(f, f.tell() + csize)
+                    track, codec, private = _parse_tracks(f, f.tell() + csize)
                     if track is None:
-                        raise UnsupportedSource("no AAC audio track found")
+                        raise UnsupportedSource("no extractable audio track found")
+                    kind = _mkv_kind(codec)
+                    if kind == "aac":
+                        asc = private
+                    elif kind == "flac":
+                        # CodecPrivate IS the complete fLaC stream header
+                        out.write(private)
                 elif ceid == CLUSTER and track is not None:
                     cl_end = None if csize == UNKNOWN_SIZE else f.tell() + csize
                     while cl_end is None or f.tell() < cl_end:
@@ -307,7 +338,8 @@ def extract_mkv(path_in, path_out):
                             break
                         if beid == SIMPLE_BLOCK:
                             for frame in _block_frames(f.read(bsize), track):
-                                out.write(_adts_header(asc, len(frame)))
+                                if kind == "aac":
+                                    out.write(_adts_header(asc, len(frame)))
                                 out.write(frame)
                                 frames_out += 1
                         elif beid == BLOCK_GROUP:
@@ -318,7 +350,8 @@ def extract_mkv(path_in, path_out):
                                     break
                                 if geid == BLOCK:
                                     for frame in _block_frames(f.read(gsize), track):
-                                        out.write(_adts_header(asc, len(frame)))
+                                        if kind == "aac":
+                                            out.write(_adts_header(asc, len(frame)))
                                         out.write(frame)
                                         frames_out += 1
                                 else:
@@ -335,6 +368,42 @@ def extract_mkv(path_in, path_out):
     return frames_out
 
 
+
+
+def probe_extension(path_in):
+    """Extension the extracted track will need (".aac", ".ac3", ...).
+
+    afconvert on macOS TRUSTS the file extension (measured) - callers must
+    name the output correctly or conversion fails on a perfectly good stream.
+    """
+    with open(path_in, "rb") as f:
+        head = f.read(12)
+    if head[:4] != b"\x1aE\xdf\xa3":
+        return ".aac"                     # MP4 family always yields ADTS
+    # cheap Tracks scan for the codec id
+    with open(path_in, "rb") as f:
+        while True:
+            eid, size, _ = _read_element(f)
+            if eid is None:
+                break
+            if eid == SEGMENT:
+                seg_end = None if size == UNKNOWN_SIZE else f.tell() + size
+                while seg_end is None or f.tell() < seg_end:
+                    ceid, csize, _ = _read_element(f)
+                    if ceid is None:
+                        break
+                    if ceid == TRACKS:
+                        _n, codec, _p = _parse_tracks(f, f.tell() + csize)
+                        for known, spec in _MKV_AUDIO.items():
+                            if codec == known or codec.startswith(known + "/"):
+                                return spec[1]
+                        return ".aac"
+                    if csize == UNKNOWN_SIZE:
+                        break
+                    f.seek(csize, 1)
+                break
+            f.seek(size, 1)
+    return ".aac"
 
 
 def extract_audio_track(path_in, path_out):
