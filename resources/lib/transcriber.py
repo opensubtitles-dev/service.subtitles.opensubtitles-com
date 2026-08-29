@@ -209,15 +209,15 @@ def choose_source(caps, file_path):
         return "ffmpeg"
     # SERVER LIMITATION (measured 2026-08-29): the live /ai/transcribe
     # content-sniffs uploads and accepts ONLY MPEG Audio (MP3). The verified
-    # AAC-producing rungs (android_ndk, afconvert, windows_mf) and whole-file
-    # video upload are parked until the API team enables AAC/M4A - the code
-    # stays, this gate flips back the day the server does.
-    SERVER_ACCEPTS_AAC = False
-    if SERVER_ACCEPTS_AAC and local and xbmc.getCondVisibility("System.Platform.Android"):
+    # AAC-producing rungs are gated by server_accepts_aac(), which
+    # SELF-DETECTS: an AAC upload rejected with "media format not valid"
+    # (a free, pre-billing 400) records a 24h hold; when the API team
+    # enables AAC the hold expires and these rungs light up on their own.
+    if server_accepts_aac() and local and xbmc.getCondVisibility("System.Platform.Android"):
         return "android_ndk"
-    if SERVER_ACCEPTS_AAC and local and xbmc.getCondVisibility("System.Platform.OSX")             and os.path.exists("/usr/bin/afconvert"):
+    if server_accepts_aac() and local and xbmc.getCondVisibility("System.Platform.OSX")             and os.path.exists("/usr/bin/afconvert"):
         return "afconvert"
-    if SERVER_ACCEPTS_AAC and local and xbmc.getCondVisibility("System.Platform.Windows"):
+    if server_accepts_aac() and local and xbmc.getCondVisibility("System.Platform.Windows"):
         return "windows_mf"
     gst = find_gst_launch()
     if local and gst and _gst_mp3_encoder(gst):
@@ -279,6 +279,35 @@ def extract_afconvert(file_path, progress=None):
         raise TranscriptionError(
             f"afconvert could not process this audio (exit {proc.returncode})")
     return out
+
+
+_AAC_REJECTED_PROP = "os_com:aac_rejected_until"
+_AAC_RETRY_AFTER = 24 * 60 * 60
+
+
+def server_accepts_aac():
+    """Whether the AAC-producing rungs may run.
+
+    True unless an AAC upload was recently rejected with the server's
+    format error. First attempt after install (and after every 24h) probes
+    the real server by simply trying - the rejection is a free 400."""
+    try:
+        import xbmcgui
+        raw = xbmcgui.Window(10000).getProperty(_AAC_REJECTED_PROP)
+        return not raw or float(raw) < time.time()
+    except Exception:
+        return True
+
+
+def note_aac_rejected():
+    """Records the server's MP3-only rejection for 24h."""
+    try:
+        import xbmcgui
+        xbmcgui.Window(10000).setProperty(_AAC_REJECTED_PROP,
+                                          str(time.time() + _AAC_RETRY_AFTER))
+    except Exception:
+        pass
+    log("server rejected AAC upload - AAC rungs held for 24h, using MP3 rungs")
 
 
 def find_gst_launch():
@@ -609,7 +638,32 @@ def run_transcription(session, token, file_data, language, mock=False):
                         "the file is over the server's 100 MB upload limit.\n"
                         + ffmpeg_install_hint())
 
-        job = client.create_job(engine.get("name"), job_language, upload_path, progress)
+        try:
+            job = client.create_job(engine.get("name"), job_language, upload_path, progress)
+        except Exception as e:
+            body = ""
+            resp = getattr(e, "response", None)
+            if resp is not None:
+                body = (resp.text or "")[:200]
+            if "media format not valid" in body and source in ("android_ndk", "afconvert", "windows_mf", "upload"):
+                # self-detect: this server build is MP3-only - hold the AAC
+                # rungs and rerun the ladder, which now lands on an MP3 rung
+                note_aac_rejected()
+                progress.update(10, "Re-extracting audio as MP3...")
+                source = choose_source(caps, file_path)
+                log(f"transcription rung after AAC hold: {source}")
+                if source == "ffmpeg":
+                    audio = extract_audio(caps["ffmpeg"], file_path, progress)
+                elif source == "gstreamer":
+                    audio = extract_gstreamer(file_path, progress)
+                else:
+                    raise TranscriptionError(
+                        "The transcription server currently accepts MP3 audio only, "
+                        "and this device has no MP3 encoder.\n" + ffmpeg_install_hint())
+                upload_path = audio
+                job = client.create_job(engine.get("name"), job_language, upload_path, progress)
+            else:
+                raise
         correlation_id = job.get("correlation_id")
         if not correlation_id:
             raise TranscriptionError(f"no correlation_id in response (keys: {sorted(job.keys())})")

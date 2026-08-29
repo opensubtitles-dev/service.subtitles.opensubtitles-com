@@ -61,18 +61,25 @@ def test_choose_source_ladder(tmp_path):
         assert transcriber.choose_source(slow, str(local)) == "pydemux"
         assert transcriber.choose_source(slow, "/gone.mkv") == "too_big"
 
-    # AAC-producing rungs are gated off while the live server accepts only
-    # MPEG Audio (measured 2026-08-29). They come back when the gate flips.
+    # AAC rungs run by default and self-park for 24h when the live server
+    # rejects an AAC upload (measured 2026-08-29 - MP3-only today).
     def android(cond):
         return "Android" in cond
     with patch.object(xbmc, "getCondVisibility", side_effect=android):
+        assert transcriber.choose_source(slow, str(local)) == "android_ndk"
+        transcriber.note_aac_rejected()
         assert transcriber.choose_source(slow, str(local)) == "pydemux"
+    import xbmcgui
+    xbmcgui.Window(10000).setProperty(transcriber._AAC_REJECTED_PROP, "")
 
     def osx(cond):
         return "OSX" in cond
     with patch.object(xbmc, "getCondVisibility", side_effect=osx), \
          patch("os.path.exists", side_effect=lambda p: p in (str(local), "/usr/bin/afconvert")):
+        assert transcriber.choose_source(slow, str(local)) == "afconvert"
+        transcriber.note_aac_rejected()
         assert transcriber.choose_source(slow, str(local)) == "pydemux"
+    xbmcgui.Window(10000).setProperty(transcriber._AAC_REJECTED_PROP, "")
 
 def test_mock_pipeline_end_to_end(profile, tmp_path):
     media = tmp_path / "episode.mkv"
@@ -204,3 +211,67 @@ def test_gstreamer_rung_probes_and_validates_output(tmp_path, monkeypatch):
          patch.object(transcriber.subprocess, "Popen", side_effect=fake_popen):
         result = transcriber.extract_gstreamer("/v/x.mkv")
     assert result.endswith(".mp3") and os.path.getsize(result) > 0
+
+
+def test_aac_rejection_triggers_mp3_retry(tmp_path):
+    """A 'media format not valid' 400 on an AAC rung's upload must record the
+    hold and retry the SAME job through an MP3-capable rung in one flow."""
+    from unittest.mock import patch, MagicMock
+    import xbmc, xbmcgui
+    from resources.lib import transcriber
+    from resources.lib import android_audio
+
+    xbmcgui.Window(10000).setProperty(transcriber._AAC_REJECTED_PROP, "")
+    src = tmp_path / "movie.mkv"
+    src.write_bytes(b"\x1aE\xdf\xa3" + b"\x00" * 64)
+    caps = {"ffmpeg": "/usr/bin/ffmpeg", "encode_x_realtime": 8.0}
+    # force the android rung first despite viable ffmpeg
+    order = ["android_ndk", "ffmpeg"]
+
+    def fake_choose(c, f):
+        return order.pop(0)
+
+    def fake_android(path, progress=None):
+        out = tmp_path / "a.aac"; out.write_bytes(b"\xff\xf1" + b"\x00" * 32)
+        return str(out)
+
+    def fake_ffmpeg(ff, path, progress=None):
+        out = tmp_path / "a.mp3"; out.write_bytes(b"ID3" + b"\x00" * 32)
+        return str(out)
+
+    reject = MagicMock()
+    reject.response = MagicMock(text='{"error":"media format not valid, only MPEG Audio allowed"}')
+    uploads = []
+
+    class FakeClient:
+        headers = {}
+        def list_apis(self):
+            return [{"name": "nano", "display_name": "n", "price": 0,
+                     "languages_supported": [{"language_code": "auto"}]}]
+        def create_job(self, api, lang, path, progress=None):
+            uploads.append(path)
+            if path.endswith(".aac"):
+                import requests
+                e = requests.HTTPError("400")
+                e.response = reject.response
+                raise e
+            return {"status": "CREATED", "correlation_id": "c9"}
+        def poll(self, cid):
+            done = tmp_path / "r.srt"
+            done.write_text("1\n00:00:01,000 --> 00:00:02,000\nHi\n")
+            return {"status": "COMPLETED", "url": "file://" + str(done)}
+
+    with patch.object(transcriber, "get_capabilities", return_value=caps), \
+         patch.object(transcriber, "choose_source", side_effect=fake_choose), \
+         patch.object(transcriber, "extract_android", side_effect=fake_android), \
+         patch.object(transcriber, "extract_audio", side_effect=fake_ffmpeg), \
+         patch.object(transcriber, "_profile_dir", return_value=str(tmp_path)), \
+         patch.object(transcriber, "TranscriptionClient", return_value=FakeClient()), \
+         patch("resources.lib.transcriber.xbmcgui.DialogProgress",
+               return_value=MagicMock(iscanceled=lambda: False)):
+        result = transcriber.run_transcription(MagicMock(), "tok",
+                                               {"file_original_path": str(src)}, "en")
+    assert len(uploads) == 2 and uploads[0].endswith(".aac") and uploads[1].endswith(".mp3")
+    assert result.endswith("r.srt")
+    assert not transcriber.server_accepts_aac(), "hold must be recorded"
+    xbmcgui.Window(10000).setProperty(transcriber._AAC_REJECTED_PROP, "")
