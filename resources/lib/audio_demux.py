@@ -365,6 +365,10 @@ def extract_mkv(path_in, path_out):
                 else:
                     f.seek(csize, 1)
             break
+    if track is None:
+        raise UnsupportedSource("no Tracks element found (truncated file?)")
+    if not frames_out:
+        raise UnsupportedSource("audio track contained no frames")
     return frames_out
 
 
