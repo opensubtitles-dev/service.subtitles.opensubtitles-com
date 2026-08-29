@@ -132,3 +132,22 @@ def test_extraction_targets_24k_mono_aac():
 def test_ffmpeg_probe_covers_libreelec_tools_addon():
     from resources.lib.transcriber import FFMPEG_EXTRA_PATHS
     assert any("tools.ffmpeg-tools" in p for p in FFMPEG_EXTRA_PATHS)
+
+
+def test_install_hint_is_platform_specific_and_honest():
+    from unittest.mock import patch
+    import xbmc
+    from resources.lib.transcriber import ffmpeg_install_hint
+
+    def platform_is(name):
+        return lambda cond: name in cond
+
+    with patch.object(xbmc, "getCondVisibility", side_effect=platform_is("OSX")):
+        assert "brew install ffmpeg" in ffmpeg_install_hint()
+    with patch.object(xbmc, "getCondVisibility", side_effect=platform_is("Windows")):
+        assert "winget install ffmpeg" in ffmpeg_install_hint()
+    with patch.object(xbmc, "getCondVisibility", side_effect=platform_is("Android")):
+        hint = ffmpeg_install_hint()
+        assert "does not allow" in hint and "100 MB" in hint  # honest, no false promise
+    with patch.object(xbmc, "getCondVisibility", return_value=False):
+        assert "package manager" in ffmpeg_install_hint()

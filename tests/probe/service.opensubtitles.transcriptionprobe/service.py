@@ -111,9 +111,13 @@ def probe():
 
     # --- rungs 4/5: vfs byte access ----------------------------------------
     try:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".bin") as tf:
+        # the addon profile dir, not tempfile: Android has no /tmp and
+        # tempfile.gettempdir() raises before the vfs is even exercised
+        profile = xbmcvfs.translatePath(__addon__.getAddonInfo("profile"))
+        os.makedirs(profile, exist_ok=True)
+        tmp = os.path.join(profile, "probe_io.bin")
+        with open(tmp, "wb") as tf:
             tf.write(b"opensubtitles-probe")
-            tmp = tf.name
         f = xbmcvfs.File(tmp)
         r["xbmcvfs_read"] = f.readBytes(19) == b"opensubtitles-probe"
         f.close()

@@ -40,11 +40,20 @@ Conclusions:
 | **macOS** | NOT system; brew common | reencode rung after `brew install ffmpeg` | `/opt/homebrew/bin`, `/usr/local/bin` probed. `afconvert` is built-in but cannot demux MKV — useless here |
 | **Windows** | NOT system; `winget install ffmpeg` | reencode rung | probed via PATH; capability dialog should show the one-line install command per OS |
 | **LibreELEC / CoreELEC** | via the official **`tools.ffmpeg-tools`** add-on | reencode rung | binary at `/storage/.kodi/addons/tools.ffmpeg-tools/bin/ffmpeg` (now in `FFMPEG_EXTRA_PATHS`); some builds symlink `/usr/bin/ffmpeg`. UX: offer "install ffmpeg-tools from the LibreELEC repo" instead of a generic failure |
-| **Android ≤ 9** | can `exec()` a downloaded static binary from the add-on profile | reencode rung after one-time binary fetch | large share of TV boxes still run 7–9; the probe suite's exec test is the gate |
-| **Android 10+** | **blocked**: Kodi Omega targets SDK 34 (`TARGET_SDK 34`, minSdk 21 in xbmc source), so W^X denies both `exec()` and `dlopen()` of anything downloaded; only APK-bundled libs are executable and we cannot add to Kodi's APK | fallback ladder below | this kills the "download ffmpeg" and the ctypes-libffmpeg routes on modern Android |
+| **Android (all)** | binaries dead — but the **NDK media stack via ctypes is ALIVE** | AMediaExtractor demux → AMediaCodec AAC encode, no binaries at all | **PROBE-VERIFIED 2026-08-29** on real Kodi 21.3 / Android 12 / API 31 / aarch64: `exec()` from app storage denied (PermissionError 13, the W^X wall as predicted), but `ctypes.CDLL("libmediandk.so")` loads (system libs are dlopen-legal) and every needed symbol resolves: `AMediaExtractor_new`, `AMediaExtractor_setDataSourceFd`, `AMediaCodec_createEncoderByType`, `AMediaMuxer_new`. Kodi's Android Python is 3.11 — modern ctypes. These NDK APIs exist since API 21, so the route covers old boxes too |
 | **iOS / tvOS** | never | fallback ladder below | no exec, no sideloaded binaries |
 
-## Fallback ladder for exec-less platforms (Android 10+, iOS/tvOS)
+## Android route (probe-verified): NDK ctypes ladder
+
+1. **AMediaExtractor + AMediaCodec via ctypes** — demux any container, decode
+   any codec Android knows (AC3/DTS included on most boxes), re-encode 24k
+   mono AAC. Full parity with the ffmpeg rung, zero binaries. Implementation
+   is the next 2.x milestone.
+2. Pure-Python demux (below) when the NDK path fails on some vendor build.
+3. Whole-file upload ≤ 100 MB.
+4. Honest dialog.
+
+## Fallback ladder for exec-less platforms (iOS/tvOS; Android as backup)
 
 1. **Whole-file upload** when the video itself is ≤ 100 MB (episodes, low-res).
 2. **Pure-Python audio demux** — extract the AAC track without decoding and

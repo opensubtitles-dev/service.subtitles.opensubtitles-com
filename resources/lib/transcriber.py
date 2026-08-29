@@ -65,6 +65,28 @@ def _caps_path():
     return os.path.join(_profile_dir(), "transcription_caps.json")
 
 
+def ffmpeg_install_hint():
+    """One honest, platform-specific sentence on how to get ffmpeg.
+
+    Streamlined-UX doctrine: when a rung is unavailable we say exactly what
+    the user can do about it - or that nothing can be done on their platform."""
+    if xbmc.getCondVisibility("System.Platform.OSX"):
+        return ("Install ffmpeg with Homebrew:  brew install ffmpeg  "
+                "(https://brew.sh), then try again.")
+    if xbmc.getCondVisibility("System.Platform.Windows"):
+        return ("Install ffmpeg from an administrator terminal:  winget install ffmpeg  "
+                "then restart Kodi and try again.")
+    if xbmc.getCondVisibility("System.Platform.Android"):
+        return ("Android does not allow Kodi add-ons to run ffmpeg. Videos up to "
+                "100 MB can still be transcribed by uploading them whole.")
+    if os.path.isdir("/storage/.kodi"):
+        return ("Install the 'ffmpeg-tools' add-on from the LibreELEC repository "
+                "(Add-ons > Install from repository > LibreELEC Add-ons > "
+                "Program add-ons), then try again.")
+    return ("Install ffmpeg with your system's package manager "
+            "(e.g. apt install ffmpeg), then try again.")
+
+
 def find_ffmpeg():
     try:
         from shutil import which
@@ -369,8 +391,8 @@ def run_transcription(session, token, file_data, language, mock=False):
     log(f"transcription rung: {source} (encode_x={caps.get('encode_x_realtime')}, io={caps.get('io_mb_per_s')})")
     if source == "too_big":
         raise TranscriptionError(
-            "the server accepts at most 100 MB and no usable ffmpeg was found to "
-            "extract the audio track - install ffmpeg and try again")
+            "This video is over the server's 100 MB upload limit and no usable "
+            "ffmpeg was found to extract the audio track.\n" + ffmpeg_install_hint())
 
     client = MockTranscriptionClient() if mock else TranscriptionClient(session, token)
     progress = xbmcgui.DialogProgress()
