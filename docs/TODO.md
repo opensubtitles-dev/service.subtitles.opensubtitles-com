@@ -6,8 +6,8 @@
 
 * **Silent auto-download on playback** - background service downloads the top pick per preferred language, stores beside the video with Kodi naming, notifies honestly. (former item 1)
 * **Post-playback rating dialog** - 5-star select + sync yes/no, sent to the PROPOSED /subtitles/rate endpoint. (former item 4)
-* **AI transcription pipeline** - expert toggle, capability probe, 6-rung no-install audio extraction ladder verified on Android/Windows/Linux/macOS/LibreELEC (docs/audio_support_matrix.md).
-* **Subtitle-sync plumbing** - [SYNC] dialog row + delay-nudge offer behind subtitle_sync_enabled; engine arrives from project subsync (docs/subtitle_sync_plan.md).
+* **AI transcription pipeline (LIVE end-to-end)** - expert toggle, capability probe, 6-rung no-install audio extraction ladder verified on Android/Windows/Linux/macOS/LibreELEC (docs/audio_support_matrix.md); measured /ai/transcribe contract, MP3-only self-detecting gate, pre-flight credits gate with buy-credits QR offer, engine language-code matching.
+* **Subtitle synchronization (LIVE)** - [SYNC] dialog row + delay-nudge offer behind subtitle_sync_enabled; engine = subsync service (docs/subtitle_sync_plan.md): energy-fingerprint fast path ~4s, audio-tier fallback, honest confidence gate.
 
 ## 🚀 Future Roadmap & Planned Enhancements
 
@@ -68,4 +68,4 @@
 * [x] **NFC Unicode Normalization**: Eliminates macOS decomposed diacritic search failures.
 * [x] **Optimized ID Search Strategy**: Clean separation of parent show IDs vs episode-specific IDs, resolving search failures on Seren/TMDB Helper (Issues #39, #40).
 * [x] **Official OpenSubtitles Kodi Repository Portal**: Automated build and deployment of `repository.opensubtitles-com` to GitHub Pages.
-* [x] **Automated CI & Pytest Suite**: 62 unit, integration, and TV search tests running on GitHub Actions.
+* [x] **Automated CI & Pytest Suite**: 322 tests (unit, integration, TV search, audio engines, privacy audit) running on GitHub Actions + the 3-OS audio extraction matrix.

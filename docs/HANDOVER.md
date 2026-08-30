@@ -12,14 +12,14 @@ This file provides a complete technical handover for Claude / next AI agent taki
   * `origin` = `opensubtitles-dev/service.subtitles.opensubtitles-com` - the MAIN repo (issues, CI, releases). Its master is a LIVE TRIGGER: every push auto-rebuilds gh-pages via `deploy-repository.yml` and publishes to `https://kodi.opensubtitles.com` (the URL baked into every installed repository add-on). Push `origin` master only as a deliberate release act.
 * **Branch Strategy**:
   * **`fix-kodi-http-browse` (= both masters)**: the COMPLETED 1.x line, ended at v1.0.91. The official submission is **xbmc/repo-scripts PR #2888** (v1.0.90, Greptile 5/5, awaiting human Team Kodi review). HARD RULE: no xbmc/* PR action without Brano's approval given TWICE, and no further 1.x work unless explicitly asked.
-  * **`develop`**: **THE ONLY ACTIVE LINE** (v2.0.0). Everything happens here: background service (auto-download, rating prompts, account alerts, update checks), AI transcription with the 6-rung audio extraction ladder (ffmpeg / Android-NDK-ctypes / afconvert / GStreamer / Windows-MF-ctypes / pure-Python demux - see docs/audio_support_matrix.md, all device/CI-verified), subtitle-sync plumbing awaiting the external `subsync` engine (resources/lib/syncer.py socket), upload dry-run, QR/credits flows, Retry-After rate-limit courtesy.
+  * **`develop`**: **THE ONLY ACTIVE LINE** (v2.0.0). Everything happens here: background service (auto-download, rating prompts, account alerts, update checks), AI transcription with the 6-rung audio extraction ladder (ffmpeg / Android-NDK-ctypes / afconvert / GStreamer / Windows-MF-ctypes / pure-Python demux - see docs/audio_support_matrix.md, all device/CI-verified), subtitle synchronization LIVE against the subsync service (resources/lib/syncer.py - energy-fingerprint fast path ~4s, audio-tier fallback, 0.6 confidence gate; Basic auth from gitignored .env until the service mints Bearer keys), upload dry-run, QR/credits flows (transcription failure dialog offers the buy-credits QR flow directly), Retry-After rate-limit courtesy.
 
 ---
 
 ## 2. 🧪 Testing & Validation Commands
 
 ```bash
-# Run complete test suite (307 passing tests)
+# Run complete test suite (322 passing tests)
 python3 -m pytest
 
 # Run repository packager and generate ZIPs + addons.xml + checksums
@@ -97,15 +97,21 @@ python3 scripts/generate_repo.py
 * [`service_monitor.py`](file:///data/www/opensubtitles.org/public_html/github/service.subtitles.opensubtitles-com/service_monitor.py) - Kodi background service (monitor + player).
 * [`resources/lib/subtitle_downloader.py`](file:///data/www/opensubtitles.org/public_html/github/service.subtitles.opensubtitles-com/resources/lib/subtitle_downloader.py) - Search execution, badge formatting at line end, and mock interceptor.
 * [`resources/lib/matcher.py`](file:///data/www/opensubtitles.org/public_html/github/service.subtitles.opensubtitles-com/resources/lib/matcher.py) - Match scoring and display badge formatter (`get_match_display_tag`).
-* [`resources/lib/osclient/provider.py`](file:///data/www/opensubtitles.org/public_html/github/service.subtitles.opensubtitles-com/resources/lib/osclient/provider.py) - API client methods including `vote_subtitle` and user info.
+* [`resources/lib/osclient/provider.py`](file:///data/www/opensubtitles.org/public_html/github/service.subtitles.opensubtitles-com/resources/lib/osclient/provider.py) - API client methods including `rate_subtitle` (PROPOSED), credits, and user info.
+* [`resources/lib/transcriber.py`](file:///data/www/opensubtitles.org/public_html/github/service.subtitles.opensubtitles-com/resources/lib/transcriber.py) - AI transcription pipeline (extraction ladder, credits gate, LIVE /ai/transcribe client).
+* [`resources/lib/syncer.py`](file:///data/www/opensubtitles.org/public_html/github/service.subtitles.opensubtitles-com/resources/lib/syncer.py) - subtitle sync engine against the subsync service (fingerprint fast path + audio fallback).
 * [`docs/kodi_ui_font_compatibility.md`](file:///data/www/opensubtitles.org/public_html/github/service.subtitles.opensubtitles-com/docs/kodi_ui_font_compatibility.md) - UI font rendering reference.
-* [`tests/`](file:///data/www/opensubtitles.org/public_html/github/service.subtitles.opensubtitles-com/tests/) - Complete pytest suite (167 tests).
+* [`tests/`](file:///data/www/opensubtitles.org/public_html/github/service.subtitles.opensubtitles-com/tests/) - Complete pytest suite (322 tests).
 
 ---
 
-## 5. 🎯 Next Roadmap Items
-1. `POST /subtitles/rate` server-side deployment (client ships 404-tolerant).
-2. Auto-upload phase 2: wire `/subtitles/upload/check` once dry-run verdicts look good.
-3. addon.xml translations (~40 languages) still carry old .org-era descriptions - needs human translators.
-4. Submit 2.0.0 to official `xbmc/repo-plugins` after soak time in the kodi.opensubtitles.com feed.
-5. Optional: capture glyph matrix TRY rows 12-20 results; test Estuary "Arial based" font round.
+## 5. 🎯 Next Roadmap Items / Open Waits (2026-08-29)
+1. **Greptile v2 external review**: PR #92 (opensubtitles/…, branch v2-mirror-2) parked until the flex-credit reset (~Sept 1); re-tag `@greptileai review exhaustively`, then run the fix loop.
+2. **API team**: accept AAC/M4A on /ai/transcribe (self-detecting client gate auto-activates the parked Android/afconvert/MF engines); optional: video containers ≤100 MB, decode-based ADTS duration.
+3. **xbmc/repo-scripts PR #2888** (1.0.90): awaiting human Team Kodi review. HARD RULE: no xbmc/* action without double approval.
+4. **subsync real auth**: service SPEC already defines Bearer/X-Api-Key keys - when minted, swap in .env (SUBSYNC_* keys) or settings.
+5. `POST /subtitles/rate` + `sync-report/sync-hint` server-side deployment (client ships 404-tolerant / documented PROPOSED).
+6. Auto-upload phase 2: wire `/subtitles/upload/check` once dry-run verdicts look good.
+7. addon.xml translations (~40 languages) still carry old .org-era descriptions - needs human translators.
+8. Submit 2.0.0 upstream (repo-scripts, matrix branch - same channel as 1.x) after soak time in the kodi.opensubtitles.com feed.
+9. Real-hardware confirmations when available: Android TV Dolby decode, consumer-Windows AC3 via MF.

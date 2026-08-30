@@ -1,14 +1,19 @@
 # AI Transcription — Design Plan (2.0.x)
 
 Generate subtitles for media that has none, via the transcription service on
-ai.opensubtitles.com. Status: **CLIENT PIPELINE IMPLEMENTED on develop (2026-08-26)** — expert
+ai.opensubtitles.com. Status: **LIVE END-TO-END on develop (2026-08-29)** — expert
 setting `ai_transcription_enabled` injects an "[AI] Generate by transcription"
 row into every search; picking it runs `resources/lib/transcriber.py`
 (capability probe + one-time benchmark cached in the profile, source-rung
-selection, ffmpeg audio extraction, chunked upload, job polling). The real
-endpoints stay PROPOSED (404 → friendly dialog); the Development-tab
-`test_transcribe_mock` setting simulates the server for end-to-end testing
-in Kodi. Server side + Android NDK rung still open.
+selection, extraction ladder, upload, job polling). The endpoints are
+DEPLOYED and measured (section "LIVE API measurements"); the Android NDK,
+afconvert, Windows MF and pydemux rungs are built and device/CI-verified.
+Also shipped: engine language-code matching (name→ISO, sk↔sk-SK prefix
+matching, honest local error when an engine lacks both the language and
+"auto"), a pre-flight /ai/credits gate (fails with an actionable buy-credits
+QR offer BEFORE any extraction/upload), and server error bodies surfaced in
+the failure dialog. The Development-tab `test_transcribe_mock` setting still
+simulates the server for offline end-to-end testing in Kodi.
 
 ---
 
@@ -124,7 +129,10 @@ The endpoint is DEPLOYED and works end-to-end (12 s speech -> accurate SRT in
    fails the duration probe. Extensions are ignored (a lying .m4a with MP3
    payload is accepted). CONSEQUENCE: the AAC-producing rungs (android_ndk,
    afconvert, windows_mf) and whole-file video upload are gated OFF in
-   choose_source (SERVER_ACCEPTS_AAC = False) until the API adds AAC.
+   choose_source until the API adds AAC — via the SELF-DETECTING gate
+   (server_accepts_aac()/note_aac_rejected(), 24 h window-property hold +
+   in-flow MP3 retry): the day the server accepts AAC, every parked engine
+   activates with zero client update.
    ffmpeg and GStreamer rungs emit 32k mono MP3 (~28 MB / 2h).
 3. Engines really offered: aws 0.132, openai 0.033, assemblyAI 0.0225,
    nano 0.0075 (per second; minimum charge observed: 1 credit). "nano" was

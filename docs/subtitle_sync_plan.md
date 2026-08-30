@@ -1,7 +1,36 @@
-# Auto Subtitle Synchronization — design (v2.x)
+# Auto Subtitle Synchronization — design + implementation (v2.x)
 
-Status: DESIGN — nothing implemented. Companion to `ai_transcription_plan.md`;
-reuses its capability-ladder model and several existing mechanisms.
+Status: **LIVE on develop (2026-08-29)**. The engine is the external
+**subsync service** (project `opensubtitles/subsync`, deployed at the URL in
+the `sync_service_url` setting), not the local ladder below — the ladder
+remains as design history and as the crowdsourced-hint roadmap.
+
+## What shipped (measured against the live service)
+
+- `resources/lib/syncer.py` speaks the subsync contract: `POST /v1/jobs`
+  (multipart audio|fingerprint + subtitle) → poll → fetch corrected file.
+- **Fingerprint fast path** (~4 s round trip): client-side loudness mask
+  (10 ms frames, audioop / pure-array fallback, SPEC §2 of the subsync repo)
+  — the server skips its VAD entirely. Verified confidence 0.99, +90 ms vs
+  silero's +130 ms ground truth. Kept only ≥0.75 confidence; music-heavy
+  tracks automatically retry through the audio tier (server silero VAD).
+  Sparse windows + energy masks were measured and FAIL (conf 0.25) — dead
+  end, documented in code, do not resurrect.
+- **Audio tier fallback**: 16 kHz mono opus via ffmpeg, else the transcriber
+  extraction ladder (service accepts mp3/aac too — measured).
+- **Honest confidence gate** at 0.6: wrong-movie control scored 0.19 +
+  `different_cut_suspected` and is refused with a clear dialog; +5 s-shifted
+  control came back −4870 ms (exact). Corrected file is always NEW; the
+  original is never touched.
+- Auth: settings (`sync_service_user/pass`) else the gitignored `.env`
+  (`SUBSYNC_USER/PASS`) — temporary Basic auth until the service mints
+  Bearer keys (already specced server-side).
+- UI: [SYNC] dialog row (real language of the ACTIVE subtitle from the
+  player, honest fallback) + delay-nudge offer; progress dialog with live
+  stage; result notification with applied offset.
+
+Companion to `ai_transcription_plan.md`; reuses its capability-ladder model
+and several existing mechanisms.
 
 ## Why this belongs in the add-on
 
@@ -26,7 +55,7 @@ Guardrails (doctrine):
 
 ## The ladder (mirror of the transcription rungs)
 
-### Rung 1 — Crowdsourced delay memory (build FIRST)
+### Rung 1 — Crowdsourced delay memory (STILL OPEN — best next server win)
 
 The service already knows, per session: moviehash + subtitle file_id + the
 delay the user ended at. Report that tuple; the server aggregates a median
@@ -66,7 +95,7 @@ catalog itself as the sync reference — a capability only we have. One extra
 download burns quota: prefer a reference the user already downloaded, else ask
 before spending.
 
-### Rung 3 — Audio correlation (last, maybe never)
+### Rung 3 — Audio correlation (SUPERSEDED — this became the subsync service)
 
 ffsubsync-style: extract audio via ffmpeg (reuse the transcription probe and
 extraction code), compute a coarse speech on/off envelope, cross-correlate
