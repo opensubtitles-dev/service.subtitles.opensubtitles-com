@@ -41,7 +41,9 @@ def build_grid(ffmpeg, out):
               ("eac3", ["-c:a", "eac3", "-b:a", "256k"]),
               ("mp3", ["-c:a", "libmp3lame", "-b:a", "128k"]),
               ("dts", ["-strict", "-2", "-c:a", "dca", "-b:a", "768k"]),
-              ("flac", ["-c:a", "flac"])]
+              ("flac", ["-c:a", "flac"]),
+              ("opus", ["-c:a", "libopus", "-b:a", "96k"]),
+              ("pcm", ["-c:a", "pcm_s16le"])]
     for name, args in codecs:
         path = os.path.join(out, f"mkv_{name}.mkv")
         r = run("-i", base, "-c:v", "copy", *args, path)
@@ -77,8 +79,10 @@ def main():
             frames = extract_audio_track(path, dst)
             say("pydemux", name, decodes(ffmpeg, dst), f"{frames}f", required=True)
         except UnsupportedSource as e:
-            # only DTS/OPUS/PCM-class rejections are acceptable
-            say("pydemux", name, False, str(e), required=("aac" in name))
+            # only DTS-class rejections are acceptable now (opus -> ogg
+            # and pcm -> wav are re-encapsulated since 2.0.0-dev)
+            say("pydemux", name, False, str(e),
+                required=(name not in ("mkv_dts",)))
 
     # ---- route: afconvert (macOS must) ----------------------------------
     if system == "Darwin":
@@ -95,7 +99,10 @@ def main():
                                 "-b", "24000", "--mix", "-o", dst, src],
                                capture_output=True)
             ok = r.returncode == 0 and os.path.getsize(dst) if os.path.exists(dst) else False
-            say("afconvert", name, bool(ok), "", required=(name != "mkv_dts"))
+            # afconvert has no DTS decoder and does not read Ogg Opus - both
+            # fall through to other rungs (sync accepts the .ogg directly)
+            say("afconvert", name, bool(ok), "",
+                required=(name not in ("mkv_dts", "mkv_opus")))
 
     # ---- route: gstreamer (Linux informational: plugin set varies) ------
     if system == "Linux" and shutil.which("gst-launch-1.0"):

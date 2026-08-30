@@ -1,10 +1,11 @@
-"""Pure-Python audio track extraction (MP4/MOV and Matroska) -> ADTS .aac.
+"""Pure-Python audio track extraction (MP4/MOV and Matroska).
 
 Stdlib only, Python 3.6 compatible. The no-external-tool rung of the audio
-ladder (docs/audio_extraction_matrix.md): extracts the AAC track WITHOUT
+ladder (docs/audio_extraction_matrix.md): extracts the audio track WITHOUT
 decoding, so it works where nothing can be executed (Android, iOS/tvOS) and
-feeds afconvert on macOS for MKV sources. Only AAC tracks are supported -
-that is inherent (extraction without decode).
+feeds afconvert on macOS for MKV sources. Outputs by codec: AAC -> ADTS,
+AC3/EAC3/MP3/DTS -> raw elementary stream, FLAC -> native, Opus -> Ogg
+re-encapsulation (RFC 7845, pure stdlib), little-endian integer PCM -> WAV.
 
 extract_audio_track(path_in, path_out) -> frames written; raises
 UnsupportedSource when the container/codec cannot be handled.
@@ -136,6 +137,10 @@ TRACK_ENTRY = 0xAE
 TRACK_NUMBER = 0xD7
 CODEC_ID = 0x86
 CODEC_PRIVATE = 0x63A2
+AUDIO_ELEM = 0xE1
+SAMPLING_FREQ = 0xB5
+CHANNELS_ELEM = 0x9F
+BIT_DEPTH = 0x6264
 CLUSTER = 0x1F43B675
 SIMPLE_BLOCK = 0xA3
 BLOCK_GROUP = 0xA0
@@ -183,10 +188,15 @@ _MKV_AUDIO = {
     "A_MPEG/L3": ("raw", ".mp3"),
     "A_DTS": ("raw", ".dts"),
     "A_FLAC": ("flac", ".flac"),
+    "A_OPUS": ("opus", ".ogg"),
+    "A_PCM/INT/LIT": ("pcm", ".wav"),
 }
 # "raw" tracks are self-framing elementary streams that survive plain
 # concatenation of their block frames; afconvert on macOS reads raw
 # AC3/EAC3/MP3/FLAC directly (measured, docs/audio_extraction_matrix.md).
+# "opus" packets are NOT self-framing - they get Ogg re-encapsulation
+# (_OggOpusWriter); "pcm" little-endian integer samples get a WAV header.
+# A_PCM/INT/BIG (big-endian) is deliberately absent: exact-key match only.
 
 
 def _mkv_kind(codec):
@@ -197,8 +207,10 @@ def _mkv_kind(codec):
 
 
 def _parse_tracks(f, end):
-    """Returns (track_number, codec_id, CodecPrivate) of the first
-    extractable audio track, or (None, "", b"")."""
+    """Returns (track_number, codec_id, CodecPrivate, audio_params) of the
+    first extractable audio track, or (None, "", b"", {}). audio_params holds
+    sampling rate / channels / bit depth from the Audio element (PCM needs
+    them for the WAV header)."""
     while f.tell() < end:
         eid, size, _ = _read_element(f)
         if eid is None:
@@ -208,6 +220,7 @@ def _parse_tracks(f, end):
             continue
         entry_end = f.tell() + size
         number, codec, private = None, "", b""
+        audio = {}
         while f.tell() < entry_end:
             ceid, csize, _ = _read_element(f)
             if ceid is None:
@@ -219,16 +232,37 @@ def _parse_tracks(f, end):
                 codec = f.read(csize).decode("latin1").strip("\x00")
             elif ceid == CODEC_PRIVATE:
                 private = f.read(csize)
+            elif ceid == AUDIO_ELEM:
+                a_end = f.tell() + csize
+                while f.tell() < a_end:
+                    aeid, asize, _ = _read_element(f)
+                    if aeid is None:
+                        break
+                    a_at = f.tell()
+                    raw = f.read(asize)
+                    if aeid == SAMPLING_FREQ and len(raw) in (4, 8):
+                        audio["rate"] = int(struct.unpack(
+                            ">f" if len(raw) == 4 else ">d", raw)[0])
+                    elif aeid == CHANNELS_ELEM:
+                        audio["channels"] = int.from_bytes(raw, "big")
+                    elif aeid == BIT_DEPTH:
+                        audio["bit_depth"] = int.from_bytes(raw, "big")
+                    f.seek(a_at + asize)
             else:
                 f.seek(csize, 1)
             f.seek(payload_at + csize)
         if number is not None and _mkv_kind(codec):
-            if _mkv_kind(codec) == "aac" and len(private) < 2:
+            kind = _mkv_kind(codec)
+            if kind == "aac" and len(private) < 2:
                 pass        # AAC without ASC cannot be ADTS-framed - skip it
+            elif kind == "opus" and len(private) < 19:
+                pass        # Opus needs the OpusHead CodecPrivate verbatim
+            elif kind == "pcm" and not audio.get("rate"):
+                pass        # PCM without a sampling rate cannot be WAV-framed
             else:
-                return number, codec, private
+                return number, codec, private, audio
         f.seek(entry_end)
-    return None, "", b""
+    return None, "", b"", {}
 
 
 def _block_frames(data, want_track):
@@ -286,6 +320,129 @@ def _block_frames(data, want_track):
     return frames
 
 
+# --- Ogg Opus re-encapsulation ---------------------------------------------
+# Opus packets in MKV are not self-framing; players need them inside Ogg
+# (RFC 7845). Pure stdlib: Ogg page framing + the Ogg CRC-32 (poly 0x04C11DB7,
+# init 0, no reflection, no final xor - NOT zlib.crc32).
+
+_OGG_CRC_TABLE = []
+
+
+def _ogg_crc(data):
+    if not _OGG_CRC_TABLE:
+        for i in range(256):
+            r = i << 24
+            for _ in range(8):
+                r = ((r << 1) ^ 0x04C11DB7) & 0xFFFFFFFF if r & 0x80000000 \
+                    else (r << 1) & 0xFFFFFFFF
+            _OGG_CRC_TABLE.append(r)
+    crc = 0
+    for b in data:
+        crc = ((crc << 8) & 0xFFFFFFFF) ^ _OGG_CRC_TABLE[((crc >> 24) & 0xFF) ^ b]
+    return crc
+
+
+# TOC-byte frame durations in ms*10 (RFC 6716 §3.1): configs 0-11 SILK
+# {10,20,40,60}, 12-15 hybrid {10,20}, 16-31 CELT {2.5,5,10,20}
+_OPUS_FRAME_MS10 = ([100, 200, 400, 600] * 3 +
+                    [100, 200] * 2 +
+                    [25, 50, 100, 200] * 4)
+
+
+def _opus_samples(packet):
+    """Decoded 48 kHz sample count of one Opus packet, from the TOC byte."""
+    if not packet:
+        return 0
+    toc = packet[0]
+    ms10 = _OPUS_FRAME_MS10[toc >> 3]
+    code = toc & 0x3
+    if code == 0:
+        frames = 1
+    elif code in (1, 2):
+        frames = 2
+    else:
+        frames = packet[1] & 0x3F if len(packet) > 1 else 0
+    return frames * ms10 * 48 // 10
+
+
+class _OggOpusWriter:
+    """Writes Opus packets into a minimal, spec-valid Ogg Opus stream."""
+
+    def __init__(self, out, opus_head):
+        self._out = out
+        self._serial = 0x4F535355          # 'OSSU', arbitrary fixed serial
+        self._seq = 0
+        self._granule = 0
+        self._pending = []                 # packets for the current page
+        self._pending_lace = 0
+        try:
+            self._preskip = struct.unpack("<H", opus_head[10:12])[0]
+        except Exception:
+            self._preskip = 0
+        self._page(opus_head, header_type=0x02, granule=0)
+        tags = b"OpusTags" + struct.pack("<I", 4) + b"kodi" + struct.pack("<I", 0)
+        self._page(tags, header_type=0x00, granule=0)
+
+    def _page(self, packet, header_type, granule):
+        self._flush()
+        self._emit([packet], header_type, granule)
+
+    def _emit(self, packets, header_type, granule):
+        lacing = bytearray()
+        body = bytearray()
+        for p in packets:
+            n = len(p)
+            while n >= 255:
+                lacing.append(255)
+                n -= 255
+            lacing.append(n)
+            body += p
+        hdr = bytearray(b"OggS")
+        hdr += bytes([0, header_type])
+        hdr += struct.pack("<q", granule)
+        hdr += struct.pack("<I", self._serial)
+        hdr += struct.pack("<I", self._seq)
+        hdr += b"\x00\x00\x00\x00"         # CRC placeholder
+        hdr.append(len(lacing))
+        hdr += lacing
+        page = bytes(hdr) + bytes(body)
+        crc = _ogg_crc(page)
+        page = page[:22] + struct.pack("<I", crc) + page[26:]
+        self._out.write(page)
+        self._seq += 1
+
+    def _flush(self, header_type=0x00):
+        if self._pending:
+            self._emit(self._pending, header_type, self._granule + self._preskip)
+            self._pending = []
+            self._pending_lace = 0
+
+    def add(self, packet):
+        lace = len(packet) // 255 + 1
+        if self._pending and self._pending_lace + lace > 255:
+            self._flush()
+        self._pending.append(packet)
+        self._pending_lace += lace
+        self._granule += _opus_samples(packet)
+        if self._pending_lace >= 200:      # keep pages comfortably small
+            self._flush()
+
+    def close(self):
+        # EOS page always emitted - carries the remaining packets, or is a
+        # valid zero-packet page when everything already flushed
+        self._emit(self._pending, 0x04, self._granule + self._preskip)
+        self._pending = []
+        self._pending_lace = 0
+
+
+def _wav_header(data_len, rate, channels, bit_depth):
+    block = channels * bit_depth // 8
+    return (b"RIFF" + struct.pack("<I", 36 + data_len) + b"WAVE" +
+            b"fmt " + struct.pack("<IHHIIHH", 16, 1, channels, rate,
+                                  rate * block, block, bit_depth) +
+            b"data" + struct.pack("<I", data_len))
+
+
 def _adts_header(asc, frame_len):
     aot = (asc[0] >> 3) & 0x1F
     freq_idx = ((asc[0] & 7) << 1) | (asc[1] >> 7)
@@ -304,9 +461,26 @@ def _adts_header(asc, frame_len):
 
 def extract_mkv(path_in, path_out):
     frames_out = 0
+    ogg = None
+    pcm_len = 0
     with open(path_in, "rb") as f, open(path_out, "wb") as out:
         track, codec, private = None, "", b""
-        kind, asc = "aac", b""
+        kind, asc, audio = "aac", b"", {}
+
+        def emit(frame):
+            nonlocal frames_out, pcm_len
+            if kind == "aac":
+                out.write(_adts_header(asc, len(frame)))
+                out.write(frame)
+            elif kind == "opus":
+                ogg.add(frame)
+            elif kind == "pcm":
+                out.write(frame)
+                pcm_len += len(frame)
+            else:
+                out.write(frame)
+            frames_out += 1
+
         # top level: EBML header then Segment
         while True:
             eid, size, _ = _read_element(f)
@@ -321,7 +495,7 @@ def extract_mkv(path_in, path_out):
                 if ceid is None:
                     break
                 if ceid == TRACKS:
-                    track, codec, private = _parse_tracks(f, f.tell() + csize)
+                    track, codec, private, audio = _parse_tracks(f, f.tell() + csize)
                     if track is None:
                         raise UnsupportedSource("no extractable audio track found")
                     kind = _mkv_kind(codec)
@@ -330,6 +504,13 @@ def extract_mkv(path_in, path_out):
                     elif kind == "flac":
                         # CodecPrivate IS the complete fLaC stream header
                         out.write(private)
+                    elif kind == "opus":
+                        ogg = _OggOpusWriter(out, private)
+                    elif kind == "pcm":
+                        # placeholder header; real sizes patched on close
+                        out.write(_wav_header(0, audio.get("rate", 48000),
+                                              audio.get("channels", 2) or 2,
+                                              audio.get("bit_depth", 16) or 16))
                 elif ceid == CLUSTER and track is not None:
                     cl_end = None if csize == UNKNOWN_SIZE else f.tell() + csize
                     while cl_end is None or f.tell() < cl_end:
@@ -338,10 +519,7 @@ def extract_mkv(path_in, path_out):
                             break
                         if beid == SIMPLE_BLOCK:
                             for frame in _block_frames(f.read(bsize), track):
-                                if kind == "aac":
-                                    out.write(_adts_header(asc, len(frame)))
-                                out.write(frame)
-                                frames_out += 1
+                                emit(frame)
                         elif beid == BLOCK_GROUP:
                             g_end = f.tell() + bsize
                             while f.tell() < g_end:
@@ -350,10 +528,7 @@ def extract_mkv(path_in, path_out):
                                     break
                                 if geid == BLOCK:
                                     for frame in _block_frames(f.read(gsize), track):
-                                        if kind == "aac":
-                                            out.write(_adts_header(asc, len(frame)))
-                                        out.write(frame)
-                                        frames_out += 1
+                                        emit(frame)
                                 else:
                                     f.seek(gsize, 1)
                         elif bsize == UNKNOWN_SIZE:
@@ -365,6 +540,13 @@ def extract_mkv(path_in, path_out):
                 else:
                     f.seek(csize, 1)
             break
+        if ogg is not None:
+            ogg.close()
+        if kind == "pcm" and frames_out:
+            out.seek(0)
+            out.write(_wav_header(pcm_len, audio.get("rate", 48000),
+                                  audio.get("channels", 2) or 2,
+                                  audio.get("bit_depth", 16) or 16))
     if track is None:
         raise UnsupportedSource("no Tracks element found (truncated file?)")
     if not frames_out:
@@ -397,7 +579,7 @@ def probe_extension(path_in):
                     if ceid is None:
                         break
                     if ceid == TRACKS:
-                        _n, codec, _p = _parse_tracks(f, f.tell() + csize)
+                        _n, codec, _p, _a = _parse_tracks(f, f.tell() + csize)
                         for known, spec in _MKV_AUDIO.items():
                             if codec == known or codec.startswith(known + "/"):
                                 return spec[1]

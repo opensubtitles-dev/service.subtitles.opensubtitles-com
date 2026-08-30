@@ -22,8 +22,10 @@ def test_mkv_codec_table_covers_the_film_world():
                         ("A_MPEG/L3", "raw"), ("A_DTS", "raw"),
                         ("A_FLAC", "flac")):
         assert _mkv_kind(codec) == kind, codec
-    assert _mkv_kind("A_OPUS") is None          # honest: not supported
-    assert _mkv_kind("A_PCM/INT/LIT") is None
+    assert _mkv_kind("A_OPUS") == "opus"        # Ogg re-encapsulation
+    assert _mkv_kind("A_PCM/INT/LIT") == "pcm"  # WAV wrap
+    assert _mkv_kind("A_PCM/INT/BIG") is None   # big-endian: honest no
+    assert _mkv_kind("A_VORBIS") is None        # honest: not supported
 
 
 @pytest.mark.parametrize("name,ext,min_bytes", [
@@ -33,6 +35,8 @@ def test_mkv_codec_table_covers_the_film_world():
     ("tiny_eac3.mkv", ".eac3", 8000),
     ("tiny_mp3.mkv", ".mp3", 2000),
     ("tiny_flac.mkv", ".flac", 20000),
+    ("tiny_opus.mkv", ".ogg", 2000),
+    ("tiny_pcm.mkv", ".wav", 40000),
 ])
 def test_extraction_against_real_fixture(tmp_path, name, ext, min_bytes):
     assert probe_extension(fixture(name)) == ext
@@ -63,7 +67,7 @@ def test_mkv_and_mp4_routes_agree(tmp_path):
 
 def test_unsupported_codec_rejected_honestly(tmp_path):
     with pytest.raises(UnsupportedSource):
-        extract_audio_track(fixture("tiny_opus.mkv"), str(tmp_path / "x"))
+        extract_audio_track(fixture("tiny_vorbis.mkv"), str(tmp_path / "x"))
 
 
 def test_unrecognized_container_rejected(tmp_path):
@@ -81,3 +85,59 @@ def test_probe_extension_defaults_to_aac_for_mp4(tmp_path):
     f = tmp_path / "x.mp4"
     f.write_bytes(struct.pack(">I", 20) + b"ftypisom" + b"\0" * 12)
     assert probe_extension(str(f)) == ".aac"
+
+
+def test_opus_output_is_valid_ogg(tmp_path):
+    """RFC 7845 shape: BOS page carries OpusHead, every page CRC verifies."""
+    from resources.lib.audio_demux import _ogg_crc
+    out = tmp_path / "x.ogg"
+    extract_audio_track(fixture("tiny_opus.mkv"), str(out))
+    data = out.read_bytes()
+    assert data[:4] == b"OggS"
+    assert b"OpusHead" in data[:100] and b"OpusTags" in data
+    pos, pages = 0, 0
+    while pos < len(data):
+        assert data[pos:pos+4] == b"OggS", f"page boundary lost at {pos}"
+        nseg = data[pos+26]
+        body = sum(data[pos+27:pos+27+nseg])
+        page = bytearray(data[pos:pos+27+nseg+body])
+        stored = bytes(page[22:26])
+        page[22:26] = b"\x00\x00\x00\x00"
+        assert _ogg_crc(bytes(page)) == int.from_bytes(stored, "little"), \
+            f"CRC mismatch on page {pages}"
+        pos += 27 + nseg + body
+        pages += 1
+    assert pages >= 3                       # head + tags + >=1 data page
+    # last page must carry EOS
+    last_flags = None
+    pos2 = 0
+    while pos2 < len(data):
+        nseg = data[pos2+26]
+        body = sum(data[pos2+27:pos2+27+nseg])
+        last_flags = data[pos2+5]
+        pos2 += 27 + nseg + body
+    assert last_flags & 0x04, "final page missing EOS flag"
+
+
+def test_pcm_output_is_valid_wav(tmp_path):
+    out = tmp_path / "x.wav"
+    extract_audio_track(fixture("tiny_pcm.mkv"), str(out))
+    data = out.read_bytes()
+    assert data[:4] == b"RIFF" and data[8:12] == b"WAVE"
+    import struct
+    riff_len, = struct.unpack("<I", data[4:8])
+    assert riff_len == len(data) - 8, "RIFF size not patched"
+    fmt_tag, channels, rate = struct.unpack("<HHI", data[20:28])
+    assert fmt_tag == 1 and channels == 1 and rate == 44100
+    data_len, = struct.unpack("<I", data[40:44])
+    assert data_len == len(data) - 44, "data chunk size not patched"
+    assert abs(data_len / (rate * 2) - 1.0) < 0.05, "should be ~1 second"
+
+
+def test_opus_samples_toc_table():
+    from resources.lib.audio_demux import _opus_samples
+    assert _opus_samples(bytes([0x78])) == 960          # config 15 = hybrid 20 ms
+    assert _opus_samples(bytes([(16 << 3) | 0])) == 120  # CELT 2.5ms, 1 frame
+    assert _opus_samples(bytes([(1 << 3) | 1])) == 1920  # SILK 20ms, 2 frames
+    assert _opus_samples(bytes([(0 << 3) | 3, 0x03])) == 1440  # 3 x 10ms
+    assert _opus_samples(b"") == 0

@@ -33,7 +33,7 @@ afconvert converts. All VERIFIED end-to-end through `extract_afconvert()`:
 | Container | AAC-LC | HE-AAC | AC3 | EAC3 | MP3 | FLAC | ALAC | DTS | Opus | PCM |
 |---|---|---|---|---|---|---|---|---|---|---|
 | **MP4/M4V/MOV** (direct) | VERIFIED | VERIFIED | VERIFIED | EXPECTED¹ | FAIL² | n/a³ | VERIFIED | n/a³ | n/a³ | n/a³ |
-| **MKV** (via pydemux) | VERIFIED | VERIFIED | VERIFIED | VERIFIED | VERIFIED | VERIFIED | n/a³ | **FAIL⁴** | **FAIL⁵** | **FAIL⁵** |
+| **MKV** (via pydemux) | VERIFIED | VERIFIED | VERIFIED | VERIFIED | VERIFIED | VERIFIED | n/a³ | **FAIL⁴** | VERIFIED⁵ | VERIFIED⁵ |
 | **TS / AVI** | — | — | — | — | — | — | — | — | — | — |
 
 ¹ EAC3-in-MP4 untested as a direct read (raw EAC3 verified); same decoder.
@@ -41,8 +41,9 @@ afconvert converts. All VERIFIED end-to-end through `extract_afconvert()`:
   to rung 4/5. ³ Combination not produced by real releases / not built.
 ⁴ DTS extracts cleanly (pydemux VERIFIED) but afconvert has **no DTS
   decoder** — falls to whole-file/hint. The one real macOS gap.
-⁵ Opus needs Ogg re-encapsulation, PCM a WAV header — neither implemented
-  (rare in film releases); falls through. Possible future work.
+⁵ CLOSED 2026-08-30: pydemux re-encapsulates Opus → Ogg (RFC 7845, pure
+  stdlib) and int-LE PCM → WAV; afconvert reads BOTH outputs (measured —
+  macOS 15 CoreAudio decodes Ogg Opus). Big-endian PCM stays honest-absent.
 TS/AVI: pydemux rejects them (VERIFIED) → whole-file ≤100 MB → hint.
 
 ## Android (no install — full parity, zero binaries)
@@ -55,7 +56,7 @@ until a real box run (real Android TV devices license AC3/EAC3/DTS).
 |---|---|---|---|---|---|---|---|---|---|
 | NDK transcode (any container Android reads: MKV/MP4/TS/WebM) | **VERIFIED** (7.9× realtime, decodes clean) | EXPECTED | UNTESTED⁶ | UNTESTED⁶ | UNTESTED⁶ | EXPECTED⁷ | EXPECTED⁷ | EXPECTED⁷ | EXPECTED⁷ |
 | NDK demux fallback (AAC only) | VERIFIED (MKV + MP4) | EXPECTED | — | — | — | — | — | — | — |
-| pydemux fallback | VERIFIED (same module) | VERIFIED | VERIFIED | VERIFIED | VERIFIED | VERIFIED | VERIFIED | — | — |
+| pydemux fallback | VERIFIED (same module) | VERIFIED | VERIFIED | VERIFIED | VERIFIED | VERIFIED | VERIFIED | VERIFIED (→.ogg) | VERIFIED (→.wav) |
 
 ⁶ Decoder presence is per-device (vendor Dolby/DTS licenses). The engine
   handles "no decoder" with a clean fall-through. **Needs one run on a
@@ -132,5 +133,6 @@ No built-in CLI transcoder exists. Today's no-install coverage = rungs 4+5:
 3. **Server acceptance of raw .ac3/.mp3/.flac uploads** — one question to
    the API team; a "yes" widens every no-tool platform at zero client cost.
 4. macOS DTS — no system decoder exists; unfixable without install.
-5. Opus/PCM-in-MKV re-encapsulation — implementable, rare in the wild.
-6. iOS AudioToolbox ctypes engine — feasible, unbuilt, smallest user base.
+5. iOS AudioToolbox ctypes engine — feasible, unbuilt, smallest user base.
+(closed 2026-08-30: Opus→Ogg and PCM→WAV re-encapsulation shipped; the CI
+matrix grid gained mkv_opus + mkv_pcm assets and passes.)
