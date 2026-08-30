@@ -56,10 +56,31 @@ def _service_url():
     return (__addon__.getSetting("sync_service_url") or "").strip().rstrip("/")
 
 
+def _read_env_auth(env_path):
+    """(user, pass) from a KEY=VALUE file, or None. Never logged anywhere."""
+    try:
+        vals = {}
+        with open(env_path) as f:
+            for line in f:
+                if "=" in line and not line.lstrip().startswith("#"):
+                    k, v = line.split("=", 1)
+                    vals[k.strip()] = v.strip()
+        if vals.get("SUBSYNC_USER"):
+            return (vals["SUBSYNC_USER"], vals.get("SUBSYNC_PASS", ""))
+    except Exception:
+        pass
+    return None
+
+
 def _service_auth():
+    """Settings first; else the gitignored .env at the addon root (dev-box
+    convenience while the service runs behind Basic auth - the real auth
+    scheme replaces this whole function later)."""
     user = (__addon__.getSetting("sync_service_user") or "").strip()
-    pw = __addon__.getSetting("sync_service_pass") or ""
-    return (user, pw) if user else None
+    if user:
+        return (user, __addon__.getSetting("sync_service_pass") or "")
+    root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    return _read_env_auth(os.path.join(root, ".env"))
 
 
 def engine_available():

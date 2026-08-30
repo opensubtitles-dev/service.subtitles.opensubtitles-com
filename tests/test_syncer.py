@@ -154,3 +154,15 @@ def test_sync_subtitle_surfaces_server_error(tmp_path):
         with pytest.raises(syncer.SyncError, match="failed on the server"):
             syncer.sync_subtitle(str(srt), video_path=str(vid))
     addon.setSetting("sync_service_url", "")
+
+
+def test_env_auth_fallback(tmp_path):
+    """Dev convenience: gitignored .env supplies Basic auth until the real
+    auth scheme lands; settings always win; malformed file -> None."""
+    from resources.lib import syncer
+    env = tmp_path / ".env"
+    env.write_text("# comment\nSUBSYNC_USER=u1\nSUBSYNC_PASS=p1\nOTHER=x\n")
+    assert syncer._read_env_auth(str(env)) == ("u1", "p1")
+    env.write_text("OTHER=x\n")
+    assert syncer._read_env_auth(str(env)) is None
+    assert syncer._read_env_auth(str(tmp_path / "missing")) is None
