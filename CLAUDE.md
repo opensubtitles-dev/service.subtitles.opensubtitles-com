@@ -57,6 +57,8 @@ Two Kodi extension points declared in `addon.xml`:
    - `resources/lib/osclient/` — REST API client (deliberately named `osclient`, never `os`). `provider.py` owns HTTP sessions, JWT auth, features lookup, search, download, and voting; `model/` holds request/response structures.
    - `resources/lib/matcher.py` — match scoring and display badge formatting (`get_match_display_tag`).
    - `resources/lib/cache.py` — Kodi window-property-based JSON cache (search results, guessit lookups).
+   - `resources/lib/transcriber.py` — AI transcription pipeline (LIVE): no-install audio extraction ladder, self-detecting AAC gate, pre-flight credits gate, `/ai/transcribe` client (`docs/ai_transcription_plan.md`).
+   - `resources/lib/syncer.py` — subtitle sync engine (LIVE) against the subsync service: energy-fingerprint fast path, audio-tier fallback, confidence gate (`docs/subtitle_sync_plan.md`).
 
 2. **`xbmc.service`** (`service_monitor.py`) — background service running `OpenSubtitlesMonitor(xbmc.Monitor)` + `OpenSubtitlesPlayer(xbmc.Player)`. Handles background account/quota refresh (guarded by a non-blocking `threading.Lock`), silent auto-download on `onAVStarted`, and post-playback rating prompts. **Zero-hang shutdown**: main loop is `while not monitor.abortRequested(): monitor.waitForAbort(1)`, and background threads must check `monitor.abortRequested()` before network calls.
 
