@@ -108,7 +108,8 @@ def test_sync_subtitle_happy_path(tmp_path):
     audio = tmp_path / "a.ogg"; audio.write_bytes(b"OggS")
     post, get = _mock_service(["processing", "done"],
                               {"type": "constant", "offset_ms": 130, "scale": 1.0, "confidence": 0.99})
-    with patch.object(syncer, "_extract_audio", return_value=str(audio)), \
+    with patch("resources.lib.transcriber.get_capabilities", return_value={"ffmpeg": ""}), \
+         patch.object(syncer, "_extract_audio", return_value=str(audio)), \
          patch.object(syncer, "_profile_dir", return_value=str(tmp_path)), \
          patch.object(syncer, "POLL_SECONDS", 0), \
          patch("requests.post", post), patch("requests.get", get):
@@ -132,7 +133,8 @@ def test_sync_subtitle_rejects_low_confidence(tmp_path):
     post, get = _mock_service(["done"],
                               {"type": "linear", "offset_ms": -187020, "scale": 0.8, "confidence": 0.19},
                               warnings=[{"code": "different_cut_suspected", "message": "low"}])
-    with patch.object(syncer, "_extract_audio", return_value=str(audio)), \
+    with patch("resources.lib.transcriber.get_capabilities", return_value={"ffmpeg": ""}), \
+         patch.object(syncer, "_extract_audio", return_value=str(audio)), \
          patch.object(syncer, "POLL_SECONDS", 0), \
          patch("requests.post", post), patch("requests.get", get):
         with pytest.raises(syncer.SyncError, match="not confident"):
@@ -148,7 +150,8 @@ def test_sync_subtitle_surfaces_server_error(tmp_path):
     vid = tmp_path / "a.mkv"; vid.write_bytes(b"\x00")
     audio = tmp_path / "a.ogg"; audio.write_bytes(b"OggS")
     post, get = _mock_service(["error"], {})
-    with patch.object(syncer, "_extract_audio", return_value=str(audio)), \
+    with patch("resources.lib.transcriber.get_capabilities", return_value={"ffmpeg": ""}), \
+         patch.object(syncer, "_extract_audio", return_value=str(audio)), \
          patch.object(syncer, "POLL_SECONDS", 0), \
          patch("requests.post", post), patch("requests.get", get):
         with pytest.raises(syncer.SyncError, match="failed on the server"):
@@ -166,3 +169,65 @@ def test_env_auth_fallback(tmp_path):
     env.write_text("OTHER=x\n")
     assert syncer._read_env_auth(str(env)) is None
     assert syncer._read_env_auth(str(tmp_path / "missing")) is None
+
+
+def test_mask_bit_packing_follows_spec():
+    """SPEC §2.2: frame i lives in byte i>>3, MSB first."""
+    import base64, json
+    from resources.lib import syncer
+    with patch.object(syncer, "_frame_energies",
+                      return_value=[0, 9, 0, 9, 0, 0, 0, 0] * 1000):
+        fp = json.loads(syncer._energy_fingerprint("ffmpeg", "/v.mkv"))
+    assert fp["v"] == 1 and fp["frame_ms"] == 10
+    assert fp["duration_ms"] == 80000
+    mask = base64.b64decode(fp["mask_b64"])
+    # threshold = 60th percentile of [0,9,...] = 0 -> frames with 9 are speech
+    assert mask[0] == 0b01010000
+    assert len(mask) == 1000
+
+
+def test_fingerprint_fast_path_skips_audio_extraction(tmp_path):
+    from resources.lib import syncer
+    addon = xbmcaddon.Addon()
+    addon.setSetting("sync_service_url", "https://subsync.example")
+    srt = tmp_path / "a.srt"; srt.write_text("x")
+    vid = tmp_path / "a.mkv"; vid.write_bytes(b"\x00")
+    post, get = _mock_service(["done"],
+                              {"type": "constant", "offset_ms": 90, "scale": 1.0, "confidence": 0.99})
+    extract = MagicMock()
+    with patch("resources.lib.transcriber.get_capabilities", return_value={"ffmpeg": "/usr/bin/ffmpeg"}), \
+         patch.object(syncer, "_energy_fingerprint", return_value='{"v":1}'), \
+         patch.object(syncer, "_extract_audio", extract), \
+         patch.object(syncer, "_profile_dir", return_value=str(tmp_path)), \
+         patch.object(syncer, "POLL_SECONDS", 0), \
+         patch("requests.post", post), patch("requests.get", get):
+        result = syncer.sync_subtitle(str(srt), video_path=str(vid))
+    assert result["offset_ms"] == 90
+    assert not extract.called, "fast path must not extract audio"
+    assert "fingerprint" in post.call_args[1]["files"]
+    addon.setSetting("sync_service_url", "")
+
+
+def test_fingerprint_low_confidence_falls_back_to_audio(tmp_path):
+    from resources.lib import syncer
+    addon = xbmcaddon.Addon()
+    addon.setSetting("sync_service_url", "https://subsync.example")
+    srt = tmp_path / "a.srt"; srt.write_text("x")
+    vid = tmp_path / "a.mkv"; vid.write_bytes(b"\x00")
+    audio = tmp_path / "a.ogg"; audio.write_bytes(b"OggS")
+    fp_post, fp_get = _mock_service(["done"],
+                                    {"type": "constant", "offset_ms": 0, "scale": 1.0, "confidence": 0.3})
+    au_post, au_get = _mock_service(["done"],
+                                    {"type": "constant", "offset_ms": 130, "scale": 1.0, "confidence": 0.95})
+    posts = MagicMock(side_effect=[fp_post.return_value, au_post.return_value])
+    gets = MagicMock(side_effect=list(fp_get.side_effect) + list(au_get.side_effect))
+    with patch("resources.lib.transcriber.get_capabilities", return_value={"ffmpeg": "/usr/bin/ffmpeg"}), \
+         patch.object(syncer, "_energy_fingerprint", return_value='{"v":1}'), \
+         patch.object(syncer, "_extract_audio", return_value=str(audio)), \
+         patch.object(syncer, "_profile_dir", return_value=str(tmp_path)), \
+         patch.object(syncer, "POLL_SECONDS", 0), \
+         patch("requests.post", posts), patch("requests.get", gets):
+        result = syncer.sync_subtitle(str(srt), video_path=str(vid))
+    assert result["offset_ms"] == 130, "audio-tier result must win after weak fingerprint"
+    assert posts.call_count == 2
+    addon.setSetting("sync_service_url", "")

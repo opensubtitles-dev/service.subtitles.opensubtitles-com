@@ -92,6 +92,9 @@ def engine_available():
 # below this confidence the service itself flags the transform as unreliable
 # (measured: wrong-movie subs score ~0.2, correct ones 0.95+)
 MIN_CONFIDENCE = 0.6
+# fingerprint fast path keeps a result only above this; below it we redo the
+# job with real audio so the server's silero VAD replaces our energy mask
+FP_MIN_CONFIDENCE = 0.75
 POLL_SECONDS = 2
 POLL_TIMEOUT = 600
 
@@ -152,6 +155,100 @@ class UserCancelled(SyncError):
     """The user cancelled from the progress dialog."""
 
 
+# --------------------------------------------------------------------------
+# Energy-mask fingerprint fast path (SPEC.md §2 of the subsync project).
+#
+# The server's fingerprint tier skips its VAD entirely and correlates a
+# client-supplied 10 ms speech mask in ~1 s. A real silero mask needs an ONNX
+# runtime Kodi doesn't have - but MEASURED 2026-08-29: a plain loudness mask
+# (per-frame energy, 60th-percentile threshold) synced the reference film at
+# confidence 0.99 / +90 ms vs silero's +130 ms, total round-trip ~4 s against
+# ~35 s for the audio tier. Music-heavy tracks can defeat loudness (that is
+# why the server's own VAD stays as fallback below FP_MIN_CONFIDENCE).
+# Sparse windows + energy were measured too and FAIL (conf 0.25) - windowed
+# loudness has too little signal; do not resurrect that combination.
+# --------------------------------------------------------------------------
+
+_FP_FRAME = 160          # samples per 10 ms frame at 16 kHz
+
+
+def _frame_energies(ffmpeg, video_path, progress=None):
+    """Stream-decode the first audio track to 16 kHz mono s16le and return
+    per-10ms-frame mean-abs energies. audioop when the interpreter still has
+    it (Kodi's 3.11/3.12), pure array fallback otherwise (3.13+)."""
+    try:
+        import audioop
+    except ImportError:
+        audioop = None
+    import array as _array
+    cmd = [ffmpeg, "-nostdin", "-v", "error", "-i", video_path,
+           "-map", "0:a:0", "-ac", "1", "-ar", "16000", "-f", "s16le", "-"]
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    energies = []
+    leftover = b""
+    frame_bytes = _FP_FRAME * 2
+    try:
+        while True:
+            if progress and progress.iscanceled():
+                proc.kill()
+                raise UserCancelled()
+            chunk = proc.stdout.read(1 << 18)
+            if not chunk:
+                break
+            buf = leftover + chunk
+            usable = len(buf) - len(buf) % frame_bytes
+            leftover = buf[usable:]
+            if audioop is not None:
+                for off in range(0, usable, frame_bytes):
+                    energies.append(audioop.rms(buf[off:off + frame_bytes], 2))
+            else:
+                arr = _array.array("h")
+                arr.frombytes(buf[:usable])
+                for off in range(0, len(arr), _FP_FRAME):
+                    acc = 0
+                    for v in arr[off:off + _FP_FRAME]:
+                        acc += v if v >= 0 else -v
+                    energies.append(acc // _FP_FRAME)
+    finally:
+        try:
+            proc.stdout.close()
+            proc.wait(timeout=10)
+        except Exception:
+            proc.kill()
+    return energies
+
+
+def _energy_fingerprint(ffmpeg, video_path, progress=None):
+    """Fingerprint JSON (SPEC §2.1/2.2) from a loudness mask, or None when
+    the track cannot be decoded / is degenerate."""
+    import base64
+    import json as _json
+    try:
+        energies = _frame_energies(ffmpeg, video_path, progress)
+    except UserCancelled:
+        raise
+    except Exception as e:
+        log(f"energy decode failed ({type(e).__name__})")
+        return None
+    n = len(energies)
+    if n < 6000:               # SPEC floor: at least 1 minute of media
+        return None
+    threshold = sorted(energies)[int(n * 0.60)]
+    mask = bytearray((n + 7) // 8)
+    speech = 0
+    for i, e in enumerate(energies):
+        if e > threshold:
+            mask[i >> 3] |= 1 << (7 - (i & 7))
+            speech += 1
+    ratio = speech / n
+    if not 0.005 <= ratio <= 0.95:      # SPEC: degenerate mask is unusable
+        return None
+    return _json.dumps({"v": 1, "frame_ms": 10, "duration_ms": n * 10,
+                        "vad": "energy-1", "sample_rate": 16000,
+                        "threshold": 0.5,
+                        "mask_b64": base64.b64encode(bytes(mask)).decode()})
+
+
 def sync_subtitle(sub_path, video_path=None, session=None, progress=None):
     """Synchronize the subtitle at `sub_path` against its video via the
     subsync service.
@@ -179,47 +276,73 @@ def sync_subtitle(sub_path, video_path=None, session=None, progress=None):
                         "(network sources are not supported yet).")
     auth = _service_auth()
 
-    if progress:
-        progress.update(5, "Extracting audio track...")
-    audio_path = _extract_audio(video_path, progress)
+    # constant upload names on purpose throughout: the real filenames are
+    # viewing history and belong neither in logs nor on the wire
+    sub_ext = os.path.splitext(sub_path)[1] or ".srt"
 
-    if progress:
-        progress.update(25, "Uploading to the sync service...")
-    ext = os.path.splitext(audio_path)[1] or ".bin"
-    with open(audio_path, "rb") as a, open(sub_path, "rb") as s:
-        # constant upload names on purpose: the real filenames are viewing
-        # history and belong neither in logs nor on the wire
-        r = requests.post(url + "/v1/jobs",
-                          files={"audio": ("audio" + ext, a),
-                                 "subtitle": ("sub" + os.path.splitext(sub_path)[1], s)},
-                          auth=auth, timeout=600)
-    if r.status_code not in (200, 201, 202):
-        log(f"sync job creation failed: HTTP {r.status_code}")
-        raise SyncError(f"The sync service refused the job (HTTP {r.status_code}).")
-    job_id = (r.json() or {}).get("job_id")
-    if not job_id:
-        raise SyncError("The sync service answered without a job id.")
-
-    deadline = time.time() + POLL_TIMEOUT
-    state = {}
-    while time.time() < deadline:
-        if progress and progress.iscanceled():
-            raise UserCancelled()
-        pr = requests.get(f"{url}/v1/jobs/{job_id}", auth=auth, timeout=30)
-        state = pr.json() if pr.status_code == 200 else {}
-        status = state.get("status")
-        if status in ("done", "error", "failed"):
-            break
-        if progress:
-            try:
-                pct = 25 + int(70 * float(state.get("progress") or 0))
-            except (TypeError, ValueError):
-                pct = 25
-            stage = state.get("stage") or "aligning"
-            progress.update(min(pct, 95), f"Synchronizing ({stage})...")
-        time.sleep(POLL_SECONDS)
-    else:
+    def _run_job(files):
+        r = requests.post(url + "/v1/jobs", files=files, auth=auth, timeout=600)
+        if r.status_code not in (200, 201, 202):
+            log(f"sync job creation failed: HTTP {r.status_code}")
+            raise SyncError(f"The sync service refused the job (HTTP {r.status_code}).")
+        job_id = (r.json() or {}).get("job_id")
+        if not job_id:
+            raise SyncError("The sync service answered without a job id.")
+        deadline = time.time() + POLL_TIMEOUT
+        state = {}
+        while time.time() < deadline:
+            if progress and progress.iscanceled():
+                raise UserCancelled()
+            pr = requests.get(f"{url}/v1/jobs/{job_id}", auth=auth, timeout=30)
+            state = pr.json() if pr.status_code == 200 else {}
+            if state.get("status") in ("done", "error", "failed"):
+                return state
+            if progress:
+                try:
+                    pct = 25 + int(70 * float(state.get("progress") or 0))
+                except (TypeError, ValueError):
+                    pct = 25
+                stage = state.get("stage") or "aligning"
+                progress.update(min(pct, 95), f"Synchronizing ({stage})...")
+            time.sleep(POLL_SECONDS)
         raise SyncError("The sync service did not finish in time.")
+
+    # FAST PATH (measured ~4 s round trip): loudness fingerprint, no server
+    # VAD. Kept only above FP_MIN_CONFIDENCE - music-heavy tracks defeat a
+    # loudness mask, and then the audio tier below redoes the job properly.
+    state = None
+    from resources.lib import transcriber
+    ffmpeg = transcriber.get_capabilities().get("ffmpeg")
+    if ffmpeg:
+        if progress:
+            progress.update(5, "Fingerprinting audio...")
+        fp = _energy_fingerprint(ffmpeg, video_path, progress)
+        if fp:
+            with open(sub_path, "rb") as s:
+                fp_state = _run_job({"subtitle": ("sub" + sub_ext, s),
+                                     "fingerprint": ("fp.json", fp, "application/json")})
+            fp_result = (fp_state.get("result") or {}) if fp_state.get("status") == "done" else {}
+            fp_transform = fp_result.get("transform") or {}
+            try:
+                fp_conf = float(fp_transform.get("confidence") or 0)
+            except (TypeError, ValueError):
+                fp_conf = 0.0
+            if fp_conf >= FP_MIN_CONFIDENCE:
+                state = fp_state
+            else:
+                log(f"fingerprint fast path inconclusive (confidence {fp_conf:.2f}) "
+                    "- retrying with real audio")
+
+    if state is None:
+        if progress:
+            progress.update(5, "Extracting audio track...")
+        audio_path = _extract_audio(video_path, progress)
+        if progress:
+            progress.update(25, "Uploading to the sync service...")
+        ext = os.path.splitext(audio_path)[1] or ".bin"
+        with open(audio_path, "rb") as a, open(sub_path, "rb") as s:
+            state = _run_job({"audio": ("audio" + ext, a),
+                              "subtitle": ("sub" + sub_ext, s)})
 
     if state.get("status") != "done":
         raise SyncError(f"Synchronization failed on the server: "
