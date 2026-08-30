@@ -477,6 +477,8 @@ class TranscriptionClient:
             # MEASURED against the live API (2026-08-29): api/language must be
             # multipart FORM FIELDS - as query params the server answers
             # "language parameter missing" (it only reads the POST body).
+            # NOTE the published spec (docs/open_api.json) declares them as
+            # query params - the spec is wrong here, measurement wins.
             r = self.session.post(
                 API_URL + API_TRANSCRIBE,
                 data={"api": api_name, "language": language},

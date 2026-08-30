@@ -661,9 +661,10 @@ class OpenSubtitlesProvider:
     def rate_subtitle(self, subtitle_id, rating: int, sync=None):
         """Submits user quality feedback for a subtitle.
 
-        !! PROPOSED ENDPOINT - not yet in the published OpenAPI spec (verified
-        2026-08-19 against stoplight open_api.json; the spec ends at /download,
-        /utilities/guessit and /ai/*). Contract agreed with the API team:
+        !! PROPOSED ENDPOINT - not yet in the published OpenAPI spec (re-verified
+        2026-08-29 against stoplight open_api.json, saved as docs/open_api.json;
+        the spec ends at /download, /utilities/guessit and /ai/*). Contract
+        agreed with the API team:
 
             POST /api/v1/subtitles/rate     (JWT bearer required)
             { "subtitle_id": <int>,         # the subtitle entity id, NOT file_id
