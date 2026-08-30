@@ -269,7 +269,7 @@ msgid "Subtitle synchronization: offer fixing timing of the current subtitle (ex
 msgstr ""
 
 msgctxt "#32277"
-msgid "[SYNC] Fix timing of the current subtitle"
+msgid "Fix timing of the current subtitle"
 msgstr ""
 
 msgctxt "#32278"

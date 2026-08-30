@@ -882,8 +882,20 @@ class SubtitleDownloader:
             from resources.lib import syncer
             if not syncer.is_enabled():
                 return
-            language = (self.params.get("preferredlanguage")
-                        or (self.params.get("languages") or "en").split(",")[0])
+            # the row targets the CURRENTLY ACTIVE subtitle, so ask the player
+            # for its real language (stream tag or filename suffix). Kodi
+            # answers "" for untagged external files - then the search
+            # language is the honest best guess, not a claim.
+            language = ""
+            try:
+                language = xbmc.Player().getSubtitles() or ""
+            except Exception:
+                pass
+            if language and language not in ("und", "unk"):
+                language = xbmc.convertLanguage(language, xbmc.ENGLISH_NAME) or language
+            else:
+                language = (self.params.get("preferredlanguage")
+                            or (self.params.get("languages") or "en").split(",")[0])
             list_item = xbmcgui.ListItem(
                 label=language,
                 label2="[COLOR cyan][SYNC][/COLOR] " + __language__(32277))

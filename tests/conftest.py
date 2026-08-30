@@ -28,6 +28,9 @@ class MockPlayer:
     def getAvailableSubtitleStreams(self):
         return []
 
+    def getSubtitles(self):
+        return ""
+
     def setSubtitles(self, path):
         pass
 
