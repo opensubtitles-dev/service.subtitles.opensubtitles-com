@@ -913,21 +913,41 @@ class SubtitleDownloader:
         a video-folder sidecar is the fallback. Until the subsync engine is
         bundled this shows the honest coming-soon dialog."""
         from resources.lib import syncer
+        progress = None
         try:
             sub_path = self._active_subtitle_path()
-            result = syncer.sync_subtitle(sub_path, video_path=get_file_path())
+            progress = xbmcgui.DialogProgress()
+            progress.create(__addon__.getAddonInfo("name"), "Synchronizing subtitle...")
+            result = syncer.sync_subtitle(sub_path, video_path=get_file_path(),
+                                          progress=progress)
+            progress.close()
+            progress = None
             corrected = (result or {}).get("path")
             if corrected and os.path.exists(str(corrected)):
+                offset = (result or {}).get("offset_ms", 0)
+                conf = (result or {}).get("confidence", 0)
+                xbmcgui.Dialog().notification(
+                    __addon__.getAddonInfo("name"),
+                    f"Synced: {offset:+d} ms (confidence {conf:.0%})",
+                    xbmcgui.NOTIFICATION_INFO, 5000)
                 list_item = xbmcgui.ListItem(label=str(corrected))
                 xbmcplugin.addDirectoryItem(handle=self.handle, url=str(corrected),
                                             listitem=list_item, isFolder=False)
+        except syncer.UserCancelled:
+            log(__name__, "sync cancelled by user")
         except syncer.EngineNotAvailable:
             xbmcgui.Dialog().ok(__addon__.getAddonInfo("name"), __language__(32279))
         except syncer.SyncError as e:
             xbmcgui.Dialog().ok(__addon__.getAddonInfo("name"),
-                                f"Synchronization failed:\n[I]{str(e)[:120]}[/I]")
+                                f"Synchronization failed:\n[I]{str(e)[:300]}[/I]")
         except Exception as e:
             log(__name__, f"sync action failed: {type(e).__name__}")
+        finally:
+            if progress:
+                try:
+                    progress.close()
+                except Exception:
+                    pass
         xbmcplugin.endOfDirectory(self.handle)
 
     def _active_subtitle_path(self):

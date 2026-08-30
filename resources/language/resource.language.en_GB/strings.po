@@ -279,3 +279,15 @@ msgstr ""
 msgctxt "#32279"
 msgid "The synchronization engine is still under development and will activate in a future update."
 msgstr ""
+
+msgctxt "#32280"
+msgid "Sync service URL"
+msgstr ""
+
+msgctxt "#32281"
+msgid "Sync service username"
+msgstr ""
+
+msgctxt "#32282"
+msgid "Sync service password"
+msgstr ""

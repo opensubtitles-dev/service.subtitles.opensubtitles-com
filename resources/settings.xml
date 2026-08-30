@@ -254,6 +254,32 @@
                     <default>false</default>
                     <control type="toggle" />
                 </setting>
+                <setting id="sync_service_url" type="string" label="32280" parent="subtitle_sync_enabled">
+                    <level>3</level>
+                    <default>https://subsync.2pu.net</default>
+                    <dependencies>
+                        <dependency type="enable" setting="subtitle_sync_enabled">true</dependency>
+                    </dependencies>
+                    <control type="edit" format="string" />
+                </setting>
+                <setting id="sync_service_user" type="string" label="32281" parent="subtitle_sync_enabled">
+                    <level>3</level>
+                    <default></default>
+                    <dependencies>
+                        <dependency type="enable" setting="subtitle_sync_enabled">true</dependency>
+                    </dependencies>
+                    <control type="edit" format="string" />
+                </setting>
+                <setting id="sync_service_pass" type="string" label="32282" parent="subtitle_sync_enabled">
+                    <level>3</level>
+                    <default></default>
+                    <dependencies>
+                        <dependency type="enable" setting="subtitle_sync_enabled">true</dependency>
+                    </dependencies>
+                    <control type="edit" format="string">
+                        <hidden>true</hidden>
+                    </control>
+                </setting>
             </group>
         </category>
         <category id="debug" label="32103">
