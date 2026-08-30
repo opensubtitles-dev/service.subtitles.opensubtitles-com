@@ -412,6 +412,10 @@ class TranscriptionError(Exception):
     pass
 
 
+class CreditsNeeded(TranscriptionError):
+    """The account cannot pay for the job - the caller offers the buy flow."""
+
+
 class NotDeployed(TranscriptionError):
     pass
 
@@ -664,11 +668,10 @@ def run_transcription(session, token, file_data, language, mock=False):
             estimate = int(duration * float(engine.get("price") or 0)) + 1 if duration else 0
             if credits <= 0 or (estimate and credits < estimate):
                 need = f" - this video needs about {estimate}" if estimate else ""
-                raise TranscriptionError(
+                raise CreditsNeeded(
                     f"You have {credits} AI credits{need} "
                     f"({engine.get('display_name') or engine.get('name')}, "
-                    f"{engine.get('price')}/s).\n"
-                    "Top up via the add-on settings: Buy AI credits.")
+                    f"{engine.get('price')}/s).")
 
         upload_path = file_path
         if source == "ffmpeg":

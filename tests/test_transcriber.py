@@ -365,7 +365,7 @@ def test_zero_credits_blocks_before_extraction(tmp_path):
             {"name": "nano", "display_name": "Nano", "price": 0.0075,
              "languages_supported": [{"language_code": "sk"}]}]
         mock_client.return_value.get_credits.return_value = 0
-        with pytest.raises(transcriber.TranscriptionError) as e:
+        with pytest.raises(transcriber.CreditsNeeded) as e:
             transcriber.run_transcription(
                 None, "", {"file_original_path": str(src)}, "sk", mock=True)
     assert "0 AI credits" in str(e.value)

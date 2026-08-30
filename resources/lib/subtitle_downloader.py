@@ -998,6 +998,14 @@ class SubtitleDownloader:
                 log(__name__, "transcription returned nothing")
         except transcriber.UserCancelled:
             log(__name__, "transcription cancelled by user")
+        except transcriber.CreditsNeeded as e:
+            # actionable, not a dead end: offer the existing buy-credits flow
+            # (package list + QR checkout) right from the failure dialog
+            if xbmcgui.Dialog().yesno(__addon__.getAddonInfo("name"),
+                                      f"{e}\n\nBuy AI credits now?",
+                                      nolabel="Cancel", yeslabel="Buy credits"):
+                xbmc.executebuiltin(
+                    f"RunScript(special://home/addons/{__scriptid__}/buy_credits.py)")
         except transcriber.NotDeployed:
             xbmcgui.Dialog().ok(__addon__.getAddonInfo("name"),
                                 "AI transcription is not available on the server yet.\n"
@@ -1005,5 +1013,5 @@ class SubtitleDownloader:
         except Exception as e:
             log(__name__, f"transcription failed: {type(e).__name__}")
             xbmcgui.Dialog().ok(__addon__.getAddonInfo("name"),
-                                f"AI transcription failed:\n[I]{str(e)[:120]}[/I]")
+                                f"AI transcription failed:\n[I]{str(e)[:300]}[/I]")
         xbmcplugin.endOfDirectory(self.handle)
