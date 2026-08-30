@@ -393,7 +393,7 @@ def extract_audio(ffmpeg, file_path, progress=None):
     cmd = [ffmpeg, "-nostdin", "-v", "error", "-i", file_path,
            "-vn", "-sn", "-ac", "1", "-ar", "16000", "-c:a", "libmp3lame",
            "-b:a", "32k", out_path]
-    log("extracting audio track (mono 16kHz AAC)")
+    log("extracting audio track (mono 16kHz MP3)")
     proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
     while proc.poll() is None:
         if progress and progress.iscanceled():
@@ -431,7 +431,25 @@ class TranscriptionClient:
     def _check(self, r):
         if r.status_code == 404:
             raise NotDeployed("transcription API not available on this server")
-        r.raise_for_status()
+        if r.status_code >= 400:
+            # surface the server's own explanation - a bare "400 Client Error"
+            # gives the user nothing to act on
+            detail = ""
+            try:
+                payload = r.json()
+                if isinstance(payload, dict):
+                    data = payload.get("data")
+                    if isinstance(data, list):
+                        detail = "; ".join(str(x) for x in data
+                                           if x and "Traceback" not in str(x))
+                    elif payload.get("message"):
+                        detail = str(payload["message"])
+            except Exception:
+                pass
+            err = TranscriptionError(
+                detail or f"transcription API answered HTTP {r.status_code}")
+            err.response = r
+            raise err
         body = r.json()
         # valid JSON is not necessarily an object - callers .get() the result
         if not isinstance(body, dict):
@@ -505,6 +523,29 @@ class MockTranscriptionClient:
         return {"status": "COMPLETED", "url": "file://" + out}
 
 
+def _match_code(language, codes):
+    """Map our 2-letter language code onto the engine's own code table.
+
+    Engines disagree on regional suffixes (nano says "sk", aws says "sk-SK"),
+    so match exact first, then by primary subtag. Returns the engine's code
+    or None."""
+    if not language:
+        return None
+    lang = str(language).lower()
+    primary = lang.split("-")[0]
+    exact = None
+    prefix = None
+    for c in codes:
+        if not c:
+            continue
+        cl = str(c).lower()
+        if cl == lang:
+            exact = c
+        elif prefix is None and cl != "auto" and cl.split("-")[0] == primary:
+            prefix = c
+    return exact or prefix
+
+
 def _pick_engine(apis, language):
     """Choose the transcription engine; ask the user when there are several."""
     if not apis:
@@ -515,7 +556,7 @@ def _pick_engine(apis, language):
             continue
         codes = {l.get("language_code") for l in (api.get("languages_supported") or [])
                  if isinstance(l, dict)}
-        if not codes or language in codes or "auto" in codes:
+        if not codes or _match_code(language, codes) or "auto" in codes:
             usable.append(api)
     if not usable:
         usable = apis
@@ -583,7 +624,14 @@ def run_transcription(session, token, file_data, language, mock=False):
         engine = _pick_engine(client.list_apis(), language)
         codes = {l.get("language_code") for l in (engine.get("languages_supported") or [])
                  if isinstance(l, dict)}
-        job_language = language if language in codes else "auto"
+        job_language = _match_code(language, codes) or ("auto" if "auto" in codes else None)
+        if codes and job_language is None:
+            # e.g. openai has no "auto" - sending it anyway is a guaranteed 400
+            raise TranscriptionError(
+                f"{engine.get('display_name') or engine.get('name')} does not "
+                f"support '{language}' and offers no automatic language "
+                "detection - please pick a different engine")
+        job_language = job_language or "auto"
 
         upload_path = file_path
         if source == "ffmpeg":

@@ -962,11 +962,15 @@ class SubtitleDownloader:
             if not mock and not getattr(self.open_subtitles, "user_token", None):
                 self.open_subtitles.login()
             file_data = get_file_data(get_file_path())
+            # the row URL carries Kodi's language NAME ("Slovak") - engines
+            # speak ISO codes ("sk"), so convert before entering the pipeline
+            language = self.params.get("language", "en")
+            language = convert_language(language) or language
             result = transcriber.run_transcription(
                 getattr(self.open_subtitles, "session", None),
                 getattr(self.open_subtitles, "user_token", "") or "",
                 file_data,
-                self.params.get("language", "en"),
+                language,
                 mock=mock)
             if result and os.path.exists(str(result)):
                 list_item = xbmcgui.ListItem(label=str(result))

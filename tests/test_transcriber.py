@@ -275,3 +275,59 @@ def test_aac_rejection_triggers_mp3_retry(tmp_path):
     assert result.endswith("r.srt")
     assert not transcriber.server_accepts_aac(), "hold must be recorded"
     xbmcgui.Window(10000).setProperty(transcriber._AAC_REJECTED_PROP, "")
+
+
+# --- language matching + server error surfacing (Kodi field bug 2026-08-29:
+# "Slovak" -> "auto" -> openai 400 with the server body hidden) ---------------
+
+def test_match_code_exact_prefix_and_none():
+    assert transcriber._match_code("sk", {"sk", "en"}) == "sk"
+    assert transcriber._match_code("sk", {"sk-SK", "en-US"}) == "sk-SK"   # aws style
+    assert transcriber._match_code("sk", {"auto", "en"}) is None          # auto never matches
+    assert transcriber._match_code("", {"sk"}) is None
+    assert transcriber._match_code("pt-br", {"pt-BR", "pt-PT"}) == "pt-BR"
+
+
+def test_pick_engine_prefix_match_keeps_regional_engines():
+    apis = [{"name": "aws", "languages_supported": [{"language_code": "sk-SK"}]},
+            {"name": "assembly", "languages_supported": [{"language_code": "en"}]}]
+    with patch.object(transcriber.xbmcgui, "Dialog") as dlg:
+        dlg.return_value.select.return_value = 0
+        assert transcriber._pick_engine(apis, "sk")["name"] == "aws"
+
+
+def test_check_surfaces_server_error_body(tmp_path):
+    media = tmp_path / "a.mp3"
+    media.write_bytes(b"x")
+    session = MagicMock()
+    resp = MagicMock(status_code=400)
+    resp.json.return_value = {"status": "ERROR",
+                              "data": ["language not supported", None]}
+    session.post.return_value = resp
+    client = transcriber.TranscriptionClient(session, "tok")
+    with pytest.raises(transcriber.TranscriptionError) as e:
+        client.create_job("openai", "auto", str(media))
+    assert "language not supported" in str(e.value)
+    assert e.value.response is resp        # AAC-retry flow reads .response
+
+
+def test_engine_without_auto_gets_honest_error_not_400(tmp_path):
+    """openai offers no 'auto'; an unmatched language must fail locally with
+    an actionable message instead of a guaranteed server 400."""
+    import xbmc
+    src = tmp_path / "movie.mp4"
+    src.write_bytes(b"\x00" * 64)
+    caps = {"ffmpeg": "/usr/bin/ffmpeg", "encode_x_realtime": 50.0}
+    with patch.object(transcriber, "get_capabilities", return_value=caps), \
+         patch.object(xbmc, "getCondVisibility", return_value=False), \
+         patch.object(transcriber, "MockTranscriptionClient") as mock_client, \
+         patch("resources.lib.transcriber.xbmcgui.DialogProgress",
+               return_value=MagicMock(iscanceled=lambda: False)):
+        mock_client.return_value.list_apis.return_value = [
+            {"name": "openai", "display_name": "OpenAI Whisper", "price": 0.033,
+             "languages_supported": [{"language_code": "en-US"}]}]
+        with pytest.raises(transcriber.TranscriptionError) as e:
+            transcriber.run_transcription(
+                None, "", {"file_original_path": str(src)}, "xx", mock=True)
+    assert "OpenAI Whisper" in str(e.value)
+    assert "automatic language detection" in str(e.value)
