@@ -444,6 +444,9 @@ class TranscriptionClient:
                                            if x and "Traceback" not in str(x))
                     elif payload.get("message"):
                         detail = str(payload["message"])
+                    elif payload.get("error"):
+                        # measured live shape: {"error": "...", "STATUS": "ERROR"}
+                        detail = str(payload["error"])
             except Exception:
                 pass
             err = TranscriptionError(
@@ -461,6 +464,18 @@ class TranscriptionClient:
         r = self.session.get(API_URL + API_TRANSCRIBE_INFO,
                              headers={"User-Agent": get_user_agent()}, timeout=30)
         return self._check(r).get("data") or []
+
+    def get_credits(self):
+        """GET /ai/credits -> the account's AI credit balance, or None when
+        the endpoint is unreachable (never blocks the pipeline on a probe)."""
+        try:
+            r = self.session.get(API_URL + "ai/credits",
+                                 headers=self.headers, timeout=15)
+            if r.status_code == 200:
+                return int((r.json().get("data") or {}).get("credits"))
+        except Exception:
+            pass
+        return None
 
     def create_job(self, api_name, language, media_path, progress=None):
         """POST /ai/transcribe - one multipart file (server cap 100 MB).
@@ -505,6 +520,9 @@ class MockTranscriptionClient:
         return [{"name": "mock", "display_name": "Mock Transcribe", "price": 0.0,
                  "languages_supported": [{"language_code": "auto",
                                           "language_name": "automatic selection"}]}]
+
+    def get_credits(self):
+        return None
 
     def create_job(self, api_name, language, media_path, progress=None):
         log(f"MOCK transcription job: api={api_name} lang={language} "
@@ -634,6 +652,23 @@ def run_transcription(session, token, file_data, language, mock=False):
                 f"support '{language}' and offers no automatic language "
                 "detection - please pick a different engine")
         job_language = job_language or "auto"
+
+        # honest credit gate BEFORE any extraction/upload: a 0-credit account
+        # would only find out after the work, as an opaque server 400
+        credits = client.get_credits()
+        if credits is not None:
+            try:
+                duration = float(xbmc.Player().getTotalTime())
+            except Exception:
+                duration = 0.0
+            estimate = int(duration * float(engine.get("price") or 0)) + 1 if duration else 0
+            if credits <= 0 or (estimate and credits < estimate):
+                need = f" - this video needs about {estimate}" if estimate else ""
+                raise TranscriptionError(
+                    f"You have {credits} AI credits{need} "
+                    f"({engine.get('display_name') or engine.get('name')}, "
+                    f"{engine.get('price')}/s).\n"
+                    "Top up via the add-on settings: Buy AI credits.")
 
         upload_path = file_path
         if source == "ffmpeg":

@@ -143,6 +143,7 @@ def test_windows_rung_falls_back_to_pydemux(tmp_path):
         mock_client.return_value.list_apis.return_value = [
             {"name": "mock", "display_name": "Mock", "price": 0,
              "languages_supported": [{"language_code": "auto"}]}]
+        mock_client.return_value.get_credits.return_value = None
         mock_client.return_value.create_job.return_value = {
             "status": "CREATED", "correlation_id": "c1"}
         done = tmp_path / "done.srt"

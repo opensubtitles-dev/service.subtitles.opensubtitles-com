@@ -899,7 +899,7 @@ class SubtitleDownloader:
             list_item = xbmcgui.ListItem(
                 label=language,
                 label2="[COLOR cyan][SYNC][/COLOR] " + __language__(32277))
-            list_item.setArt({"icon": "0", "thumb": get_flag(convert_language(language, True) or "en")})
+            list_item.setArt({"icon": "0", "thumb": get_flag(convert_language(language) or "en")})
             url = f"plugin://{__scriptid__}/?action=sync"
             xbmcplugin.addDirectoryItem(handle=self.handle, url=url, listitem=list_item, isFolder=False)
         except Exception as e:
@@ -954,7 +954,7 @@ class SubtitleDownloader:
             list_item = xbmcgui.ListItem(
                 label=language,
                 label2="[COLOR magenta][AI][/COLOR] Generate subtitles by transcription (uses AI credits)")
-            list_item.setArt({"icon": "0", "thumb": get_flag(convert_language(language, True) or "en")})
+            list_item.setArt({"icon": "0", "thumb": get_flag(convert_language(language) or "en")})
             url = f"plugin://{__scriptid__}/?action=transcribe&language={language}"
             xbmcplugin.addDirectoryItem(handle=self.handle, url=url, listitem=list_item, isFolder=False)
         except Exception as e:

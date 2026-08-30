@@ -245,6 +245,8 @@ def test_aac_rejection_triggers_mp3_retry(tmp_path):
 
     class FakeClient:
         headers = {}
+        def get_credits(self):
+            return None
         def list_apis(self):
             return [{"name": "nano", "display_name": "n", "price": 0,
                      "languages_supported": [{"language_code": "auto"}]}]
@@ -331,3 +333,40 @@ def test_engine_without_auto_gets_honest_error_not_400(tmp_path):
                 None, "", {"file_original_path": str(src)}, "xx", mock=True)
     assert "OpenAI Whisper" in str(e.value)
     assert "automatic language detection" in str(e.value)
+
+
+def test_check_surfaces_error_key_shape(tmp_path):
+    """Measured live: 4xx bodies arrive as {"error": "...", "STATUS": "ERROR"}."""
+    media = tmp_path / "a.mp3"
+    media.write_bytes(b"x")
+    session = MagicMock()
+    resp = MagicMock(status_code=400)
+    resp.json.return_value = {"error": "not enough credits", "STATUS": "ERROR"}
+    session.post.return_value = resp
+    client = transcriber.TranscriptionClient(session, "tok")
+    with pytest.raises(transcriber.TranscriptionError, match="not enough credits"):
+        client.create_job("nano", "sk", str(media))
+
+
+def test_zero_credits_blocks_before_extraction(tmp_path):
+    """0-credit accounts get the honest dialog BEFORE any ffmpeg/upload work."""
+    import xbmc
+    src = tmp_path / "movie.mp4"
+    src.write_bytes(b"\x00" * 64)
+    caps = {"ffmpeg": "/usr/bin/ffmpeg", "encode_x_realtime": 50.0}
+    extract = MagicMock()
+    with patch.object(transcriber, "get_capabilities", return_value=caps), \
+         patch.object(xbmc, "getCondVisibility", return_value=False), \
+         patch.object(transcriber, "extract_audio", extract), \
+         patch.object(transcriber, "MockTranscriptionClient") as mock_client, \
+         patch("resources.lib.transcriber.xbmcgui.DialogProgress",
+               return_value=MagicMock(iscanceled=lambda: False)):
+        mock_client.return_value.list_apis.return_value = [
+            {"name": "nano", "display_name": "Nano", "price": 0.0075,
+             "languages_supported": [{"language_code": "sk"}]}]
+        mock_client.return_value.get_credits.return_value = 0
+        with pytest.raises(transcriber.TranscriptionError) as e:
+            transcriber.run_transcription(
+                None, "", {"file_original_path": str(src)}, "sk", mock=True)
+    assert "0 AI credits" in str(e.value)
+    assert not extract.called
