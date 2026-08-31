@@ -291,3 +291,11 @@ msgstr ""
 msgctxt "#32282"
 msgid "Sync service password"
 msgstr ""
+
+msgctxt "#32283"
+msgid "Share speech fingerprints of played files"
+msgstr ""
+
+msgctxt "#32284"
+msgid "During playback of local files, upload an anonymous speech-activity fingerprint (no audio, video or file names) so subtitle synchronization becomes instant for everyone with the same release."
+msgstr ""

@@ -256,6 +256,27 @@ class OpenSubtitlesPlayer(xbmc.Player):
         if _dev_setting_on("auto_upload_subtitles"):
             threading.Thread(target=self._track_local_subtitle_session, daemon=True).start()
 
+        # Sync-cache contribution (default ON, sync_fingerprint_contrib):
+        # donate this release's speech fingerprint so any later sync of it is
+        # instant for everyone. Local fast sources only - syncer measures.
+        threading.Thread(target=self._contribute_sync_fingerprint, daemon=True).start()
+
+    def _contribute_sync_fingerprint(self):
+        try:
+            from resources.lib import syncer
+            if not syncer.contribution_enabled() or not syncer.engine_available():
+                return
+            # settle: let playback buffering finish before touching the disk
+            if self.monitor and self.monitor.waitForAbort(15):
+                return
+            file_path = get_file_path()
+            if not file_path:
+                return
+            abort = self.monitor.abortRequested if self.monitor else None
+            syncer.contribute_fingerprint(file_path, abort_check=abort)
+        except Exception as e:
+            log(__name__, f"fingerprint contribution thread failed: {type(e).__name__}")
+
     def _track_local_subtitle_session(self):
         """Builds a session around a user-provided sidecar subtitle, if any.
 

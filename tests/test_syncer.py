@@ -368,3 +368,95 @@ def test_rate_limit_surfaces_retry_after(tmp_path):
         with pytest.raises(syncer.SyncError, match="42 seconds"):
             syncer.sync_subtitle(str(srt), video_path=str(vid))
     addon.setSetting("sync_service_url", "")
+
+
+# --- background fingerprint contribution -----------------------------------
+
+def test_contribution_enabled_defaults_on():
+    from resources.lib import syncer
+    addon = xbmcaddon.Addon()
+    addon.setSetting("sync_fingerprint_contrib", "")
+    assert syncer.contribution_enabled() is True     # default ON
+    addon.setSetting("sync_fingerprint_contrib", "false")
+    assert syncer.contribution_enabled() is False
+    addon.setSetting("sync_fingerprint_contrib", "true")
+    assert syncer.contribution_enabled() is True
+
+
+def _contrib_env(tmp_path, addon):
+    addon.setSetting("sync_service_url", "https://sync.example")
+    addon.setSetting("sync_fingerprint_contrib", "true")
+    vid = tmp_path / "a.mkv"
+    vid.write_bytes(b"\x00" * 1024)
+    return str(vid)
+
+
+def test_contribution_skips_slow_sources(tmp_path):
+    """Internet/NAS-slow sources must never be sampled - measured, not
+    guessed from the path string."""
+    from resources.lib import syncer
+    vid = _contrib_env(tmp_path, xbmcaddon.Addon())
+    post = MagicMock()
+    with patch("resources.lib.transcriber.get_capabilities", return_value={"ffmpeg": "/f"}), \
+         patch.object(syncer, "_source_read_mbps", return_value=2.5), \
+         patch("requests.post", post):
+        assert syncer.contribute_fingerprint(vid) is False
+    assert not post.called
+    xbmcaddon.Addon().setSetting("sync_service_url", "")
+
+
+def test_contribution_skips_nonlocal_and_disabled(tmp_path):
+    from resources.lib import syncer
+    addon = xbmcaddon.Addon()
+    vid = _contrib_env(tmp_path, addon)
+    assert syncer.contribute_fingerprint("smb://nas/movie.mkv") is False
+    assert syncer.contribute_fingerprint("") is False
+    addon.setSetting("sync_fingerprint_contrib", "false")
+    assert syncer.contribute_fingerprint(vid) is False
+    addon.setSetting("sync_fingerprint_contrib", "true")
+    addon.setSetting("sync_service_url", "")
+
+
+def test_contribution_skips_already_known_release(tmp_path):
+    from resources.lib import syncer
+    vid = _contrib_env(tmp_path, xbmcaddon.Addon())
+    post = MagicMock()
+    with patch("resources.lib.transcriber.get_capabilities", return_value={"ffmpeg": "/f"}), \
+         patch.object(syncer, "_source_read_mbps", return_value=500.0), \
+         patch("resources.lib.file_operations.hash_file", return_value=(1, "cc" * 8)), \
+         patch("requests.get", MagicMock(return_value=_resp(200, {"known": True}))), \
+         patch("requests.post", post):
+        assert syncer.contribute_fingerprint(vid) is False
+    assert not post.called
+    xbmcaddon.Addon().setSetting("sync_service_url", "")
+
+
+def test_contribution_uploads_unknown_release(tmp_path):
+    from resources.lib import syncer
+    vid = _contrib_env(tmp_path, xbmcaddon.Addon())
+    post = MagicMock(return_value=_resp(200, {"stored": True}))
+    with patch("resources.lib.transcriber.get_capabilities", return_value={"ffmpeg": "/f"}), \
+         patch.object(syncer, "_source_read_mbps", return_value=500.0), \
+         patch("resources.lib.file_operations.hash_file", return_value=(1, "dd" * 8)), \
+         patch.object(syncer, "_media_duration_s", return_value=0.0), \
+         patch.object(syncer, "_full_fingerprint", return_value='{"v":1}'), \
+         patch("requests.get", MagicMock(return_value=_resp(200, {"known": False}))), \
+         patch("requests.post", post):
+        assert syncer.contribute_fingerprint(vid) is True
+    url = post.call_args[0][0]
+    assert url.endswith("/v1/fingerprints/" + "dd" * 8)
+    assert post.call_args[1]["data"] == '{"v":1}'
+    xbmcaddon.Addon().setSetting("sync_service_url", "")
+
+
+def test_contribution_aborts_on_shutdown(tmp_path):
+    from resources.lib import syncer
+    vid = _contrib_env(tmp_path, xbmcaddon.Addon())
+    post = MagicMock()
+    with patch("resources.lib.transcriber.get_capabilities", return_value={"ffmpeg": "/f"}), \
+         patch.object(syncer, "_source_read_mbps", return_value=500.0), \
+         patch("resources.lib.file_operations.hash_file", return_value=(1, "ee" * 8)), \
+         patch("requests.post", post):
+        assert syncer.contribute_fingerprint(vid, abort_check=lambda: True) is False
+    assert not post.called
+    xbmcaddon.Addon().setSetting("sync_service_url", "")

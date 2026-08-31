@@ -99,6 +99,97 @@ def engine_available():
     return bool(_service_url())
 
 
+# --------------------------------------------------------------------------
+# Background fingerprint contribution (default ON, setting
+# sync_fingerprint_contrib). During playback of a LOCAL, FAST source the
+# service's cache is fed automatically: moviehash + speech mask, no job run.
+# A fingerprint is a binary speech-activity signal - no audio, no video, no
+# filenames leave the machine (see /v1/spec §2: "contains no reconstructable
+# audio content"). Slow sources are skipped by MEASURING the source's real
+# read throughput - a path string cannot tell a local disk from a fuse/SMB
+# mount, actual reads can.
+# --------------------------------------------------------------------------
+
+FAST_READ_MIN_MBPS = 20
+
+
+def contribution_enabled():
+    val = __addon__.getSetting("sync_fingerprint_contrib")
+    return (val or "true").lower() in ("true", "1")
+
+
+def _source_read_mbps(path, sample_mb=8):
+    """Measured sequential read speed of THIS source in MB/s (0 on error)."""
+    try:
+        t0 = time.monotonic()
+        read = 0
+        target = sample_mb * 1024 * 1024
+        with open(path, "rb") as f:
+            while read < target:
+                block = f.read(1 << 20)
+                if not block:
+                    break
+                read += len(block)
+        elapsed = time.monotonic() - t0
+        return (read / (1024 * 1024)) / elapsed if elapsed > 0 else 0.0
+    except Exception:
+        return 0.0
+
+
+def contribute_fingerprint(video_path, abort_check=None):
+    """Computes and donates the playing file's speech fingerprint to the
+    service cache (POST /v1/fingerprints/{moviehash}) so every later sync of
+    this release - by anyone - takes the instant moviehash path.
+
+    Silent by design: returns True only when a fingerprint was uploaded,
+    False for every skip (setting off, no service, network/slow source, no
+    ffmpeg, already known, decode failure). Never raises."""
+    try:
+        import requests
+        if not contribution_enabled() or not engine_available():
+            return False
+        if not video_path or not os.path.isfile(video_path):
+            return False               # internet/VFS sources never sampled
+        from resources.lib import transcriber
+        ffmpeg = transcriber.get_capabilities().get("ffmpeg")
+        if not ffmpeg:
+            return False
+        mbps = _source_read_mbps(video_path)
+        if mbps < FAST_READ_MIN_MBPS:
+            log(f"fingerprint contribution skipped: source reads {mbps:.0f} MB/s")
+            return False
+        from resources.lib.file_operations import hash_file
+        _size, moviehash = hash_file(video_path, False)
+        if not moviehash:
+            return False
+        if abort_check and abort_check():
+            return False
+        url = _service_url()
+        kr = requests.get(f"{url}/v1/fingerprints/{moviehash}",
+                          auth=_service_auth(), timeout=15)
+        if kr.status_code == 200 and (kr.json() or {}).get("known"):
+            return False               # cache already has this release
+        duration_s = _media_duration_s(video_path)
+        if duration_s > 1800:
+            fp = _sparse_fingerprint(ffmpeg, video_path, duration_s)
+        else:
+            fp = _full_fingerprint(ffmpeg, video_path)
+        if not fp:
+            return False
+        if abort_check and abort_check():
+            return False
+        r = requests.post(f"{url}/v1/fingerprints/{moviehash}",
+                          data=fp, headers={"Content-Type": "application/json"},
+                          auth=_service_auth(), timeout=60)
+        ok = r.status_code in (200, 201)
+        log(f"fingerprint contribution: HTTP {r.status_code} "
+            f"({len(fp)} bytes, {mbps:.0f} MB/s source)")
+        return ok
+    except Exception as e:
+        log(f"fingerprint contribution failed ({type(e).__name__})")
+        return False
+
+
 # below this confidence the service itself flags the transform as unreliable
 # (measured: wrong-movie subs score ~0.2, correct ones 0.95+)
 MIN_CONFIDENCE = 0.6
