@@ -256,7 +256,7 @@
                 </setting>
                 <setting id="sync_service_url" type="string" label="32280" parent="subtitle_sync_enabled">
                     <level>3</level>
-                    <default>https://subsync.2pu.net</default>
+                    <default>https://sync.opensubtitles.com</default>
                     <dependencies>
                         <dependency type="enable" setting="subtitle_sync_enabled">true</dependency>
                     </dependencies>

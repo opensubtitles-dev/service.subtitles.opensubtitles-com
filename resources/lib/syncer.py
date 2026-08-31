@@ -1,8 +1,10 @@
 """Subtitle synchronization via the subsync service (docs/subtitle_sync_plan.md).
 
-STATUS: LIVE. The alignment engine is the subsync HTTP service (project
-subsync, deployed at the URL in the sync_service_url setting). Measured
-contract (2026-08-29, all three verified against the live service):
+STATUS: LIVE. The alignment engine is the subsync HTTP service, production
+at https://sync.opensubtitles.com (default of the sync_service_url setting;
+discovery: /llms.txt, /v1/meta, /v1/openapi.json). Anonymous access works
+with per-IP limits; a Bearer key raises them (auth optional). Measured
+contract (2026-08-29/30, all verified against the live service):
 
     POST {url}/v1/jobs      multipart audio=<file> subtitle=<file>  -> 202
          {"job_id": "j_...", "status_url": "/v1/jobs/j_..."}
@@ -11,6 +13,14 @@ contract (2026-08-29, all three verified against the live service):
          "result": {"transform": {"type", "offset_ms", "scale", "confidence"},
                     "engine_used", "subtitle_url", "warnings": [{code,message}]}}
     GET  {url}{subtitle_url} -> the corrected subtitle file
+
+    Plus the moviehash ladder (measured on production): GET
+    /v1/fingerprints/{osdb-moviehash} -> {"known": bool}; when known, a job
+    with moviehash + subtitle alone syncs in 0.6 s with ZERO media
+    processing; attaching moviehash to fingerprint/audio jobs makes the
+    server remember the release for everyone. 422 moviehash_unknown on a
+    cache race falls through to the next rung. Errors arrive as
+    {"error": {"code", "message"}}; 429 carries Retry-After.
 
     Verified: real sub +130ms conf 0.99; +5s-shifted sub -> -4870ms conf
     0.99; wrong-movie sub -> conf 0.19 + different_cut_suspected (honest
@@ -280,11 +290,26 @@ def sync_subtitle(sub_path, video_path=None, session=None, progress=None):
     # viewing history and belong neither in logs nor on the wire
     sub_ext = os.path.splitext(sub_path)[1] or ".srt"
 
-    def _run_job(files):
-        r = requests.post(url + "/v1/jobs", files=files, auth=auth, timeout=600)
+    def _server_error(r):
+        """The service's stable error shape: {"error": {"code", "message"}}."""
+        try:
+            err = (r.json() or {}).get("error") or {}
+            return str(err.get("code") or ""), str(err.get("message") or "")
+        except Exception:
+            return "", ""
+
+    def _run_job(files, data=None):
+        r = requests.post(url + "/v1/jobs", files=files, data=data or {},
+                          auth=auth, timeout=600)
+        if r.status_code == 429:
+            retry = r.headers.get("Retry-After", "a few")
+            raise SyncError(f"The sync service is rate-limiting this device - "
+                            f"try again in {retry} seconds.")
         if r.status_code not in (200, 201, 202):
-            log(f"sync job creation failed: HTTP {r.status_code}")
-            raise SyncError(f"The sync service refused the job (HTTP {r.status_code}).")
+            code, message = _server_error(r)
+            log(f"sync job creation failed: HTTP {r.status_code} {code}")
+            raise SyncError(message or
+                            f"The sync service refused the job (HTTP {r.status_code}).")
         job_id = (r.json() or {}).get("job_id")
         if not job_id:
             raise SyncError("The sync service answered without a job id.")
@@ -307,20 +332,52 @@ def sync_subtitle(sub_path, video_path=None, session=None, progress=None):
             time.sleep(POLL_SECONDS)
         raise SyncError("The sync service did not finish in time.")
 
+    # moviehash: attached to every job so the server caches the fingerprint
+    # per release - the second sync of the same file (any user, any subtitle)
+    # takes the instant path below
+    moviehash = ""
+    try:
+        from resources.lib.file_operations import hash_file
+        _size, moviehash = hash_file(video_path, video_path.endswith(".rar"))
+    except Exception:
+        moviehash = ""
+
+    # INSTANT PATH (measured 0.6 s end-to-end): the server already holds a
+    # speech fingerprint for this exact release - job needs moviehash +
+    # subtitle only, nothing is scanned or uploaded
+    state = None
+    if moviehash:
+        try:
+            kr = requests.get(f"{url}/v1/fingerprints/{moviehash}",
+                              auth=auth, timeout=15)
+            known = kr.status_code == 200 and (kr.json() or {}).get("known")
+        except Exception:
+            known = False
+        if known:
+            if progress:
+                progress.update(10, "File already known - synchronizing...")
+            try:
+                with open(sub_path, "rb") as s:
+                    state = _run_job({"subtitle": ("sub" + sub_ext, s)},
+                                     data={"moviehash": moviehash})
+            except SyncError:
+                # e.g. 422 moviehash_unknown on a cache race - fall through
+                state = None
+
     # FAST PATH (measured ~4 s round trip): loudness fingerprint, no server
     # VAD. Kept only above FP_MIN_CONFIDENCE - music-heavy tracks defeat a
     # loudness mask, and then the audio tier below redoes the job properly.
-    state = None
     from resources.lib import transcriber
     ffmpeg = transcriber.get_capabilities().get("ffmpeg")
-    if ffmpeg:
+    if state is None and ffmpeg:
         if progress:
             progress.update(5, "Fingerprinting audio...")
         fp = _energy_fingerprint(ffmpeg, video_path, progress)
         if fp:
             with open(sub_path, "rb") as s:
                 fp_state = _run_job({"subtitle": ("sub" + sub_ext, s),
-                                     "fingerprint": ("fp.json", fp, "application/json")})
+                                     "fingerprint": ("fp.json", fp, "application/json")},
+                                    data={"moviehash": moviehash} if moviehash else None)
             fp_result = (fp_state.get("result") or {}) if fp_state.get("status") == "done" else {}
             fp_transform = fp_result.get("transform") or {}
             try:
@@ -342,7 +399,8 @@ def sync_subtitle(sub_path, video_path=None, session=None, progress=None):
         ext = os.path.splitext(audio_path)[1] or ".bin"
         with open(audio_path, "rb") as a, open(sub_path, "rb") as s:
             state = _run_job({"audio": ("audio" + ext, a),
-                              "subtitle": ("sub" + sub_ext, s)})
+                              "subtitle": ("sub" + sub_ext, s)},
+                             data={"moviehash": moviehash} if moviehash else None)
 
     if state.get("status") != "done":
         raise SyncError(f"Synchronization failed on the server: "

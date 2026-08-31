@@ -231,3 +231,90 @@ def test_fingerprint_low_confidence_falls_back_to_audio(tmp_path):
     assert result["offset_ms"] == 130, "audio-tier result must win after weak fingerprint"
     assert posts.call_count == 2
     addon.setSetting("sync_service_url", "")
+
+
+def _resp(status=200, json_body=None, content=b"", headers=None):
+    r = MagicMock(status_code=status, content=content, headers=headers or {})
+    r.json.return_value = json_body or {}
+    return r
+
+
+def test_moviehash_instant_path_skips_all_media_work(tmp_path):
+    """Server knows the release -> job = moviehash + subtitle only (measured
+    0.6 s on production); no hashing of audio, no fingerprint, no extraction."""
+    from resources.lib import syncer
+    addon = xbmcaddon.Addon()
+    addon.setSetting("sync_service_url", "https://sync.example")
+    srt = tmp_path / "a.srt"; srt.write_text("x")
+    vid = tmp_path / "a.mkv"; vid.write_bytes(b"\x00")
+    done = {"status": "done", "result": {
+        "transform": {"type": "constant", "offset_ms": 90, "scale": 1.0, "confidence": 0.99},
+        "engine_used": "correlate", "subtitle_url": "/v1/jobs/j/subtitle", "warnings": []}}
+    gets = MagicMock(side_effect=[_resp(200, {"known": True}),
+                                  _resp(200, done),
+                                  _resp(200, content=b"1\n00:00:01,000 --> 00:00:02,000\nx\n")])
+    post = MagicMock(return_value=_resp(202, {"job_id": "j"}))
+    fp = MagicMock(); extract = MagicMock()
+    with patch("resources.lib.file_operations.hash_file", return_value=(1, "6fc5a843e68b5b3f")), \
+         patch("resources.lib.transcriber.get_capabilities", return_value={"ffmpeg": "/usr/bin/ffmpeg"}), \
+         patch.object(syncer, "_energy_fingerprint", fp), \
+         patch.object(syncer, "_extract_audio", extract), \
+         patch.object(syncer, "_profile_dir", return_value=str(tmp_path)), \
+         patch.object(syncer, "POLL_SECONDS", 0), \
+         patch("requests.post", post), patch("requests.get", gets):
+        result = syncer.sync_subtitle(str(srt), video_path=str(vid))
+    assert result["offset_ms"] == 90
+    assert not fp.called and not extract.called
+    assert post.call_args[1]["data"] == {"moviehash": "6fc5a843e68b5b3f"}
+    assert "fingerprint" not in post.call_args[1]["files"]
+    addon.setSetting("sync_service_url", "")
+
+
+def test_moviehash_cache_race_falls_through_to_fingerprint(tmp_path):
+    """known:true but the job 422s (moviehash_unknown race) -> fingerprint
+    rung runs instead of surfacing the error."""
+    from resources.lib import syncer
+    addon = xbmcaddon.Addon()
+    addon.setSetting("sync_service_url", "https://sync.example")
+    srt = tmp_path / "a.srt"; srt.write_text("x")
+    vid = tmp_path / "a.mkv"; vid.write_bytes(b"\x00")
+    done = {"status": "done", "result": {
+        "transform": {"type": "constant", "offset_ms": 130, "scale": 1.0, "confidence": 0.99},
+        "engine_used": "correlate", "subtitle_url": "/v1/jobs/j2/subtitle", "warnings": []}}
+    gets = MagicMock(side_effect=[_resp(200, {"known": True}),
+                                  _resp(200, done),
+                                  _resp(200, content=b"srt")])
+    posts = MagicMock(side_effect=[
+        _resp(422, {"error": {"code": "moviehash_unknown", "message": "no cached fingerprint"}}),
+        _resp(202, {"job_id": "j2"})])
+    with patch("resources.lib.file_operations.hash_file", return_value=(1, "aa" * 8)), \
+         patch("resources.lib.transcriber.get_capabilities", return_value={"ffmpeg": "/usr/bin/ffmpeg"}), \
+         patch.object(syncer, "_energy_fingerprint", return_value='{"v":1}'), \
+         patch.object(syncer, "_profile_dir", return_value=str(tmp_path)), \
+         patch.object(syncer, "POLL_SECONDS", 0), \
+         patch("requests.post", posts), patch("requests.get", gets):
+        result = syncer.sync_subtitle(str(srt), video_path=str(vid))
+    assert result["offset_ms"] == 130
+    assert posts.call_count == 2
+    assert "fingerprint" in posts.call_args[1]["files"]
+    assert posts.call_args[1]["data"] == {"moviehash": "aa" * 8}
+    addon.setSetting("sync_service_url", "")
+
+
+def test_rate_limit_surfaces_retry_after(tmp_path):
+    from resources.lib import syncer
+    addon = xbmcaddon.Addon()
+    addon.setSetting("sync_service_url", "https://sync.example")
+    srt = tmp_path / "a.srt"; srt.write_text("x")
+    vid = tmp_path / "a.mkv"; vid.write_bytes(b"\x00")
+    audio = tmp_path / "a.ogg"; audio.write_bytes(b"OggS")
+    gets = MagicMock(return_value=_resp(200, {"known": False}))
+    post = MagicMock(return_value=_resp(429, headers={"Retry-After": "42"}))
+    with patch("resources.lib.file_operations.hash_file", return_value=(1, "bb" * 8)), \
+         patch("resources.lib.transcriber.get_capabilities", return_value={"ffmpeg": ""}), \
+         patch.object(syncer, "_extract_audio", return_value=str(audio)), \
+         patch.object(syncer, "POLL_SECONDS", 0), \
+         patch("requests.post", post), patch("requests.get", gets):
+        with pytest.raises(syncer.SyncError, match="42 seconds"):
+            syncer.sync_subtitle(str(srt), video_path=str(vid))
+    addon.setSetting("sync_service_url", "")
