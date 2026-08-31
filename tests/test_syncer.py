@@ -171,19 +171,65 @@ def test_env_auth_fallback(tmp_path):
     assert syncer._read_env_auth(str(tmp_path / "missing")) is None
 
 
-def test_mask_bit_packing_follows_spec():
-    """SPEC §2.2: frame i lives in byte i>>3, MSB first."""
+def test_fingerprint_follows_reference_recipe():
+    """/v1/spec recipe: 512-sample chunks, floor+6dB threshold, smoothing,
+    10 ms grid, vad tag energy-v1."""
     import base64, json
     from resources.lib import syncer
-    with patch.object(syncer, "_frame_energies",
-                      return_value=[0, 9, 0, 9, 0, 0, 0, 0] * 1000):
-        fp = json.loads(syncer._energy_fingerprint("ffmpeg", "/v.mkv"))
+    # 3000 chunks: alternating runs of 40 loud / 40 quiet (well above the
+    # opening/closing scale) - half the timeline is speech
+    dbs = ([-60.0] * 40 + [-20.0] * 40) * 38
+    samples = len(dbs) * 512
+    with patch.object(syncer, "_decode_chunk_db", return_value=(dbs, samples)):
+        fp = json.loads(syncer._full_fingerprint("ffmpeg", "/v.mkv"))
     assert fp["v"] == 1 and fp["frame_ms"] == 10
-    assert fp["duration_ms"] == 80000
+    assert fp["vad"] == "energy-v1"
+    assert fp["duration_ms"] == samples // 16
     mask = base64.b64decode(fp["mask_b64"])
-    # threshold = 60th percentile of [0,9,...] = 0 -> frames with 9 are speech
-    assert mask[0] == 0b01010000
-    assert len(mask) == 1000
+    bits = [(mask[i >> 3] >> (7 - (i & 7))) & 1 for i in range(200)]
+    # first 40 chunks (1280 ms = 128 frames) are quiet -> zero frames
+    assert not any(bits[:120])
+
+
+def test_chunk_smoothing_opening_and_closing():
+    from resources.lib import syncer
+    quiet, loud = -60.0, -20.0
+    # lone hit dropped (opening 1)
+    dec = syncer._chunk_decisions([quiet] * 20 + [loud] + [quiet] * 20)
+    assert not any(dec)
+    # gap of 8 bridged, gap of 9 not (closing 8)
+    dec = syncer._chunk_decisions([loud] * 3 + [quiet] * 8 + [loud] * 3 + [quiet] * 30)
+    assert all(dec[:14])
+    dec = syncer._chunk_decisions([loud] * 3 + [quiet] * 9 + [loud] * 3 + [quiet] * 30)
+    assert not any(dec[3:12])
+
+
+def test_sparse_fingerprint_for_long_films():
+    """>30 min media takes the recipe's sparse option: bisection windows,
+    zero mask outside, windows declared in the envelope."""
+    import base64, json
+    from resources.lib import syncer
+    dbs_window = ([-20.0] * 30 + [-60.0] * 30) * 31        # ~60s, half speech
+    calls = []
+    def fake_decode(ffmpeg, path, progress=None, seek_s=None, dur_s=None):
+        calls.append(seek_s)
+        return dbs_window, len(dbs_window) * 512
+    with patch.object(syncer, "_decode_chunk_db", side_effect=fake_decode):
+        fp = json.loads(syncer._sparse_fingerprint("ffmpeg", "/v.mkv", 7200.0))
+    assert fp["vad"] == "energy-v1"
+    assert fp["duration_ms"] == 7200000
+    ws = fp["windows"]
+    assert ws == sorted(ws) and len(ws) >= 20   # 20% of 2h in 60s windows
+    assert all(e - s == 60000 for s, e in ws)
+    assert all(s is not None for s in calls), "sparse must decode windows, not the file"
+    # mask must be zero outside the declared windows
+    mask = base64.b64decode(fp["mask_b64"])
+    def frame(i):
+        return (mask[i >> 3] >> (7 - (i & 7))) & 1
+    in_any = lambda ms: any(s <= ms < e for s, e in ws)
+    for probe_ms in range(0, 7200000, 97010):
+        if not in_any(probe_ms):
+            assert frame(probe_ms // 10) == 0, f"speech outside windows at {probe_ms}"
 
 
 def test_fingerprint_fast_path_skips_audio_extraction(tmp_path):
@@ -196,7 +242,8 @@ def test_fingerprint_fast_path_skips_audio_extraction(tmp_path):
                               {"type": "constant", "offset_ms": 90, "scale": 1.0, "confidence": 0.99})
     extract = MagicMock()
     with patch("resources.lib.transcriber.get_capabilities", return_value={"ffmpeg": "/usr/bin/ffmpeg"}), \
-         patch.object(syncer, "_energy_fingerprint", return_value='{"v":1}'), \
+         patch.object(syncer, "_media_duration_s", return_value=0.0), \
+         patch.object(syncer, "_full_fingerprint", return_value='{"v":1}'), \
          patch.object(syncer, "_extract_audio", extract), \
          patch.object(syncer, "_profile_dir", return_value=str(tmp_path)), \
          patch.object(syncer, "POLL_SECONDS", 0), \
@@ -222,7 +269,8 @@ def test_fingerprint_low_confidence_falls_back_to_audio(tmp_path):
     posts = MagicMock(side_effect=[fp_post.return_value, au_post.return_value])
     gets = MagicMock(side_effect=list(fp_get.side_effect) + list(au_get.side_effect))
     with patch("resources.lib.transcriber.get_capabilities", return_value={"ffmpeg": "/usr/bin/ffmpeg"}), \
-         patch.object(syncer, "_energy_fingerprint", return_value='{"v":1}'), \
+         patch.object(syncer, "_media_duration_s", return_value=0.0), \
+         patch.object(syncer, "_full_fingerprint", return_value='{"v":1}'), \
          patch.object(syncer, "_extract_audio", return_value=str(audio)), \
          patch.object(syncer, "_profile_dir", return_value=str(tmp_path)), \
          patch.object(syncer, "POLL_SECONDS", 0), \
@@ -257,7 +305,8 @@ def test_moviehash_instant_path_skips_all_media_work(tmp_path):
     fp = MagicMock(); extract = MagicMock()
     with patch("resources.lib.file_operations.hash_file", return_value=(1, "6fc5a843e68b5b3f")), \
          patch("resources.lib.transcriber.get_capabilities", return_value={"ffmpeg": "/usr/bin/ffmpeg"}), \
-         patch.object(syncer, "_energy_fingerprint", fp), \
+         patch.object(syncer, "_media_duration_s", return_value=0.0), \
+         patch.object(syncer, "_full_fingerprint", fp), \
          patch.object(syncer, "_extract_audio", extract), \
          patch.object(syncer, "_profile_dir", return_value=str(tmp_path)), \
          patch.object(syncer, "POLL_SECONDS", 0), \
@@ -289,7 +338,8 @@ def test_moviehash_cache_race_falls_through_to_fingerprint(tmp_path):
         _resp(202, {"job_id": "j2"})])
     with patch("resources.lib.file_operations.hash_file", return_value=(1, "aa" * 8)), \
          patch("resources.lib.transcriber.get_capabilities", return_value={"ffmpeg": "/usr/bin/ffmpeg"}), \
-         patch.object(syncer, "_energy_fingerprint", return_value='{"v":1}'), \
+         patch.object(syncer, "_media_duration_s", return_value=0.0), \
+         patch.object(syncer, "_full_fingerprint", return_value='{"v":1}'), \
          patch.object(syncer, "_profile_dir", return_value=str(tmp_path)), \
          patch.object(syncer, "POLL_SECONDS", 0), \
          patch("requests.post", posts), patch("requests.get", gets):

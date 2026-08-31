@@ -166,97 +166,203 @@ class UserCancelled(SyncError):
 
 
 # --------------------------------------------------------------------------
-# Energy-mask fingerprint fast path (SPEC.md §2 of the subsync project).
-#
-# The server's fingerprint tier skips its VAD entirely and correlates a
-# client-supplied 10 ms speech mask in ~1 s. A real silero mask needs an ONNX
-# runtime Kodi doesn't have - but MEASURED 2026-08-29: a plain loudness mask
-# (per-frame energy, 60th-percentile threshold) synced the reference film at
-# confidence 0.99 / +90 ms vs silero's +130 ms, total round-trip ~4 s against
-# ~35 s for the audio tier. Music-heavy tracks can defeat loudness (that is
-# why the server's own VAD stays as fallback below FP_MIN_CONFIDENCE).
-# Sparse windows + energy were measured too and FAIL (conf 0.25) - windowed
-# loudness has too little signal; do not resurrect that combination.
+# Energy-VAD fingerprint fast path - the service's OWN reference recipe
+# (/v1/spec §"Client fingerprinting recipe", vad "energy-v1"): 512-sample RMS
+# chunks -> dB, threshold = 10th-percentile noise floor + 6 dB, opening-1 /
+# closing-8 smoothing, mapped to the 10 ms frame grid. Matches the server's
+# fallback VAD, so sparse windows are VALID with it (unlike the earlier
+# mean-abs mask, measured dead at conf 0.25) and the server caches the
+# result for the moviehash (silero entries always outrank energy ones).
+# The server skips its VAD entirely for fingerprint jobs (~1 s correlate).
+# Kept only above FP_MIN_CONFIDENCE - the audio tier redoes hard cases.
 # --------------------------------------------------------------------------
 
-_FP_FRAME = 160          # samples per 10 ms frame at 16 kHz
+_CHUNK_SAMPLES = 512        # 32 ms at 16 kHz, the recipe's energy unit
+_CHUNK_MS = 32
 
 
-def _frame_energies(ffmpeg, video_path, progress=None):
-    """Stream-decode the first audio track to 16 kHz mono s16le and return
-    per-10ms-frame mean-abs energies. audioop when the interpreter still has
-    it (Kodi's 3.11/3.12), pure array fallback otherwise (3.13+)."""
+def _decode_chunk_db(ffmpeg, video_path, progress=None, seek_s=None, dur_s=None):
+    """Runs the recipe's steps 1-2: decode (optionally one window) to 16 kHz
+    mono s16le, return (per-chunk dB list, total_samples)."""
+    import math
     try:
         import audioop
     except ImportError:
         audioop = None
     import array as _array
-    cmd = [ffmpeg, "-nostdin", "-v", "error", "-i", video_path,
-           "-map", "0:a:0", "-ac", "1", "-ar", "16000", "-f", "s16le", "-"]
+    cmd = [ffmpeg, "-nostdin", "-v", "error"]
+    if seek_s is not None:
+        cmd += ["-ss", str(seek_s)]
+    if dur_s is not None:
+        cmd += ["-t", str(dur_s)]
+    cmd += ["-i", video_path, "-map", "0:a:0", "-ac", "1", "-ar", "16000",
+            "-f", "s16le", "-"]
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
-    energies = []
+    dbs = []
+    total_samples = 0
     leftover = b""
-    frame_bytes = _FP_FRAME * 2
+    chunk_bytes = _CHUNK_SAMPLES * 2
     try:
         while True:
             if progress and progress.iscanceled():
                 proc.kill()
                 raise UserCancelled()
-            chunk = proc.stdout.read(1 << 18)
-            if not chunk:
+            data = proc.stdout.read(1 << 18)
+            if not data:
                 break
-            buf = leftover + chunk
-            usable = len(buf) - len(buf) % frame_bytes
+            buf = leftover + data
+            usable = len(buf) - len(buf) % chunk_bytes
             leftover = buf[usable:]
-            if audioop is not None:
-                for off in range(0, usable, frame_bytes):
-                    energies.append(audioop.rms(buf[off:off + frame_bytes], 2))
-            else:
-                arr = _array.array("h")
-                arr.frombytes(buf[:usable])
-                for off in range(0, len(arr), _FP_FRAME):
+            total_samples += usable // 2
+            for off in range(0, usable, chunk_bytes):
+                if audioop is not None:
+                    rms = audioop.rms(buf[off:off + chunk_bytes], 2)
+                else:
+                    arr = _array.array("h")
+                    arr.frombytes(buf[off:off + chunk_bytes])
                     acc = 0
-                    for v in arr[off:off + _FP_FRAME]:
-                        acc += v if v >= 0 else -v
-                    energies.append(acc // _FP_FRAME)
+                    for v in arr:
+                        acc += v * v
+                    rms = math.sqrt(acc / len(arr)) if len(arr) else 0
+                dbs.append(20 * math.log10(rms + 1e-10))
+        total_samples += len(leftover) // 2
     finally:
         try:
             proc.stdout.close()
             proc.wait(timeout=10)
         except Exception:
             proc.kill()
-    return energies
+    return dbs, total_samples
 
 
-def _energy_fingerprint(ffmpeg, video_path, progress=None):
-    """Fingerprint JSON (SPEC §2.1/2.2) from a loudness mask, or None when
-    the track cannot be decoded / is degenerate."""
+def _chunk_decisions(dbs):
+    """Recipe steps 3-4: noise-floor threshold + opening-1 / closing-8."""
+    if not dbs:
+        return []
+    floor = sorted(dbs)[int(len(dbs) * 0.10)]
+    dec = [db > floor + 6.0 for db in dbs]
+    # opening of 1: drop lone single-chunk hits
+    opened = dec[:]
+    for i, d in enumerate(dec):
+        if d and (i == 0 or not dec[i - 1]) and (i == len(dec) - 1 or not dec[i + 1]):
+            opened[i] = False
+    # closing of 8: bridge gaps up to 8 chunks
+    closed = opened[:]
+    last = None
+    for i, d in enumerate(opened):
+        if d:
+            if last is not None and 0 < i - last - 1 <= 8:
+                for j in range(last + 1, i):
+                    closed[j] = True
+            last = i
+    return closed
+
+
+def _mask_from_chunks(mask, chunks, base_frame, n_frames):
+    """Recipe step 5: chunk decisions onto the 10 ms grid from base_frame."""
+    speech_frames = 0
+    for i in range(len(chunks) * _CHUNK_MS // 10):
+        gi = base_frame + i
+        if gi >= n_frames:
+            break
+        if chunks[min(i * 10 // _CHUNK_MS, len(chunks) - 1)]:
+            mask[gi >> 3] |= 1 << (7 - (gi & 7))
+            speech_frames += 1
+    return speech_frames
+
+
+def _media_duration_s(video_path):
+    """Playback duration in seconds, or 0: the player knows it during
+    playback (the only time sync runs); no extra probe process needed."""
+    try:
+        import xbmc
+        return float(xbmc.Player().getTotalTime())
+    except Exception:
+        return 0.0
+
+
+def _bisect_fractions():
+    k = 1
+    while k < 9:
+        step = 1 << k
+        for m in range(1, step, 2):
+            yield m / step
+        k += 1
+
+
+def _full_fingerprint(ffmpeg, video_path, progress=None):
+    """Whole-scan fingerprint JSON per the service's reference recipe
+    ("energy-v1"), or None when the track cannot be decoded / degenerate."""
     import base64
     import json as _json
     try:
-        energies = _frame_energies(ffmpeg, video_path, progress)
+        dbs, total_samples = _decode_chunk_db(ffmpeg, video_path, progress)
     except UserCancelled:
         raise
     except Exception as e:
         log(f"energy decode failed ({type(e).__name__})")
         return None
-    n = len(energies)
-    if n < 6000:               # SPEC floor: at least 1 minute of media
+    duration_ms = total_samples // 16
+    n_frames = (duration_ms + 9) // 10
+    if duration_ms < 60000:            # SPEC floor: at least 1 minute
         return None
-    threshold = sorted(energies)[int(n * 0.60)]
-    mask = bytearray((n + 7) // 8)
-    speech = 0
-    for i, e in enumerate(energies):
-        if e > threshold:
-            mask[i >> 3] |= 1 << (7 - (i & 7))
-            speech += 1
-    ratio = speech / n
-    if not 0.005 <= ratio <= 0.95:      # SPEC: degenerate mask is unusable
-        return None
-    return _json.dumps({"v": 1, "frame_ms": 10, "duration_ms": n * 10,
-                        "vad": "energy-1", "sample_rate": 16000,
+    chunks = _chunk_decisions(dbs)
+    mask = bytearray((n_frames + 7) // 8)
+    speech = _mask_from_chunks(mask, chunks, 0, n_frames)
+    if not 0.005 <= speech / max(n_frames, 1) <= 0.95:
+        return None                    # SPEC: degenerate mask is unusable
+    return _json.dumps({"v": 1, "frame_ms": 10, "duration_ms": duration_ms,
+                        "vad": "energy-v1", "sample_rate": 16000,
                         "threshold": 0.5,
                         "mask_b64": base64.b64encode(bytes(mask)).decode()})
+
+
+def _sparse_fingerprint(ffmpeg, video_path, duration_s, progress=None):
+    """Recipe step 7: 60 s windows at bisection positions of the padded range
+    until >=20 % coverage AND >=2 min of detected speech."""
+    import base64
+    import json as _json
+    duration_ms = int(duration_s * 1000)
+    n_frames = (duration_ms + 9) // 10
+    mask = bytearray((n_frames + 7) // 8)
+    pad = min(60.0, duration_s / 20)
+    usable = duration_s - 2 * pad - 60
+    if usable <= 0:
+        return None
+    windows = []
+    covered_s = 0.0
+    speech_frames = 0
+    for frac in _bisect_fractions():
+        start = pad + usable * frac
+        if any(abs(start - w) < 60 for w, _ in windows):
+            continue
+        try:
+            dbs, _samples = _decode_chunk_db(ffmpeg, video_path, progress,
+                                             seek_s=round(start, 3), dur_s=60)
+        except UserCancelled:
+            raise
+        except Exception:
+            continue
+        if not dbs:
+            continue
+        chunks = _chunk_decisions(dbs)
+        base_frame = int(start * 100)
+        speech_frames += _mask_from_chunks(mask, chunks, base_frame, n_frames)
+        windows.append((start, min(start + 60, duration_s)))
+        covered_s += 60
+        if covered_s >= duration_s * 0.20 and speech_frames >= 120 * 100:
+            break
+    if not windows or speech_frames < 60 * 100:
+        return None                    # not enough speech - let audio tier run
+    win_frames = int(covered_s * 100)
+    if not 0.005 <= speech_frames / max(win_frames, 1) <= 0.95:
+        return None
+    return _json.dumps({"v": 1, "frame_ms": 10, "duration_ms": duration_ms,
+                        "vad": "energy-v1", "sample_rate": 16000,
+                        "threshold": 0.5,
+                        "mask_b64": base64.b64encode(bytes(mask)).decode(),
+                        "windows": [[int(s * 1000), int(e * 1000)]
+                                    for s, e in sorted(windows)]})
 
 
 def sync_subtitle(sub_path, video_path=None, session=None, progress=None):
@@ -370,10 +476,22 @@ def sync_subtitle(sub_path, video_path=None, session=None, progress=None):
     from resources.lib import transcriber
     ffmpeg = transcriber.get_capabilities().get("ffmpeg")
     if state is None and ffmpeg:
-        if progress:
-            progress.update(5, "Fingerprinting audio...")
-        fp = _energy_fingerprint(ffmpeg, video_path, progress)
-        if fp:
+        # sparse first on long films, full-scan second (the spec's mandated
+        # rescan after sparse_fingerprint_uncertain), audio tier last
+        duration_s = _media_duration_s(video_path)
+        attempts = []
+        if duration_s > 1800:
+            attempts.append("sparse")
+        attempts.append("full")
+        for attempt in attempts:
+            if progress:
+                progress.update(5, "Fingerprinting audio...")
+            if attempt == "sparse":
+                fp = _sparse_fingerprint(ffmpeg, video_path, duration_s, progress)
+            else:
+                fp = _full_fingerprint(ffmpeg, video_path, progress)
+            if not fp:
+                continue
             with open(sub_path, "rb") as s:
                 fp_state = _run_job({"subtitle": ("sub" + sub_ext, s),
                                      "fingerprint": ("fp.json", fp, "application/json")},
@@ -386,9 +504,9 @@ def sync_subtitle(sub_path, video_path=None, session=None, progress=None):
                 fp_conf = 0.0
             if fp_conf >= FP_MIN_CONFIDENCE:
                 state = fp_state
-            else:
-                log(f"fingerprint fast path inconclusive (confidence {fp_conf:.2f}) "
-                    "- retrying with real audio")
+                break
+            log(f"{attempt} fingerprint inconclusive (confidence {fp_conf:.2f}) "
+                "- escalating")
 
     if state is None:
         if progress:
