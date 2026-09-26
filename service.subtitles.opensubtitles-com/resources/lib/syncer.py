@@ -1,0 +1,687 @@
+"""Subtitle synchronization via the subsync service (docs/subtitle_sync_plan.md).
+
+STATUS: LIVE. The alignment engine is the subsync HTTP service, production
+at https://sync.opensubtitles.com (default of the sync_service_url setting;
+discovery: /llms.txt, /v1/meta, /v1/openapi.json). Anonymous access works
+with per-IP limits; a Bearer key raises them (auth optional). Measured
+contract (2026-08-29/30, all verified against the live service):
+
+    POST {url}/v1/jobs      multipart audio=<file> subtitle=<file>  -> 202
+         {"job_id": "j_...", "status_url": "/v1/jobs/j_..."}
+    GET  {url}/v1/jobs/{id} -> {"status": "processing"|"done"|"error",
+         "stage": "vad"|"correlate"|..., "progress": 0..1, "error": ...,
+         "result": {"transform": {"type", "offset_ms", "scale", "confidence"},
+                    "engine_used", "subtitle_url", "warnings": [{code,message}]}}
+    GET  {url}{subtitle_url} -> the corrected subtitle file
+
+    Plus the moviehash ladder (measured on production): GET
+    /v1/fingerprints/{osdb-moviehash} -> {"known": bool}; when known, a job
+    with moviehash + subtitle alone syncs in 0.6 s with ZERO media
+    processing; attaching moviehash to fingerprint/audio jobs makes the
+    server remember the release for everyone. 422 moviehash_unknown on a
+    cache race falls through to the next rung. Errors arrive as
+    {"error": {"code", "message"}}; 429 carries Retry-After.
+
+    Verified: real sub +130ms conf 0.99; +5s-shifted sub -> -4870ms conf
+    0.99; wrong-movie sub -> conf 0.19 + different_cut_suspected (honest
+    rejection). Audio accepted as opus AND mp3 - the whole transcriber
+    extraction ladder feeds it.
+
+No player state, no dialogs - the callers (subtitle dialog row, background
+service nudge offer) own all UI; a progress dialog may be passed in.
+"""
+
+import os
+import subprocess
+import time
+import uuid
+
+import xbmcaddon
+import xbmcvfs
+
+from resources.lib.utilities import log as _log
+
+__addon__ = xbmcaddon.Addon("service.subtitles.opensubtitles-com")
+
+
+def log(msg):
+    _log(__name__, msg)
+
+
+class SyncError(Exception):
+    """A synchronization attempt failed in a way worth telling the user."""
+
+
+class EngineNotAvailable(SyncError):
+    """The alignment engine is not bundled yet (project subsync pending)."""
+
+
+def is_enabled():
+    """The expert toggle gating BOTH invocation paths (row + nudge offer)."""
+    val = __addon__.getSetting("subtitle_sync_enabled")
+    return bool(val) and val.lower() in ("true", "1")
+
+
+def _service_url():
+    return (__addon__.getSetting("sync_service_url") or "").strip().rstrip("/")
+
+
+def _read_env_auth(env_path):
+    """(user, pass) from a KEY=VALUE file, or None. Never logged anywhere."""
+    try:
+        vals = {}
+        with open(env_path) as f:
+            for line in f:
+                if "=" in line and not line.lstrip().startswith("#"):
+                    k, v = line.split("=", 1)
+                    vals[k.strip()] = v.strip()
+        if vals.get("SUBSYNC_USER"):
+            return (vals["SUBSYNC_USER"], vals.get("SUBSYNC_PASS", ""))
+    except Exception:
+        pass
+    return None
+
+
+def _service_auth():
+    """Settings first; else the gitignored .env at the addon root (dev-box
+    convenience while the service runs behind Basic auth - the real auth
+    scheme replaces this whole function later)."""
+    user = (__addon__.getSetting("sync_service_user") or "").strip()
+    if user:
+        return (user, __addon__.getSetting("sync_service_pass") or "")
+    root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    return _read_env_auth(os.path.join(root, ".env"))
+
+
+def engine_available():
+    """True when a subsync service URL is configured. Kept as a function so
+    the callers needed no change on the day the engine landed."""
+    return bool(_service_url())
+
+
+# --------------------------------------------------------------------------
+# Background fingerprint contribution (default ON, setting
+# sync_fingerprint_contrib). During playback of a LOCAL, FAST source the
+# service's cache is fed automatically: moviehash + speech mask, no job run.
+# A fingerprint is a binary speech-activity signal - no audio, no video, no
+# filenames leave the machine (see /v1/spec §2: "contains no reconstructable
+# audio content"). Slow sources are skipped by MEASURING the source's real
+# read throughput - a path string cannot tell a local disk from a fuse/SMB
+# mount, actual reads can.
+# --------------------------------------------------------------------------
+
+FAST_READ_MIN_MBPS = 20
+
+
+def contribution_enabled():
+    val = __addon__.getSetting("sync_fingerprint_contrib")
+    return (val or "true").lower() in ("true", "1")
+
+
+def _source_read_mbps(path, sample_mb=8):
+    """Measured sequential read speed of THIS source in MB/s (0 on error)."""
+    try:
+        t0 = time.monotonic()
+        read = 0
+        target = sample_mb * 1024 * 1024
+        with open(path, "rb") as f:
+            while read < target:
+                block = f.read(1 << 20)
+                if not block:
+                    break
+                read += len(block)
+        elapsed = time.monotonic() - t0
+        return (read / (1024 * 1024)) / elapsed if elapsed > 0 else 0.0
+    except Exception:
+        return 0.0
+
+
+def contribute_fingerprint(video_path, abort_check=None):
+    """Computes and donates the playing file's speech fingerprint to the
+    service cache (POST /v1/fingerprints/{moviehash}) so every later sync of
+    this release - by anyone - takes the instant moviehash path.
+
+    Silent by design: returns True only when a fingerprint was uploaded,
+    False for every skip (setting off, no service, network/slow source, no
+    ffmpeg, already known, decode failure). Never raises."""
+    try:
+        import requests
+        if not contribution_enabled() or not engine_available():
+            return False
+        if not video_path or not os.path.isfile(video_path):
+            return False               # internet/VFS sources never sampled
+        from resources.lib import transcriber
+        ffmpeg = transcriber.get_capabilities().get("ffmpeg")
+        if not ffmpeg:
+            return False
+        mbps = _source_read_mbps(video_path)
+        if mbps < FAST_READ_MIN_MBPS:
+            log(f"fingerprint contribution skipped: source reads {mbps:.0f} MB/s")
+            return False
+        from resources.lib.file_operations import hash_file
+        _size, moviehash = hash_file(video_path, False)
+        if not moviehash:
+            return False
+        if abort_check and abort_check():
+            return False
+        url = _service_url()
+        kr = requests.get(f"{url}/v1/fingerprints/{moviehash}",
+                          auth=_service_auth(), timeout=15)
+        if kr.status_code == 200 and (kr.json() or {}).get("known"):
+            return False               # cache already has this release
+        duration_s = _media_duration_s(video_path)
+        if duration_s > 1800:
+            fp = _sparse_fingerprint(ffmpeg, video_path, duration_s)
+        else:
+            fp = _full_fingerprint(ffmpeg, video_path)
+        if not fp:
+            return False
+        if abort_check and abort_check():
+            return False
+        r = requests.post(f"{url}/v1/fingerprints/{moviehash}",
+                          data=fp, headers={"Content-Type": "application/json"},
+                          auth=_service_auth(), timeout=60)
+        ok = r.status_code in (200, 201)
+        log(f"fingerprint contribution: HTTP {r.status_code} "
+            f"({len(fp)} bytes, {mbps:.0f} MB/s source)")
+        return ok
+    except Exception as e:
+        log(f"fingerprint contribution failed ({type(e).__name__})")
+        return False
+
+
+# below this confidence the service itself flags the transform as unreliable
+# (measured: wrong-movie subs score ~0.2, correct ones 0.95+)
+MIN_CONFIDENCE = 0.6
+# fingerprint fast path keeps a result only above this; below it we redo the
+# job with real audio so the server's silero VAD replaces our energy mask
+FP_MIN_CONFIDENCE = 0.75
+POLL_SECONDS = 2
+POLL_TIMEOUT = 600
+
+
+def _profile_dir():
+    path = xbmcvfs.translatePath(__addon__.getAddonInfo("profile"))
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
+def _extract_audio(video_path, progress=None):
+    """Audio for the sync job, smallest first: ffmpeg -> 16 kHz mono opus
+    (~4 MB / 20 min, the service's preferred diet), else the transcriber
+    ladder (NDK/afconvert/GStreamer/MF/pydemux - service accepts mp3/aac
+    too, measured), else the video itself when small enough."""
+    from resources.lib import transcriber
+    caps = transcriber.get_capabilities()
+    if caps.get("ffmpeg"):
+        out = os.path.join(_profile_dir(), "sync_audio.ogg")
+        try:
+            os.unlink(out)
+        except Exception:
+            pass
+        cmd = [caps["ffmpeg"], "-nostdin", "-v", "error", "-i", video_path,
+               "-map", "0:a:0", "-vn", "-sn", "-ac", "1", "-ar", "16000",
+               "-c:a", "libopus", "-b:a", "24k", out]
+        proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        while proc.poll() is None:
+            if progress and progress.iscanceled():
+                proc.kill()
+                raise UserCancelled()
+            time.sleep(0.5)
+        if proc.returncode == 0 and os.path.exists(out):
+            return out
+        log(f"ffmpeg opus extraction failed (exit {proc.returncode}) - trying the ladder")
+    source = transcriber.choose_source(caps, video_path)
+    try:
+        if source == "android_ndk":
+            return transcriber.extract_android(video_path, progress)
+        if source == "afconvert":
+            return transcriber.extract_afconvert(video_path, progress)
+        if source == "gstreamer":
+            return transcriber.extract_gstreamer(video_path, progress)
+        if source == "pydemux":
+            return transcriber.extract_pydemux(video_path)
+    except Exception as e:
+        log(f"audio extraction rung {source} failed ({type(e).__name__})")
+    try:
+        if os.path.getsize(video_path) <= transcriber.MAX_UPLOAD_BYTES:
+            return video_path       # service accepts video files, discouraged
+    except Exception:
+        pass
+    raise SyncError("No way to extract the audio track on this platform.\n"
+                    + transcriber.ffmpeg_install_hint())
+
+
+class UserCancelled(SyncError):
+    """The user cancelled from the progress dialog."""
+
+
+# --------------------------------------------------------------------------
+# Energy-VAD fingerprint fast path - the service's OWN reference recipe
+# (/v1/spec §"Client fingerprinting recipe", vad "energy-v1"): 512-sample RMS
+# chunks -> dB, threshold = 10th-percentile noise floor + 6 dB, opening-1 /
+# closing-8 smoothing, mapped to the 10 ms frame grid. Matches the server's
+# fallback VAD, so sparse windows are VALID with it (unlike the earlier
+# mean-abs mask, measured dead at conf 0.25) and the server caches the
+# result for the moviehash (silero entries always outrank energy ones).
+# The server skips its VAD entirely for fingerprint jobs (~1 s correlate).
+# Kept only above FP_MIN_CONFIDENCE - the audio tier redoes hard cases.
+# --------------------------------------------------------------------------
+
+_CHUNK_SAMPLES = 512        # 32 ms at 16 kHz, the recipe's energy unit
+_CHUNK_MS = 32
+
+
+def _decode_chunk_db(ffmpeg, video_path, progress=None, seek_s=None, dur_s=None):
+    """Runs the recipe's steps 1-2: decode (optionally one window) to 16 kHz
+    mono s16le, return (per-chunk dB list, total_samples)."""
+    import math
+    try:
+        import audioop
+    except ImportError:
+        audioop = None
+    import array as _array
+    cmd = [ffmpeg, "-nostdin", "-v", "error"]
+    if seek_s is not None:
+        cmd += ["-ss", str(seek_s)]
+    if dur_s is not None:
+        cmd += ["-t", str(dur_s)]
+    cmd += ["-i", video_path, "-map", "0:a:0", "-ac", "1", "-ar", "16000",
+            "-f", "s16le", "-"]
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    dbs = []
+    total_samples = 0
+    leftover = b""
+    chunk_bytes = _CHUNK_SAMPLES * 2
+    try:
+        while True:
+            if progress and progress.iscanceled():
+                proc.kill()
+                raise UserCancelled()
+            data = proc.stdout.read(1 << 18)
+            if not data:
+                break
+            buf = leftover + data
+            usable = len(buf) - len(buf) % chunk_bytes
+            leftover = buf[usable:]
+            total_samples += usable // 2
+            for off in range(0, usable, chunk_bytes):
+                if audioop is not None:
+                    rms = audioop.rms(buf[off:off + chunk_bytes], 2)
+                else:
+                    arr = _array.array("h")
+                    arr.frombytes(buf[off:off + chunk_bytes])
+                    acc = 0
+                    for v in arr:
+                        acc += v * v
+                    rms = math.sqrt(acc / len(arr)) if len(arr) else 0
+                dbs.append(20 * math.log10(rms + 1e-10))
+        total_samples += len(leftover) // 2
+    finally:
+        try:
+            proc.stdout.close()
+            proc.wait(timeout=10)
+        except Exception:
+            proc.kill()
+    return dbs, total_samples
+
+
+def _chunk_decisions(dbs):
+    """Recipe steps 3-4: noise-floor threshold + opening-1 / closing-8."""
+    if not dbs:
+        return []
+    floor = sorted(dbs)[int(len(dbs) * 0.10)]
+    dec = [db > floor + 6.0 for db in dbs]
+    # opening of 1: drop lone single-chunk hits
+    opened = dec[:]
+    for i, d in enumerate(dec):
+        if d and (i == 0 or not dec[i - 1]) and (i == len(dec) - 1 or not dec[i + 1]):
+            opened[i] = False
+    # closing of 8: bridge gaps up to 8 chunks
+    closed = opened[:]
+    last = None
+    for i, d in enumerate(opened):
+        if d:
+            if last is not None and 0 < i - last - 1 <= 8:
+                for j in range(last + 1, i):
+                    closed[j] = True
+            last = i
+    return closed
+
+
+def _mask_from_chunks(mask, chunks, base_frame, n_frames):
+    """Recipe step 5: chunk decisions onto the 10 ms grid from base_frame."""
+    speech_frames = 0
+    for i in range(len(chunks) * _CHUNK_MS // 10):
+        gi = base_frame + i
+        if gi >= n_frames:
+            break
+        if chunks[min(i * 10 // _CHUNK_MS, len(chunks) - 1)]:
+            mask[gi >> 3] |= 1 << (7 - (gi & 7))
+            speech_frames += 1
+    return speech_frames
+
+
+def _media_duration_s(video_path):
+    """Playback duration in seconds, or 0: the player knows it during
+    playback (the only time sync runs); no extra probe process needed."""
+    try:
+        import xbmc
+        return float(xbmc.Player().getTotalTime())
+    except Exception:
+        return 0.0
+
+
+def _bisect_fractions():
+    k = 1
+    while k < 9:
+        step = 1 << k
+        for m in range(1, step, 2):
+            yield m / step
+        k += 1
+
+
+def _full_fingerprint(ffmpeg, video_path, progress=None):
+    """Whole-scan fingerprint JSON per the service's reference recipe
+    ("energy-v1"), or None when the track cannot be decoded / degenerate."""
+    import base64
+    import json as _json
+    try:
+        dbs, total_samples = _decode_chunk_db(ffmpeg, video_path, progress)
+    except UserCancelled:
+        raise
+    except Exception as e:
+        log(f"energy decode failed ({type(e).__name__})")
+        return None
+    duration_ms = total_samples // 16
+    n_frames = (duration_ms + 9) // 10
+    if duration_ms < 60000:            # SPEC floor: at least 1 minute
+        return None
+    chunks = _chunk_decisions(dbs)
+    mask = bytearray((n_frames + 7) // 8)
+    speech = _mask_from_chunks(mask, chunks, 0, n_frames)
+    if not 0.005 <= speech / max(n_frames, 1) <= 0.95:
+        return None                    # SPEC: degenerate mask is unusable
+    return _json.dumps({"v": 1, "frame_ms": 10, "duration_ms": duration_ms,
+                        "vad": "energy-v1", "sample_rate": 16000,
+                        "threshold": 0.5,
+                        "mask_b64": base64.b64encode(bytes(mask)).decode()})
+
+
+def _sparse_fingerprint(ffmpeg, video_path, duration_s, progress=None):
+    """Recipe step 7: 60 s windows at bisection positions of the padded range
+    until >=20 % coverage AND >=2 min of detected speech."""
+    import base64
+    import json as _json
+    duration_ms = int(duration_s * 1000)
+    n_frames = (duration_ms + 9) // 10
+    mask = bytearray((n_frames + 7) // 8)
+    pad = min(60.0, duration_s / 20)
+    usable = duration_s - 2 * pad - 60
+    if usable <= 0:
+        return None
+    windows = []
+    covered_s = 0.0
+    speech_frames = 0
+    for frac in _bisect_fractions():
+        start = pad + usable * frac
+        if any(abs(start - w) < 60 for w, _ in windows):
+            continue
+        try:
+            dbs, _samples = _decode_chunk_db(ffmpeg, video_path, progress,
+                                             seek_s=round(start, 3), dur_s=60)
+        except UserCancelled:
+            raise
+        except Exception:
+            continue
+        if not dbs:
+            continue
+        chunks = _chunk_decisions(dbs)
+        base_frame = int(start * 100)
+        speech_frames += _mask_from_chunks(mask, chunks, base_frame, n_frames)
+        windows.append((start, min(start + 60, duration_s)))
+        covered_s += 60
+        if covered_s >= duration_s * 0.20 and speech_frames >= 120 * 100:
+            break
+    if not windows or speech_frames < 60 * 100:
+        return None                    # not enough speech - let audio tier run
+    win_frames = int(covered_s * 100)
+    if not 0.005 <= speech_frames / max(win_frames, 1) <= 0.95:
+        return None
+    return _json.dumps({"v": 1, "frame_ms": 10, "duration_ms": duration_ms,
+                        "vad": "energy-v1", "sample_rate": 16000,
+                        "threshold": 0.5,
+                        "mask_b64": base64.b64encode(bytes(mask)).decode(),
+                        "windows": [[int(s * 1000), int(e * 1000)]
+                                    for s, e in sorted(windows)]})
+
+
+def sync_subtitle(sub_path, video_path=None, session=None, progress=None):
+    """Synchronize the subtitle at `sub_path` against its video via the
+    subsync service.
+
+      - the corrected subtitle is written to a NEW file (never in place -
+        the original stays untouched for a retry) and its path returned
+      - returns {"path": <corrected file>, "offset_ms": <int>,
+                 "fps_scale": <float>, "method": <engine name>,
+                 "confidence": <float>}
+      - raises SyncError with a user-presentable, viewing-history-free
+        message on failure; EngineNotAvailable when no service configured
+      - honors progress.iscanceled() when a progress dialog is passed
+      - NEVER touches a moviehash_match subtitle (caller enforces too)
+    """
+    import requests
+
+    url = _service_url()
+    if not url:
+        log("sync requested but no service URL configured")
+        raise EngineNotAvailable()
+    if not sub_path or not os.path.exists(sub_path):
+        raise SyncError("The active subtitle file could not be located.")
+    if not video_path or not os.path.exists(video_path):
+        raise SyncError("The video file could not be located "
+                        "(network sources are not supported yet).")
+    auth = _service_auth()
+
+    # constant upload names on purpose throughout: the real filenames are
+    # viewing history and belong neither in logs nor on the wire
+    sub_ext = os.path.splitext(sub_path)[1] or ".srt"
+
+    def _server_error(r):
+        """The service's stable error shape: {"error": {"code", "message"}}."""
+        try:
+            err = (r.json() or {}).get("error") or {}
+            return str(err.get("code") or ""), str(err.get("message") or "")
+        except Exception:
+            return "", ""
+
+    def _run_job(files, data=None):
+        r = requests.post(url + "/v1/jobs", files=files, data=data or {},
+                          auth=auth, timeout=600)
+        if r.status_code == 429:
+            retry = r.headers.get("Retry-After", "a few")
+            raise SyncError(f"The sync service is rate-limiting this device - "
+                            f"try again in {retry} seconds.")
+        if r.status_code not in (200, 201, 202):
+            code, message = _server_error(r)
+            log(f"sync job creation failed: HTTP {r.status_code} {code}")
+            raise SyncError(message or
+                            f"The sync service refused the job (HTTP {r.status_code}).")
+        job_id = (r.json() or {}).get("job_id")
+        if not job_id:
+            raise SyncError("The sync service answered without a job id.")
+        deadline = time.time() + POLL_TIMEOUT
+        state = {}
+        while time.time() < deadline:
+            if progress and progress.iscanceled():
+                raise UserCancelled()
+            pr = requests.get(f"{url}/v1/jobs/{job_id}", auth=auth, timeout=30)
+            state = pr.json() if pr.status_code == 200 else {}
+            if state.get("status") in ("done", "error", "failed"):
+                return state
+            if progress:
+                try:
+                    pct = 25 + int(70 * float(state.get("progress") or 0))
+                except (TypeError, ValueError):
+                    pct = 25
+                stage = state.get("stage") or "aligning"
+                progress.update(min(pct, 95), f"Synchronizing ({stage})...")
+            time.sleep(POLL_SECONDS)
+        raise SyncError("The sync service did not finish in time.")
+
+    # moviehash: attached to every job so the server caches the fingerprint
+    # per release - the second sync of the same file (any user, any subtitle)
+    # takes the instant path below
+    moviehash = ""
+    try:
+        from resources.lib.file_operations import hash_file
+        _size, moviehash = hash_file(video_path, video_path.endswith(".rar"))
+    except Exception:
+        moviehash = ""
+
+    # INSTANT PATH (measured 0.6 s end-to-end): the server already holds a
+    # speech fingerprint for this exact release - job needs moviehash +
+    # subtitle only, nothing is scanned or uploaded
+    state = None
+    if moviehash:
+        try:
+            kr = requests.get(f"{url}/v1/fingerprints/{moviehash}",
+                              auth=auth, timeout=15)
+            known = kr.status_code == 200 and (kr.json() or {}).get("known")
+        except Exception:
+            known = False
+        if known:
+            if progress:
+                progress.update(10, "File already known - synchronizing...")
+            try:
+                with open(sub_path, "rb") as s:
+                    state = _run_job({"subtitle": ("sub" + sub_ext, s)},
+                                     data={"moviehash": moviehash})
+            except SyncError:
+                # e.g. 422 moviehash_unknown on a cache race - fall through
+                state = None
+
+    # FAST PATH (measured ~4 s round trip): loudness fingerprint, no server
+    # VAD. Kept only above FP_MIN_CONFIDENCE - music-heavy tracks defeat a
+    # loudness mask, and then the audio tier below redoes the job properly.
+    from resources.lib import transcriber
+    ffmpeg = transcriber.get_capabilities().get("ffmpeg")
+    if state is None and ffmpeg:
+        # sparse first on long films, full-scan second (the spec's mandated
+        # rescan after sparse_fingerprint_uncertain), audio tier last
+        duration_s = _media_duration_s(video_path)
+        attempts = []
+        if duration_s > 1800:
+            attempts.append("sparse")
+        attempts.append("full")
+        for attempt in attempts:
+            if progress:
+                progress.update(5, "Fingerprinting audio...")
+            if attempt == "sparse":
+                fp = _sparse_fingerprint(ffmpeg, video_path, duration_s, progress)
+            else:
+                fp = _full_fingerprint(ffmpeg, video_path, progress)
+            if not fp:
+                continue
+            with open(sub_path, "rb") as s:
+                fp_state = _run_job({"subtitle": ("sub" + sub_ext, s),
+                                     "fingerprint": ("fp.json", fp, "application/json")},
+                                    data={"moviehash": moviehash} if moviehash else None)
+            fp_result = (fp_state.get("result") or {}) if fp_state.get("status") == "done" else {}
+            fp_transform = fp_result.get("transform") or {}
+            try:
+                fp_conf = float(fp_transform.get("confidence") or 0)
+            except (TypeError, ValueError):
+                fp_conf = 0.0
+            if fp_conf >= FP_MIN_CONFIDENCE:
+                state = fp_state
+                break
+            log(f"{attempt} fingerprint inconclusive (confidence {fp_conf:.2f}) "
+                "- escalating")
+
+    if state is None:
+        if progress:
+            progress.update(5, "Extracting audio track...")
+        audio_path = _extract_audio(video_path, progress)
+        if progress:
+            progress.update(25, "Uploading to the sync service...")
+        ext = os.path.splitext(audio_path)[1] or ".bin"
+        with open(audio_path, "rb") as a, open(sub_path, "rb") as s:
+            state = _run_job({"audio": ("audio" + ext, a),
+                              "subtitle": ("sub" + sub_ext, s)},
+                             data={"moviehash": moviehash} if moviehash else None)
+
+    if state.get("status") != "done":
+        raise SyncError(f"Synchronization failed on the server: "
+                        f"{str(state.get('error'))[:120]}")
+    result = state.get("result") or {}
+    transform = result.get("transform") or {}
+    try:
+        confidence = float(transform.get("confidence") or 0)
+    except (TypeError, ValueError):
+        confidence = 0.0
+    if confidence < MIN_CONFIDENCE:
+        codes = ", ".join(w.get("code", "") for w in (result.get("warnings") or []))
+        log(f"sync rejected: confidence {confidence:.2f} ({codes})")
+        raise SyncError(
+            f"The engine is not confident this subtitle matches the video "
+            f"(confidence {confidence:.0%}). It may be made for a different "
+            f"cut or a different film - no changes were applied.")
+
+    sr = requests.get(url + result.get("subtitle_url", ""), auth=auth, timeout=60)
+    if sr.status_code != 200 or not sr.content:
+        raise SyncError("The corrected subtitle could not be fetched.")
+    out_path = os.path.join(
+        _profile_dir(), f"synced.{uuid.uuid4().hex[:8]}"
+                        f"{os.path.splitext(sub_path)[1] or '.srt'}")
+    with open(out_path, "wb") as f:
+        f.write(sr.content)
+    log(f"sync done: {transform.get('type')} offset={transform.get('offset_ms')}ms "
+        f"scale={transform.get('scale')} confidence={confidence:.2f} "
+        f"engine={result.get('engine_used')}")
+    try:
+        offset_ms = int(transform.get("offset_ms") or 0)
+        fps_scale = float(transform.get("scale") or 1.0)
+    except (TypeError, ValueError):
+        offset_ms, fps_scale = 0, 1.0
+    return {"path": out_path,
+            "offset_ms": offset_ms,
+            "fps_scale": fps_scale,
+            "method": str(result.get("engine_used") or "audio"),
+            "confidence": confidence}
+
+
+# ---------------------------------------------------------------------------
+# Delay-nudge detection (used by the background service).
+#
+# The moment a user SEES bad sync they open Kodi's own subtitle-offset dialog
+# and start nudging Player.SubtitleDelay. More than NUDGE_THRESHOLD distinct
+# values in one session means "struggling, not fine-tuning" - the one moment
+# an automatic-sync offer is welcome instead of annoying.
+# ---------------------------------------------------------------------------
+
+NUDGE_THRESHOLD = 2
+
+
+def register_delay_sample(session, delay):
+    """Feeds one sampled Player.SubtitleDelay value into the session.
+
+    Returns True exactly ONCE per session: at the moment the nudge count
+    crosses the threshold and the sync offer should be made. The caller
+    decides whether the offer is allowed at all (toggle, moviehash, engine).
+    """
+    if not isinstance(session, dict):
+        return False
+    delay = str(delay or "").strip()
+    if not delay:
+        return False
+    seen = session.setdefault("_delay_values", [])
+    if delay in seen:
+        return False
+    seen.append(delay)
+    # first value is the baseline (usually "0.000 s"), not a nudge
+    nudges = len(seen) - 1
+    if nudges > NUDGE_THRESHOLD and not session.get("_sync_offered"):
+        session["_sync_offered"] = True
+        return True
+    return False
