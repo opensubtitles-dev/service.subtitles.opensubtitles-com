@@ -1,3 +1,4 @@
+# greptile-canary: probe commit, do not merge - checks whether the reviewer responds at all
 import os
 import time
 import sys
