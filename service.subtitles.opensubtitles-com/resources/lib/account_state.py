@@ -13,6 +13,7 @@ save drifts them. Settings are just the display cache.
 
 import json
 import os
+import time
 
 import xbmcaddon
 import xbmcvfs
@@ -29,7 +30,64 @@ def _state_path():
     return os.path.join(profile, "account_state.json")
 
 
+class _StateLock:
+    """Cross-process exclusive lock around the state file.
+
+    update_account_state() is a read-modify-write, and Kodi runs the settings
+    scripts and the service as separate processes - Test Connection saving a
+    full snapshot while a download merges its fresh quota could drop one of the
+    two (review: PR #92, second pass). O_CREAT|O_EXCL is the portable primitive
+    here: no fcntl (Windows) and no msvcrt (POSIX) branch needed.
+
+    A lock older than STALE_AFTER is broken: a process killed mid-write must
+    never wedge account updates permanently. Failing to acquire is not fatal -
+    the caller proceeds unlocked, which is exactly the old behaviour.
+    """
+    TIMEOUT = 5.0
+    STALE_AFTER = 30.0
+    POLL = 0.05
+
+    def __init__(self, path):
+        self.path = path + ".lock"
+        self.fd = None
+
+    def __enter__(self):
+        deadline = time.time() + self.TIMEOUT
+        while True:
+            try:
+                self.fd = os.open(self.path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                return self
+            except FileExistsError:
+                try:
+                    if time.time() - os.path.getmtime(self.path) > self.STALE_AFTER:
+                        os.unlink(self.path)        # abandoned by a dead process
+                        continue
+                except OSError:
+                    pass                            # vanished meanwhile: retry
+                if time.time() >= deadline:
+                    return self                     # unlocked, but not stuck
+                time.sleep(self.POLL)
+            except OSError:
+                return self                         # unwritable dir: proceed
+
+    def __exit__(self, *exc):
+        if self.fd is not None:
+            try:
+                os.close(self.fd)
+                os.unlink(self.path)
+            except OSError:
+                pass
+        return False
+
+
 def save_account_state(state):
+    """Writes the full state snapshot (Test Connection's path), under the lock."""
+    with _StateLock(_state_path()):
+        _write_account_state(state)
+
+
+def _write_account_state(state):
+    """Unlocked writer - callers must already hold _StateLock."""
     try:
         path = _state_path()
         os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -59,9 +117,13 @@ def update_account_state(partial):
     SETTINGS therefore saw its values reverted on the next reconciliation - a
     fresh download quota would visibly regress to an older number
     (review: PR #92). Callers that refresh any account field write through here.
+
+    Read and write happen under _StateLock so a concurrent full snapshot from
+    Test Connection cannot be interleaved with this merge.
     """
     if not partial:
         return
-    state = load_account_state()
-    state.update({k: str(v) for k, v in partial.items() if k in ACCOUNT_KEYS})
-    save_account_state(state)
+    with _StateLock(_state_path()):
+        state = load_account_state()
+        state.update({k: str(v) for k, v in partial.items() if k in ACCOUNT_KEYS})
+        _write_account_state(state)      # already locked: never re-enter the lock

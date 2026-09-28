@@ -670,14 +670,19 @@ def _save_completed_result(session, state, headers=None):
         # WITHOUT credentials, so the account's Bearer can never be disclosed to
         # a third party (review: PR #92). A scheme check alone did not do that.
         fetch_headers = dict(headers or {})
-        if not _is_api_origin(url):
-            dropped = [h for h in ("Authorization", "Api-Key") if h in fetch_headers]
-            for h in dropped:
-                fetch_headers.pop(h, None)
-            if dropped:
-                log("result url is off-origin - fetching it without credentials")
-        fetch_headers.setdefault("User-Agent", get_user_agent())
-        r = session.get(url, headers=fetch_headers, timeout=120)
+        if _is_api_origin(url):
+            fetch_headers.setdefault("User-Agent", get_user_agent())
+            r = session.get(url, headers=fetch_headers, timeout=120)
+        else:
+            # Off-origin: the provider's Session carries Api-Key (and possibly
+            # other credentials) in session.headers, so dropping them from the
+            # per-request dict alone would still ship them - requests MERGES the
+            # two. A throwaway session is the only way to guarantee the fetch is
+            # anonymous (review: PR #92, second pass).
+            log("result url is off-origin - fetching it anonymously")
+            import requests
+            with requests.Session() as anon:
+                r = anon.get(url, headers={"User-Agent": get_user_agent()}, timeout=120)
         r.raise_for_status()
         with open(out, "wb") as f:
             f.write(r.content)

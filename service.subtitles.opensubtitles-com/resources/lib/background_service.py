@@ -4,6 +4,7 @@ import os
 import sys
 import time
 import threading
+import uuid
 
 import xbmc
 import xbmcgui
@@ -536,9 +537,11 @@ class OpenSubtitlesPlayer(xbmc.Player):
         try:
             if not xbmcvfs.exists(target):
                 return None
-            backup = target + ".osbak"
-            if xbmcvfs.exists(backup):
-                xbmcvfs.delete(backup)
+            # A per-operation name: two auto-download workers writing the same
+            # target shared one ".osbak" path, so one could delete the other's
+            # preserved original and leave nothing to restore (review: PR #92,
+            # second pass). uuid, not pid - Kodi runs invocations in one process.
+            backup = f"{target}.{uuid.uuid4().hex[:8]}.osbak"
             if xbmcvfs.rename(target, backup):
                 return backup
             if xbmcvfs.copy(target, backup):
