@@ -36,6 +36,27 @@ API_TRANSCRIBE = "ai/transcribe"
 API_TRANSCRIBE_INFO = "ai/info/transcription"
 MAX_UPLOAD_BYTES = 100 * 1024 * 1024   # hard server-side cap per the spec
 
+
+def _is_api_origin(url):
+    """True when url is https on the API's own host (credentials may be sent).
+
+    Scheme + host + port must all match, and only https counts: a plain-http
+    api.opensubtitles.com url would put the Bearer on the wire in clear text.
+    Parsed with urlsplit so "https://api.opensubtitles.com.evil.tld/" and
+    "https://evil.tld/?x=api.opensubtitles.com" both fail, which a prefix/
+    substring test would not.
+    """
+    try:
+        from urllib.parse import urlsplit
+        api = urlsplit(API_URL)
+        got = urlsplit(str(url))
+        return (got.scheme == "https"
+                and got.hostname == api.hostname
+                and (got.port or 443) == (api.port or 443))
+    except Exception:
+        return False
+
+
 CAPS_SCHEMA = 1
 BENCH_SECONDS_AUDIO = 30       # synthetic audio the encode benchmark processes
 BENCH_TIMEOUT = 20             # hard wall for the whole benchmark run
@@ -230,8 +251,44 @@ def choose_source(caps, file_path):
     return "too_big"
 
 
+# One token per Python invocation. Kodi runs add-on scripts as sub-interpreters
+# inside ONE process, so a PID is shared by concurrent invocations
+# (docs/kodi_api_internals.md gotcha 17) - overlapping transcriptions wrote to
+# the SAME transcribe_audio.* file and one could delete or overwrite what the
+# other was still encoding or uploading (review: PR #92).
+import uuid as _uuid
+_INVOCATION_TOKEN = _uuid.uuid4().hex[:8]
+TEMP_PREFIX = "transcribe_"
+TEMP_MAX_AGE = 6 * 60 * 60      # stale leftovers swept after six hours
+
+
 def _out_path(name):
-    return os.path.join(_profile_dir(), name)
+    """Profile-dir path for `name`, made private to this invocation."""
+    stem, ext = os.path.splitext(name)
+    return os.path.join(_profile_dir(), f"{stem}.{_INVOCATION_TOKEN}{ext}")
+
+
+def _sweep_stale_temp_files():
+    """Removes this add-on's own abandoned transcription temp files.
+
+    Unique names mean a crashed invocation leaves its file behind; only entries
+    older than TEMP_MAX_AGE go, so a concurrent invocation's work is never
+    touched.
+    """
+    try:
+        now = time.time()
+        profile = _profile_dir()
+        for name in os.listdir(profile):
+            if not name.startswith((TEMP_PREFIX, "transcription_result")):
+                continue
+            path = os.path.join(profile, name)
+            try:
+                if os.path.isfile(path) and now - os.path.getmtime(path) > TEMP_MAX_AGE:
+                    os.unlink(path)
+            except Exception:
+                pass
+    except Exception:
+        pass
 
 
 def extract_android(file_path, progress=None):
@@ -381,7 +438,7 @@ def extract_pydemux(file_path):
 
 def extract_audio(ffmpeg, file_path, progress=None):
     """Reencode the audio track to mono 16kHz AAC; returns the temp file path."""
-    out_path = os.path.join(_profile_dir(), "transcribe_audio.mp3")
+    out_path = _out_path("transcribe_audio.mp3")
     try:
         os.unlink(out_path)
     except Exception:
@@ -596,7 +653,7 @@ def _pick_engine(apis, language):
 
 def _save_completed_result(session, state, headers=None):
     """COMPLETED payload shape is loose - accept a url or inline subtitle text."""
-    out = os.path.join(_profile_dir(), "transcription_result.srt")
+    out = _out_path("transcription_result.srt")
     url = state.get("url")
     if not url and isinstance(state.get("data"), dict):
         url = state["data"].get("url")
@@ -607,8 +664,18 @@ def _save_completed_result(session, state, headers=None):
         # controlled error, not a raw requests exception
         if not str(url).startswith(("http://", "https://")):
             raise TranscriptionError("transcription result carried an invalid url")
-        # MEASURED: /ai/files/... answers 401 without the Bearer token
+        # MEASURED: /ai/files/... answers 401 without the Bearer token - but the
+        # token only ever goes to the API's own origin. A result url pointing
+        # anywhere else (CDN, or a hostile value in a spoofed payload) is fetched
+        # WITHOUT credentials, so the account's Bearer can never be disclosed to
+        # a third party (review: PR #92). A scheme check alone did not do that.
         fetch_headers = dict(headers or {})
+        if not _is_api_origin(url):
+            dropped = [h for h in ("Authorization", "Api-Key") if h in fetch_headers]
+            for h in dropped:
+                fetch_headers.pop(h, None)
+            if dropped:
+                log("result url is off-origin - fetching it without credentials")
         fetch_headers.setdefault("User-Agent", get_user_agent())
         r = session.get(url, headers=fetch_headers, timeout=120)
         r.raise_for_status()
@@ -631,6 +698,7 @@ def run_transcription(session, token, file_data, language, mock=False):
     Spec: docs/opensubtitles_api_reference.html (/ai/transcribe). Shows its own
     progress dialog; cancel supported everywhere; NotDeployed on 404.
     """
+    _sweep_stale_temp_files()   # unique temp names need a janitor, not a collision
     caps = get_capabilities()
     file_path = file_data.get("file_original_path", "")
     source = choose_source(caps, file_path)

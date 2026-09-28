@@ -319,9 +319,20 @@ def transcode(src, dst, progress=None, duration_s=0):
                         isize = ctypes.c_size_t()
                         iptr = lib.AMediaCodec_getInputBuffer(decoder, iidx,
                                                               ctypes.byref(isize))
-                        ctypes.memmove(iptr, sample_buf.raw, n)
+                        # The sample length and the decoder's input capacity are
+                        # two independent numbers. Copying n bytes without
+                        # consulting isize corrupted native memory whenever a
+                        # sample was larger than the buffer (review: PR #92) -
+                        # bound the copy by the destination, always.
+                        if not iptr or isize.value == 0:
+                            raise AndroidAudioError("device decoder returned no input buffer")
+                        copy_n = min(n, isize.value)
+                        if copy_n < n:
+                            raise AndroidAudioError(
+                                "audio sample larger than the device decoder's input buffer")
+                        ctypes.memmove(iptr, sample_buf.raw, copy_n)
                         pts = lib.AMediaExtractor_getSampleTime(ex)
-                        lib.AMediaCodec_queueInputBuffer(decoder, iidx, 0, n,
+                        lib.AMediaCodec_queueInputBuffer(decoder, iidx, 0, copy_n,
                                                          max(pts, 0), 0)
                         lib.AMediaExtractor_advance(ex)
                         if progress and duration_s and pts > 0:

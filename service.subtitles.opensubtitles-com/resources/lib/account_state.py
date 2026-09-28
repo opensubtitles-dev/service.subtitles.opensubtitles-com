@@ -49,3 +49,19 @@ def load_account_state():
             return {k: str(v) for k, v in json.load(f).items() if k in ACCOUNT_KEYS}
     except Exception:
         return {}
+
+
+def update_account_state(partial):
+    """Merges a few account fields into the persisted state file.
+
+    The state file is authoritative: the background service reconciles settings
+    back to it after every settings-dialog save. A writer that updated only the
+    SETTINGS therefore saw its values reverted on the next reconciliation - a
+    fresh download quota would visibly regress to an older number
+    (review: PR #92). Callers that refresh any account field write through here.
+    """
+    if not partial:
+        return
+    state = load_account_state()
+    state.update({k: str(v) for k, v in partial.items() if k in ACCOUNT_KEYS})
+    save_account_state(state)

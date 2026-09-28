@@ -248,3 +248,59 @@ def check_and_get_account_status():
     except (ValueError, TypeError):
         return "Not Verified"
 
+
+
+# ---------------------------------------------------------------------------
+# Active-subtitle bookkeeping
+#
+# Kodi exposes no API for "which external subtitle file is currently shown", so
+# the add-on remembers what it loaded in a window property. That property used
+# to be written without any binding to the video, and never cleared - so the
+# [SYNC] action could pick up the subtitle of a PREVIOUS video and retime that
+# (review: PR #92). Stamping the playing file alongside it makes a stale value
+# detectable, and callers get "" instead of the wrong file.
+LAST_SUBTITLE_PROP = "os_com:last_loaded_subtitle"
+LAST_SUBTITLE_FOR_PROP = "os_com:last_loaded_subtitle_for"
+
+
+def remember_loaded_subtitle(subtitle_path, video_path=None):
+    """Records the subtitle this add-on just loaded, bound to its video."""
+    import xbmc
+    import xbmcgui
+    try:
+        if video_path is None:
+            try:
+                video_path = xbmc.Player().getPlayingFile()
+            except Exception:
+                video_path = ""
+        win = xbmcgui.Window(10000)
+        win.setProperty(LAST_SUBTITLE_PROP, str(subtitle_path or ""))
+        win.setProperty(LAST_SUBTITLE_FOR_PROP, str(video_path or ""))
+    except Exception:
+        pass
+
+
+def recall_loaded_subtitle():
+    """The remembered subtitle path, but only while it still belongs to what is
+    playing now and still exists on disk. Returns "" otherwise."""
+    import os
+    import xbmc
+    import xbmcgui
+    try:
+        win = xbmcgui.Window(10000)
+        path = win.getProperty(LAST_SUBTITLE_PROP)
+        stamped_for = win.getProperty(LAST_SUBTITLE_FOR_PROP)
+        if not path or not os.path.exists(path):
+            return ""
+        try:
+            playing = xbmc.Player().getPlayingFile()
+        except Exception:
+            playing = ""
+        if stamped_for and playing and stamped_for != playing:
+            # belongs to a different video - treat as absent and clear it
+            win.clearProperty(LAST_SUBTITLE_PROP)
+            win.clearProperty(LAST_SUBTITLE_FOR_PROP)
+            return ""
+        return path
+    except Exception:
+        return ""

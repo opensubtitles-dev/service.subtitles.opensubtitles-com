@@ -10,7 +10,8 @@ import xbmcgui
 import xbmcaddon
 import xbmcvfs
 
-from resources.lib.utilities import log, normalize_string, redact_path, safe_media_filename, loggable_media
+from resources.lib.utilities import (log, normalize_string, redact_path, safe_media_filename,
+                                     loggable_media, remember_loaded_subtitle)
 from resources.lib.data_collector import (
     get_media_data,
     get_file_path,
@@ -197,7 +198,24 @@ class OpenSubtitlesPlayer(xbmc.Player):
         super().__init__()
         self.monitor = None
         self.active_session = None
+        # Every background worker captures this counter when it starts and
+        # rechecks it before touching player state. Without it, an auto-download
+        # thread belonging to the PREVIOUS video could finish late and call
+        # setSubtitles on the new one (or overwrite its rating session)
+        # (review: PR #92).
+        self.playback_generation = 0
         self.reload_settings()
+
+    def _current_generation(self):
+        # getattr: tests (and any subclass skipping __init__) still get a value
+        return getattr(self, "playback_generation", 0)
+
+    def _generation_is_current(self, generation, what="work"):
+        """False when playback moved on since `generation` was captured."""
+        if generation == self._current_generation():
+            return True
+        log(__name__, f"Playback changed since this {what} started - discarding its result")
+        return False
 
     def reload_settings(self):
         try:
@@ -237,6 +255,10 @@ class OpenSubtitlesPlayer(xbmc.Player):
     def _handle_playback_started(self):
         self.reload_settings()
         self.active_session = None
+        # new playback = new generation; anything still running belongs to the
+        # previous video and must not touch this one
+        self.playback_generation += 1
+        generation = self.playback_generation
         log(__name__, f"Playback started: auto_download={self.auto_download_enabled}, "
                       f"rating_prompt={self.prompt_rating_enabled}")
 
@@ -249,12 +271,14 @@ class OpenSubtitlesPlayer(xbmc.Player):
             log(__name__, "Auto-download: disabled in settings")
         else:
             # Network never runs on Kodi's callback thread (freezes the player UI).
-            threading.Thread(target=self._auto_download_flow, daemon=True).start()
+            threading.Thread(target=self._auto_download_flow, args=(generation,),
+                             daemon=True).start()
 
         # Upload dry-run: when playback runs on a LOCAL sidecar subtitle (not one
         # we just fetched), that file is the actual sharing candidate - track it.
         if _dev_setting_on("auto_upload_subtitles"):
-            threading.Thread(target=self._track_local_subtitle_session, daemon=True).start()
+            threading.Thread(target=self._track_local_subtitle_session,
+                             args=(generation,), daemon=True).start()
 
         # Sync-cache contribution (default ON, sync_fingerprint_contrib):
         # donate this release's speech fingerprint so any later sync of it is
@@ -277,16 +301,21 @@ class OpenSubtitlesPlayer(xbmc.Player):
         except Exception as e:
             log(__name__, f"fingerprint contribution thread failed: {type(e).__name__}")
 
-    def _track_local_subtitle_session(self):
+    def _track_local_subtitle_session(self, generation=None):
         """Builds a session around a user-provided sidecar subtitle, if any.
 
         Waits out the auto-download flow; only steps in when no session exists,
         so an OpenSubtitles-sourced session always wins (its file is already on
         the site - nothing to share).
         """
+        if generation is None:
+            generation = self._current_generation()
         if self.monitor and self.monitor.waitForAbort(20):
             return
         try:
+            # 20s of waiting is plenty of time for the user to start another video
+            if not self._generation_is_current(generation, "sidecar tracking"):
+                return
             if self.active_session is not None or not self.isPlayingVideo():
                 return
             file_path = get_file_path()
@@ -468,11 +497,17 @@ class OpenSubtitlesPlayer(xbmc.Player):
         stdlib fallback covers those AND logs the real OS error when even that
         fails, so a permissions problem names itself in the log.
         """
+        # An existing subtitle at the target is the user's file. It is moved aside
+        # FIRST and only dropped once a replacement is in place - the previous
+        # order deleted it up front, so when both the VFS copy and the direct
+        # write failed (unreachable SMB share) the original was simply gone
+        # (review: PR #92).
+        backup = self._preserve_existing_target(target)
+
         try:
-            if xbmcvfs.exists(target):
-                xbmcvfs.delete(target)
             if xbmcvfs.copy(source_path, target):
                 log(__name__, "Auto-download: stored subtitle beside the video")
+                self._discard_preserved(backup)
                 return target
             log(__name__, "Auto-download: xbmcvfs.copy refused the target, trying direct write")
         except Exception as e:
@@ -482,13 +517,65 @@ class OpenSubtitlesPlayer(xbmc.Player):
             import shutil
             shutil.copyfile(source_path, target)
             log(__name__, "Auto-download: stored subtitle beside the video (direct write)")
+            self._discard_preserved(backup)
             return target
         except OSError as e:
             log(__name__, f"Auto-download: cannot write the target ({type(e).__name__}) - "
                           f"keeping session-only temp copy")
+            self._restore_preserved(backup, target)
             return None
 
-    def _auto_download_flow(self):
+    def _preserve_existing_target(self, target):
+        """Moves an existing subtitle aside, returning its path or None.
+
+        Rename first (cheap, atomic on most backends); a copy is the fallback for
+        backends whose rename fails. When neither works the original is LEFT IN
+        PLACE - an unpreservable file is never deleted, the overwrite attempts
+        below simply have to cope with it.
+        """
+        try:
+            if not xbmcvfs.exists(target):
+                return None
+            backup = target + ".osbak"
+            if xbmcvfs.exists(backup):
+                xbmcvfs.delete(backup)
+            if xbmcvfs.rename(target, backup):
+                return backup
+            if xbmcvfs.copy(target, backup):
+                xbmcvfs.delete(target)
+                return backup
+            log(__name__, "Auto-download: could not move the existing subtitle aside, keeping it")
+        except Exception as e:
+            log(__name__, f"Auto-download: preserving the existing subtitle raised {type(e).__name__}")
+        return None
+
+    def _discard_preserved(self, backup):
+        if not backup:
+            return
+        try:
+            if xbmcvfs.exists(backup):
+                xbmcvfs.delete(backup)
+        except Exception as e:
+            log(__name__, f"Auto-download: could not remove the backup copy ({type(e).__name__})")
+
+    def _restore_preserved(self, backup, target):
+        """Puts the user's original subtitle back after a failed replacement."""
+        if not backup:
+            return
+        try:
+            if xbmcvfs.exists(target):
+                xbmcvfs.delete(target)
+            if xbmcvfs.rename(backup, target) or xbmcvfs.copy(backup, target):
+                self._discard_preserved(backup)
+                log(__name__, "Auto-download: restored the existing subtitle after a failed replacement")
+                return
+            log(__name__, f"Auto-download: replacement failed and the original is kept at its backup path")
+        except Exception as e:
+            log(__name__, f"Auto-download: restoring the existing subtitle raised {type(e).__name__}")
+
+    def _auto_download_flow(self, generation=None):
+        if generation is None:
+            generation = self._current_generation()
         log(__name__, "Auto-download: flow starting")
         # Give Kodi player a moment to initialize streams and metadata
         if self.monitor and self.monitor.waitForAbort(1):
@@ -592,7 +679,18 @@ class OpenSubtitlesPlayer(xbmc.Player):
                     top_per_lang[lang] = sub
             picks = [(lang, top_per_lang[lang]) for lang in wanted_langs if lang in top_per_lang]
             if not picks:
-                picks = [(str(ranked[0]["attributes"].get("language", "")).lower(), ranked[0])]
+                # The fallback used to take ranked[0] unconditionally, bypassing
+                # the paid-translation check above - a silent background download
+                # could start an on-demand AI translation and spend the user's
+                # credits (review: PR #92). Fall back only to a free result.
+                free = next((s for s in ranked
+                             if not is_on_demand_translation(s.get("attributes", {}))
+                             and (s.get("attributes", {}).get("files"))), None)
+                if not free:
+                    log(__name__, "Auto-download: only paid on-demand translations available, "
+                                  "leaving the choice to the user")
+                    return
+                picks = [(str(free["attributes"].get("language", "")).lower(), free)]
             log(__name__, f"Auto-download: top pick per language = "
                           f"{[(l, (s.get('id') or (s['attributes'].get('files') or [{}])[0].get('file_id'))) for l, s in picks]}")
 
@@ -635,6 +733,12 @@ class OpenSubtitlesPlayer(xbmc.Player):
                 log(__name__, "Auto-download: nothing could be downloaded")
                 return
 
+            # Downloads are slow; the user may have switched videos meanwhile.
+            # Everything below touches the PLAYER, so it only runs when this work
+            # still belongs to what is on screen.
+            if not self._generation_is_current(generation, "auto-download"):
+                return
+
             # Primary language becomes the active subtitle; the rest join the
             # player's stream list as selectable alternatives.
             primary = next((entry for entry in loaded if entry[0] == primary_lang), loaded[0])
@@ -645,7 +749,7 @@ class OpenSubtitlesPlayer(xbmc.Player):
             lang, sub, sub_path, file_id = primary
             self.setSubtitles(sub_path)
             try:
-                xbmcgui.Window(10000).setProperty("os_com:last_loaded_subtitle", sub_path)
+                remember_loaded_subtitle(sub_path, file_path)
             except Exception:
                 pass
 
@@ -893,25 +997,51 @@ def check_for_update_silently():
 
 def _offer_sync(player, session):
     """Yes/no offer fired by the delay-nudge detector; runs the syncer socket."""
+    # Imported before the try: the handlers below reference syncer.SyncError, and
+    # an except clause naming an undefined module raises NameError of its own.
+    try:
+        from resources.lib import syncer
+    except Exception as e:
+        log(__name__, f"sync offer: syncer unavailable ({type(e).__name__})")
+        return
     try:
         if not xbmcgui.Dialog().yesno(__addon_name__, __language__(32278),
                                       autoclose=15000):
             return
-        from resources.lib import syncer
+        # sync_subtitle REQUIRES the video path; omitting it made every accepted
+        # offer raise immediately and the user saw nothing at all (review:
+        # PR #92). Prefer the path captured with the session, fall back to what
+        # is playing now, and say so plainly when neither is usable.
+        video_path = (session.get("media") or {}).get("file_original_path") or get_file_path()
+        if not video_path or str(video_path).startswith(
+                ("http://", "https://", "plugin://", "pvr://", "upnp://")):
+            xbmcgui.Dialog().ok(__addon_name__,
+                                "Subtitle sync needs a local video file - "
+                                "network and streamed sources are not supported yet.")
+            return
         result = syncer.sync_subtitle(session.get("sub_path"),
+                                      video_path=video_path,
                                       session=session)
         corrected = (result or {}).get("path")
         if corrected and os.path.exists(str(corrected)):
             player.setSubtitles(str(corrected))
-            xbmcgui.Window(10000).setProperty("os_com:last_loaded_subtitle", str(corrected))
+            remember_loaded_subtitle(str(corrected), video_path)
             offset = (result or {}).get("offset_ms")
             xbmcgui.Dialog().notification(
                 __addon_name__, f"Subtitle retimed ({offset:+d} ms)" if offset is not None
                 else "Subtitle synchronized", _addon_icon(), 3500)
     except syncer.EngineNotAvailable:
         xbmcgui.Dialog().ok(__addon_name__, __language__(32279))
+    except syncer.SyncError as e:
+        # The user said yes to this; a failure owes them an explanation.
+        # SyncError messages are authored history-free precisely so they can be
+        # shown (syncer.sync_subtitle contract).
+        log(__name__, "sync offer: engine reported a failure")
+        xbmcgui.Dialog().ok(__addon_name__, str(e))
     except Exception as e:
         log(__name__, f"sync offer failed: {type(e).__name__}")
+        xbmcgui.Dialog().notification(__addon_name__, "Subtitle sync failed",
+                                      _addon_icon(), 3500)
 
 
 def run_service():

@@ -36,3 +36,13 @@ class BadUsernameError(ProviderError):
 class AICreditsExhausted(DownloadLimitExceeded):
     """Raised when an AI-translated subtitle needs credits and the balance is zero."""
     pass
+
+
+class InvalidResponse(ProviderError):
+    """The server answered, but the payload shape was not usable.
+
+    Distinct from ProviderError so a single unparseable response DEGRADES - the
+    remaining id/title fallbacks still run - instead of aborting the whole search
+    chain, which is what the repository's resilience rule requires
+    (review: PR #92).
+    """

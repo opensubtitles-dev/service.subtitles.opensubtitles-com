@@ -11,7 +11,7 @@ from resources.lib.osclient.model.request.download import OpenSubtitlesDownloadR
 
 '''local kodi module imports. replace by any other exception, cache, log provider'''
 from resources.lib.exceptions import AuthenticationError, ConfigurationError, DownloadLimitExceeded, ProviderError, \
-    ServiceUnavailable, TooManyRequests, BadUsernameError, AICreditsExhausted
+    ServiceUnavailable, TooManyRequests, BadUsernameError, AICreditsExhausted, InvalidResponse
 from resources.lib.cache import Cache, sync_cache_stats_setting
 from resources.lib.utilities import log, get_user_agent, get_install_origin, redact_path, __addon__
 
@@ -371,14 +371,29 @@ class OpenSubtitlesProvider:
         return data or None
 
     @property
+    def _token_cache_key(self):
+        """Cache key for the JWT, bound to the credentials that obtained it.
+
+        A bare "user_token" key is shared by every provider instance in the
+        profile, so after the user switched accounts a fresh provider read the
+        PREVIOUS account's still-valid token and skipped logging in - downloads
+        then spent the wrong account's quota (review: PR #92). Binding the key to
+        a digest of the credentials means a changed username OR password simply
+        misses the cache and re-logins. The digest never reaches a log line and
+        is not reversible to the password.
+        """
+        ident = f"{self.username or ''}:{self.password or ''}"
+        return "user_token_" + hashlib.sha256(ident.encode("utf-8")).hexdigest()[:16]
+
+    @property
     def user_token(self):
-        return self.cache.get(key="user_token")
+        return self.cache.get(key=self._token_cache_key)
 
     @user_token.setter
     def user_token(self, value):
         # The API's JWT is valid for ~24h server-side; cache it for less than that so a
         # long-running device re-logins instead of presenting an expired token.
-        self.cache.set(key="user_token", value=value, expires=60 * 60 * 20)
+        self.cache.set(key=self._token_cache_key, value=value, expires=60 * 60 * 20)
 
     def search_subtitles(self, query: Union[dict, OpenSubtitlesSubtitlesRequest]):
 
@@ -478,7 +493,9 @@ class OpenSubtitlesProvider:
                 raise ValueError("data missing or not a list")
         except ValueError as e:
             logging(f"Failed to parse search response JSON: {type(e).__name__}")
-            raise ProviderError("Invalid JSON returned by provider")
+            # InvalidResponse (not a bare ProviderError): the caller retries its
+            # remaining id/title attempts instead of ending the search chain.
+            raise InvalidResponse("Invalid JSON returned by provider")
         else:
             logging(f"Query returned {len(result['data'])} subtitles")
 
@@ -684,15 +701,25 @@ class OpenSubtitlesProvider:
             logging(f"Refusing to submit out-of-range rating {rating}")
             return False
 
-        if not self.logged_in:
+        # Rating requires the JWT. `self.logged_in` / `self.base_url` /
+        # `self.headers` never existed on this class - touching them raised
+        # AttributeError before any request was sent, so no rating had ever
+        # reached the API (review: PR #92). The real state is the cached token.
+        if not self.user_token:
+            if not (self.username and self.password):
+                logging("Not logged in and no credentials - rating not submitted")
+                return False
             try:
-                self.login()  # populates the JWT bearer in self.headers
+                self.login()
             except Exception as e:
                 logging(f"Login failed before submitting rating: {type(e).__name__}")
                 return False
+        if not self.user_token:
+            logging("No auth token after login attempt - rating not submitted")
+            return False
 
-        url = self.base_url + "subtitles/rate"
-        headers = self.headers.copy()
+        url = API_URL + "subtitles/rate"
+        headers = {"Authorization": "Bearer " + self.user_token}
         payload = {"subtitle_id": int(subtitle_id), "rating": int(rating)}
         if sync is not None:
             payload["sync"] = bool(sync)

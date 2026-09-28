@@ -22,13 +22,27 @@ class UnsupportedSource(Exception):
 import struct, sys, time
 
 def _mp4_boxes(buf, start, end):
+    """Yields (type, payload_start, payload_end) for each box in [start, end).
+
+    Every size comes from the file, so each one is validated before it is used:
+    a box must advance the cursor by at least its own header and may not claim
+    to end past the enclosing range. Without that, an extended-size box
+    declaring 0 (or any size below the header length) left `off` unchanged and
+    the loop spun forever, hanging audio extraction on a crafted file
+    (review: PR #92).
+    """
     off = start
     while off + 8 <= end:
         size, btype = struct.unpack(">I4s", buf[off:off+8]); hdr = 8
         if size == 1:
+            if off + 16 > end:
+                return
             size = struct.unpack(">Q", buf[off+8:off+16])[0]; hdr = 16
         elif size == 0:
             size = end - off
+        if size < hdr or off + size > end:
+            # truncated or nonsensical box: stop rather than loop or read past it
+            return
         yield btype.decode("latin1"), off + hdr, off + size
         off += size
 
@@ -40,8 +54,22 @@ def _mp4_find(buf, path, start, end):
     return None
 
 def extract_mp4(path_in, path_out):
+    """Extracts the AAC track to ADTS. Reads the file through mmap.
+
+    The previous `f.read()` pulled an entire multi-gigabyte movie into Kodi's
+    Python process just to copy out its audio (review: PR #92). mmap gives the
+    same buffer semantics - slicing, find(), len() - while the OS pages in only
+    what is touched, so peak memory is the audio payload, not the movie.
+    """
+    if os.path.getsize(path_in) < 16:
+        raise UnsupportedSource("file too small to be MP4")
+    import mmap
     with open(path_in, "rb") as f:
-        data = f.read()
+        with mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as data:
+            return _extract_mp4_from(data, path_out)
+
+
+def _extract_mp4_from(data, path_out):
     moov = _mp4_find(data, ["moov"], 0, len(data))
     if not moov:
         raise UnsupportedSource("no moov box")
@@ -85,18 +113,38 @@ def extract_mp4(path_in, path_out):
         seg = data[s+skip:e]
         n = struct.unpack(">I", data[s+8:s+12])[0]
         return seg, n
+    # Every count below is file-supplied. An MP4 can claim an enormous entry
+    # count in a few bytes, and `[sample_size] * count` then allocated it before
+    # a single sample was read - a small crafted file could exhaust Kodi's
+    # memory (review: PR #92). Each table is bounded by the bytes that actually
+    # back it, and fixed-size tables by the file length.
+    total = len(data)
     stsz_s, stsz_e = _mp4_find(data, ["stsz"], *stbl)
     sample_size = struct.unpack(">I", data[stsz_s+4:stsz_s+8])[0]
     count = struct.unpack(">I", data[stsz_s+8:stsz_s+12])[0]
-    sizes = ([sample_size]*count if sample_size else
-             list(struct.unpack(">%dI" % count, data[stsz_s+12:stsz_s+12+4*count])))
+    if sample_size:
+        # a fixed-size table must not describe more audio than the file holds
+        if count > total // max(sample_size, 1) + 1:
+            raise UnsupportedSource("stsz sample count exceeds the file")
+        sizes = [sample_size] * count
+    else:
+        if stsz_s + 12 + 4 * count > min(stsz_e, total):
+            raise UnsupportedSource("stsz table is truncated")
+        sizes = list(struct.unpack(">%dI" % count, data[stsz_s+12:stsz_s+12+4*count]))
     co = _mp4_find(data, ["stco"], *stbl) or _mp4_find(data, ["co64"], *stbl)
+    if not co:
+        raise UnsupportedSource("no chunk offset table")
     is64 = data[co[0]-4:co[0]] == b"co64"
-    cn = struct.unpack(">I", co[0]+4 and data[co[0]+4:co[0]+8])[0]
+    cn = struct.unpack(">I", data[co[0]+4:co[0]+8])[0]
+    entry = 8 if is64 else 4
+    if co[0] + 8 + entry * cn > min(co[1], total):
+        raise UnsupportedSource("chunk offset table is truncated")
     fmt = ">%dQ" % cn if is64 else ">%dI" % cn
-    offsets = list(struct.unpack(fmt, data[co[0]+8:co[0]+8+(8 if is64 else 4)*cn]))
+    offsets = list(struct.unpack(fmt, data[co[0]+8:co[0]+8+entry*cn]))
     stsc_s, stsc_e = _mp4_find(data, ["stsc"], *stbl)
     sn = struct.unpack(">I", data[stsc_s+4:stsc_s+8])[0]
+    if stsc_s + 8 + 12 * sn > min(stsc_e, total):
+        raise UnsupportedSource("stsc table is truncated")
     stsc = [struct.unpack(">III", data[stsc_s+8+i*12:stsc_s+20+i*12]) for i in range(sn)]
 
     out = open(path_out, "wb")
@@ -109,7 +157,12 @@ def extract_mp4(path_in, path_out):
         pos = chunk_off
         for _ in range(per_chunk):
             if si >= len(sizes): break
-            sz = sizes[si]; frame = data[pos:pos+sz]
+            sz = sizes[si]
+            if pos + sz > total:
+                # chunk offset/size pair points past the file - stop cleanly
+                # instead of writing a short frame with a full-length header
+                break
+            frame = data[pos:pos+sz]
             flen = sz + 7
             hdr = bytearray(7)
             hdr[0] = 0xFF; hdr[1] = 0xF1

@@ -17,11 +17,13 @@ import xbmcvfs
 from resources.lib.data_collector import get_language_data, get_media_data, get_file_path, convert_language, \
     clean_feature_release_name, get_flag, _call_guessit_api
 from resources.lib.exceptions import AuthenticationError, ConfigurationError, DownloadLimitExceeded, ProviderError, \
-    ServiceUnavailable, TooManyRequests, BadUsernameError, AICreditsExhausted
+    ServiceUnavailable, TooManyRequests, BadUsernameError, AICreditsExhausted, InvalidResponse
 from resources.lib.file_operations import get_file_data
 from resources.lib.matcher import rank_subtitles, get_match_display_tag, is_on_demand_translation
 from resources.lib.osclient.provider import OpenSubtitlesProvider
-from resources.lib.utilities import get_params, log, error, redact_path, loggable_media, TEMP_MAX_AGE_SECONDS
+from resources.lib.utilities import (get_params, log, error, redact_path, loggable_media,
+                                     TEMP_MAX_AGE_SECONDS, remember_loaded_subtitle,
+                                     recall_loaded_subtitle)
 
 __addon__ = xbmcaddon.Addon("service.subtitles.opensubtitles-com")
 __scriptid__ = __addon__.getAddonInfo("id")
@@ -446,6 +448,12 @@ class SubtitleDownloader:
             log(__name__, "No attempt matched the title; showing the closest results found")
             self.subtitles = held_back
 
+        # An unusable payload no longer aborts the chain, but if the chain ends
+        # empty AND we saw one, the user is told - silence would read as "this
+        # video has no subtitles", which is not what happened.
+        if not self.subtitles and getattr(self, "invalid_response_seen", False):
+            error(__name__, 32009, detail="The server's response could not be read.")
+
         self.search_attempts = attempts_made
 
     def _inject_test_flag_subtitles(self):
@@ -644,6 +652,15 @@ class SubtitleDownloader:
         """
         try:
             return self.open_subtitles.search_subtitles(query), True
+        except InvalidResponse as e:
+            # Server answered with an unusable payload. Report it as "no results
+            # for THIS attempt" (ok=True) so the remaining id/title fallbacks
+            # still run - a single bad response used to abort the whole chain
+            # (review: PR #92). Remembered so the user still hears about it if
+            # nothing else produces results.
+            log(__name__, "Search response was not usable; continuing with the remaining attempts")
+            self.invalid_response_seen = True
+            return None, True
         except TooManyRequests as e:
             error(__name__, 32007, detail=str(e))
         except ServiceUnavailable as e:
@@ -742,9 +759,21 @@ class SubtitleDownloader:
                 now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
                 remaining = self.file.get("remaining")
                 vip_str = "VIP" if self.username else "Free User"
-                __addon__.setSetting("account_status", f"OK ({vip_str})")
-                __addon__.setSetting("account_details", f"Quota: {remaining} downloads left today")
-                __addon__.setSetting("account_checked_at", now_str)
+                fresh = {
+                    "account_status": f"OK ({vip_str})",
+                    "account_details": f"Quota: {remaining} downloads left today",
+                    "account_checked_at": now_str,
+                }
+                for key, value in fresh.items():
+                    __addon__.setSetting(key, value)
+                # Settings alone are not enough: the service reconciles them back
+                # to account_state.json, which would restore the OLDER quota over
+                # what we just learned (review: PR #92). Write through.
+                try:
+                    from resources.lib.account_state import update_account_state
+                    update_account_state(fresh)
+                except Exception as e:
+                    log(__name__, f"could not persist refreshed quota ({type(e).__name__})")
 
             # Save downloaded language to adaptive memory
             dl_lang = self.params.get("language")
@@ -757,7 +786,7 @@ class SubtitleDownloader:
 
             try:
                 # the sync action needs to find "the subtitle currently shown"
-                xbmcgui.Window(10000).setProperty("os_com:last_loaded_subtitle", subtitle_path)
+                remember_loaded_subtitle(subtitle_path)
             except Exception:
                 pass
             list_item = xbmcgui.ListItem(label=subtitle_path)
@@ -952,13 +981,9 @@ class SubtitleDownloader:
 
     def _active_subtitle_path(self):
         """Best-effort path of the subtitle currently shown, or "" when unknown."""
-        try:
-            props = xbmcgui.Window(10000).getProperty("os_com:last_loaded_subtitle")
-            if props and os.path.exists(props):
-                return props
-        except Exception:
-            pass
-        return ""
+        # recall_loaded_subtitle() refuses a value stamped for another video,
+        # so [SYNC] can no longer retime the previous playback's subtitle.
+        return recall_loaded_subtitle()
 
     def _inject_transcribe_row(self):
         """EXPERIMENTAL (expert setting ai_transcription_enabled): one extra row
