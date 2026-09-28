@@ -1,0 +1,48 @@
+
+class ProviderError(Exception):
+    """Exception raised by providers."""
+    pass
+
+
+class ConfigurationError(ProviderError):
+    """Exception raised by providers when badly configured."""
+    pass
+
+
+class AuthenticationError(ProviderError):
+    """Exception raised by providers when authentication failed."""
+    pass
+
+
+class ServiceUnavailable(ProviderError):
+    """Exception raised when status is '503 Service Unavailable'."""
+    pass
+
+
+class DownloadLimitExceeded(ProviderError):
+    """Exception raised by providers when download limit is exceeded."""
+    pass
+
+
+class TooManyRequests(ProviderError):
+    """Exception raised by providers when too many requests are made."""
+    pass
+
+
+class BadUsernameError(ProviderError):
+    """Exception raised by providers when user entered the email instead of the username in the username field."""
+    pass
+
+class AICreditsExhausted(DownloadLimitExceeded):
+    """Raised when an AI-translated subtitle needs credits and the balance is zero."""
+    pass
+
+
+class InvalidResponse(ProviderError):
+    """The server answered, but the payload shape was not usable.
+
+    Distinct from ProviderError so a single unparseable response DEGRADES - the
+    remaining id/title fallbacks still run - instead of aborting the whole search
+    chain, which is what the repository's resilience rule requires
+    (review: PR #92).
+    """
