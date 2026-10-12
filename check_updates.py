@@ -46,13 +46,26 @@ FAST_TRACK_REPO_ID = "repository.opensubtitles-com"
 # newer fast-track version exists would just be a version they cannot receive.
 KODI_BRANCH_BY_MAJOR = {19: "matrix", 20: "nexus", 21: "omega", 22: "piers"}
 
+# Subtitle add-ons live in xbmc/repo-scripts - repo-plugins has never carried
+# this add-on, and querying it is what made every dialog report "Official Kodi
+# repo: not yet available" while the official repo really served v1.0.90.
+OFFICIAL_REPO = "repo-scripts"
+
+# Only the matrix branch has this add-on merged; the nexus/omega/piers mirrors
+# inherit that same build (verified 2026-10-12: all four feeds on
+# mirrors.kodi.tv serve 1.0.90). A per-Kodi-version branch lookup alone
+# therefore 404s for every Kodi 20+ user and under-reports the version they can
+# actually install, so matrix is always tried as the fallback.
+OFFICIAL_BRANCH_FALLBACK = "matrix"
+
 
 def fetch_official_kodi_version():
     """Version in the official Kodi repository for this Kodi release, or None.
 
-    Reads the addon.xml straight from the xbmc/repo-plugins branch matching the
-    running Kodi major version. 404 simply means the add-on is not (yet) in the
-    official repository for that release.
+    Reads the addon.xml straight from xbmc/repo-scripts: first the branch
+    matching the running Kodi version (so a future branch-specific release is
+    picked up), then matrix, the branch this add-on is actually merged into and
+    the one every other feed inherits. None means neither carries it.
     """
     # System.BuildVersionShort is not present on every Kodi release;
     # System.BuildVersion ("21.3 (21.3.0) Git:...") exists everywhere - parse
@@ -64,21 +77,24 @@ def fetch_official_kodi_version():
             break
         except (ValueError, AttributeError):
             continue
-    if major is None:
-        return None
-    branch = KODI_BRANCH_BY_MAJOR.get(major)
-    if not branch:
-        return None
-    url = (f"https://raw.githubusercontent.com/xbmc/repo-plugins/{branch}/"
-           f"service.subtitles.opensubtitles-com/addon.xml")
-    try:
-        resp = requests.get(url, headers={"User-Agent": get_user_agent()}, timeout=6, stream=True)
-        if resp.status_code == 200:
-            body = _read_capped(resp)
-            if body is not None:
-                return extract_remote_version(body)
-    except Exception:
-        pass
+    # An unreadable Kodi version is not a reason to give up: matrix still
+    # answers for every branch, so fall through to it rather than returning None.
+    branch = KODI_BRANCH_BY_MAJOR.get(major) if major is not None else None
+    # dict.fromkeys dedupes while preserving order - a Kodi 19 box must not
+    # fetch the same matrix URL twice.
+    for b in dict.fromkeys([x for x in (branch, OFFICIAL_BRANCH_FALLBACK) if x]):
+        url = (f"https://raw.githubusercontent.com/xbmc/{OFFICIAL_REPO}/{b}/"
+               f"service.subtitles.opensubtitles-com/addon.xml")
+        try:
+            resp = requests.get(url, headers={"User-Agent": get_user_agent()}, timeout=6, stream=True)
+            if resp.status_code == 200:
+                body = _read_capped(resp)
+                if body is not None:
+                    version = extract_remote_version(body)
+                    if version:
+                        return version
+        except Exception:
+            continue
     return None
 
 

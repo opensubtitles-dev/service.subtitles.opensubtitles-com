@@ -70,11 +70,41 @@
 
 ---
 
+## ❓ What does the `(+30)` number next to a subtitle mean?
+
+It is a **match confidence score** — how well that subtitle's release matches the exact video file you are playing, on a 1–99 scale. It is **not** a count of files, versions or downloads, and it is not a user rating.
+
+The add-on compares your filename with each subtitle's release name (release group, source, cut/edition, resolution, video/audio codec, plus fuzzy similarity) and sorts the list best-match-first:
+
+- `(+99)` — the release name matches your file
+- `(+60)`–`(+95)` — same release group or same source/cut, very likely in sync
+- `(+15)`–`(+39)` — only loose overlap, sync not guaranteed
+- no number — either a bit-exact **file hash** match (Kodi draws its own sync icon for those, so the add-on does not duplicate it) or nothing in common beyond the title
+
+Turn it off with **Smart Release & Subtitle Matching** in the add-on settings. Matching only reorders and labels results — it never hides a subtitle. Full scoring table: [the `(+NN)` match badge](https://github.com/opensubtitles/service.subtitles.opensubtitles-com/blob/master/docs/match_badge.md).
+
+---
+
+## ❓ What is the "fast-track updates" message?
+
+It appears only when **you** press **Check for updates** in the add-on settings — never on its own. It reports that a newer build exists in the OpenSubtitles.com fast-track repository, and that Kodi cannot deliver it to this install because Kodi pins every add-on to the repository it was installed from.
+
+- **Yes** only shows setup instructions. It installs nothing and changes nothing.
+- **No** dismisses it. It is not scheduled to return — it is shown again only the next time you press Check for updates.
+- **Fast-track vs official**: identical code, different timing. Fast-track gets a release the day it ships; the official Kodi repository gets it whenever Kodi's reviewers merge it (weeks to months). The trade-off is soak time, not quality.
+- The once-a-day background check never asks anything — at most a 6-second toast when a newer version exists.
+
+Details: [fast-track update notification](https://github.com/opensubtitles/service.subtitles.opensubtitles-com/blob/master/docs/fast_track_updates.md).
+
+---
+
 ## 📚 Developer & Contributor Documentation
 
 - 🛠️ [Developer Workflow & Fast Testing Guide](https://github.com/opensubtitles/service.subtitles.opensubtitles-com/blob/master/docs/DEV_WORKFLOW.md)
 - 📋 [Kodi Standards & Repo Submission Rules](https://github.com/opensubtitles/service.subtitles.opensubtitles-com/blob/master/docs/KODI_STANDARDS.md)
 - 🤖 [AI Agent Architecture & Guidelines](https://github.com/opensubtitles/service.subtitles.opensubtitles-com/blob/master/docs/AGENT_INSTRUCTIONS.md)
+- 🎯 [The `(+NN)` Match Badge — Scoring Reference](https://github.com/opensubtitles/service.subtitles.opensubtitles-com/blob/master/docs/match_badge.md)
+- 🚀 [Fast-Track Update Notification — Channels & Origin Pinning](https://github.com/opensubtitles/service.subtitles.opensubtitles-com/blob/master/docs/fast_track_updates.md)
 - 🗺️ [Project Roadmap & Feature Backlog](https://github.com/opensubtitles/service.subtitles.opensubtitles-com/blob/master/docs/TODO.md)
 - 📜 [Full Release Changelog](https://github.com/opensubtitles/service.subtitles.opensubtitles-com/blob/master/CHANGELOG.md)
 

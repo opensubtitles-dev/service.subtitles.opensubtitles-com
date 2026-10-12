@@ -181,8 +181,8 @@ git push fork v1.0.14-hygiene --tags
 git push origin master --tags
 ```
 
-### Step 6: Submit to Official Kodi Repository (`xbmc/repo-plugins`)
-1. Create a PR to [`xbmc/repo-plugins`](https://github.com/xbmc/repo-plugins) targeting the appropriate branch (`omega`, `piers`, etc.).
+### Step 6: Submit to Official Kodi Repository (`xbmc/repo-scripts`)
+1. Create a PR to [`xbmc/repo-scripts`](https://github.com/xbmc/repo-scripts) targeting branch **`matrix`**. Subtitle add-ons live in `repo-scripts`, never `repo-plugins` (the add-on has never existed there; the 2026-08 repo-plugins PRs all stalled for that reason). `matrix` is the only branch this add-on is merged into — the `nexus`/`omega`/`piers` mirrors inherit that same build, so one PR covers every Kodi version. Verified 2026-10-12: all four feeds on `mirrors.kodi.tv` serve 1.0.90.
 2. PR title must be: `[service.subtitles.opensubtitles-com] x.y.z`.
 3. Must contain **exactly 1 commit** with the clean changes.
 

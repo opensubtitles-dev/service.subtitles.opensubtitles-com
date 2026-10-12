@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Official Kodi subtitle add-on (`service.subtitles.opensubtitles-com`) for OpenSubtitles.com, built on its REST API. Python 3 only, targets Kodi Matrix (19) through Piers (22). Licensed GPL-2.0.
 
-Companion docs (keep in sync when workflows change): `docs/DEV_WORKFLOW.md` (dev/release workflow), `docs/KODI_STANDARDS.md` (Kodi repo compliance), `docs/AGENT_INSTRUCTIONS.md` (AI agent rules), `docs/HANDOVER.md` (current branch state and in-flight features), `docs/TODO.md` (roadmap), `docs/kodi_api_internals.md` (Kodi Python API ground truth: subtitle plugin contract, Player/Monitor semantics, JSON-RPC, gotchas — read before touching service.py or service_monitor.py), `docs/kodi_ui_font_compatibility.md` (glyph/emoji rendering matrix).
+Companion docs (keep in sync when workflows change): `docs/DEV_WORKFLOW.md` (dev/release workflow), `docs/KODI_STANDARDS.md` (Kodi repo compliance), `docs/AGENT_INSTRUCTIONS.md` (AI agent rules), `docs/HANDOVER.md` (current branch state and in-flight features), `docs/TODO.md` (roadmap), `docs/kodi_api_internals.md` (Kodi Python API ground truth: subtitle plugin contract, Player/Monitor semantics, JSON-RPC, gotchas — read before touching service.py or service_monitor.py), `docs/kodi_ui_font_compatibility.md` (glyph/emoji rendering matrix), `docs/match_badge.md` (what the `(+NN)` badge means, full scoring table — paste-ready support answer; update whenever `matcher.py` scoring changes), `docs/fast_track_updates.md` (fast-track vs official channel, Kodi origin pinning, when the update dialog fires — paste-ready support answer; update whenever `check_updates.py` dialog logic changes).
 
 ## Commands
 
@@ -95,6 +95,6 @@ Kodi modules (`xbmc`, `xbmcgui`, `xbmcaddon`, `xbmcvfs`, `xbmcplugin`) exist onl
 
 ## Release Process
 
-Full checklist in `docs/DEV_WORKFLOW.md` §6. Summary: bump `version=` and `<news>` in `addon.xml` → update `changelog.txt` → `python3 -m pytest` + `kodi-addon-checker --branch omega .` → `python3 scripts/build_release_zip.py` → commit as `[service.subtitles.opensubtitles-com] x.y.z` → tag `vx.y.z` → push. Submissions to `xbmc/repo-plugins` require exactly one squashed commit with that title format.
+Full checklist in `docs/DEV_WORKFLOW.md` §6. Summary: bump `version=` and `<news>` in `addon.xml` → update `changelog.txt` → `python3 -m pytest` + `kodi-addon-checker --branch omega .` → `python3 scripts/build_release_zip.py` → commit as `[service.subtitles.opensubtitles-com] x.y.z` → tag `vx.y.z` → push. Submissions go to `xbmc/repo-scripts` branch `matrix` (never `repo-plugins`; `matrix` is the only merged branch and the other mirrors inherit it) and require exactly one squashed commit with that title format.
 
 Check `docs/HANDOVER.md` before starting work — it records which branch is frozen (pending upstream PR) vs. active development.

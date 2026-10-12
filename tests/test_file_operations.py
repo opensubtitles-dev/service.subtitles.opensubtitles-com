@@ -118,26 +118,76 @@ def test_official_kodi_version_falls_back_to_buildversion():
     import check_updates as cu
 
     labels = {"System.BuildVersionShort": "", "System.BuildVersion": "21.3 (21.3.0) Git:x"}
-    seen = {}
+    seen = []
 
     class Resp:
-        status_code = 200
+        def __init__(self, status_code=200):
+            self.status_code = status_code
 
         @staticmethod
         def iter_content(chunk_size=0):
             return iter([b'<addon id="service.subtitles.opensubtitles-com" version="1.0.9"/>'])
 
     def fake_get(url, **kw):
-        seen["url"] = url
+        seen.append(url)
         return Resp()
 
     with patch("check_updates.xbmc.getInfoLabel", side_effect=lambda l: labels.get(l, "")), \
          patch("check_updates.requests.get", side_effect=fake_get):
         assert cu.fetch_official_kodi_version() == "1.0.9"
-    assert "/omega/" in seen["url"]  # major 21 -> omega branch
+    assert "/omega/" in seen[0]  # major 21 -> omega branch
+    # subtitle add-ons live in repo-scripts; repo-plugins has never carried this
+    # add-on and always 404s (it made the dialog say "not yet available" while
+    # the official repo served v1.0.90)
+    assert "repo-scripts" in seen[0] and "repo-plugins" not in seen[0]
+    assert len(seen) == 1  # branch answered, no pointless fallback request
 
-    # Neither label parseable -> None, never an exception
-    with patch("check_updates.xbmc.getInfoLabel", return_value=""):
+
+def test_official_kodi_version_falls_back_to_matrix_branch():
+    # Only the matrix branch has this add-on merged - nexus/omega/piers mirrors
+    # inherit that build. Without the fallback every Kodi 20+ user is told the
+    # official repo has nothing while their own feed serves it.
+    import check_updates as cu
+
+    seen = []
+
+    class Resp:
+        def __init__(self, status_code):
+            self.status_code = status_code
+
+        @staticmethod
+        def iter_content(chunk_size=0):
+            return iter([b'<addon id="service.subtitles.opensubtitles-com" version="1.0.90"/>'])
+
+    def fake_get(url, **kw):
+        seen.append(url)
+        return Resp(200 if "/matrix/" in url else 404)
+
+    labels = {"System.BuildVersionShort": "21.3"}
+    with patch("check_updates.xbmc.getInfoLabel", side_effect=lambda l: labels.get(l, "")), \
+         patch("check_updates.requests.get", side_effect=fake_get):
+        assert cu.fetch_official_kodi_version() == "1.0.90"
+    assert len(seen) == 2 and "/omega/" in seen[0] and "/matrix/" in seen[1]
+
+    # Kodi 19: branch IS matrix - must not fetch the same URL twice
+    seen.clear()
+    labels = {"System.BuildVersionShort": "19.4"}
+    with patch("check_updates.xbmc.getInfoLabel", side_effect=lambda l: labels.get(l, "")), \
+         patch("check_updates.requests.get", side_effect=fake_get):
+        assert cu.fetch_official_kodi_version() == "1.0.90"
+    assert len(seen) == 1
+
+    # Unreadable Kodi version is no reason to give up - matrix answers anyway
+    seen.clear()
+    with patch("check_updates.xbmc.getInfoLabel", return_value=""), \
+         patch("check_updates.requests.get", side_effect=fake_get):
+        assert cu.fetch_official_kodi_version() == "1.0.90"
+    assert len(seen) == 1 and "/matrix/" in seen[0]
+
+    # Nothing upstream at all -> None, never an exception
+    seen.clear()
+    with patch("check_updates.xbmc.getInfoLabel", return_value=""), \
+         patch("check_updates.requests.get", side_effect=lambda url, **kw: Resp(404)):
         assert cu.fetch_official_kodi_version() is None
 
 

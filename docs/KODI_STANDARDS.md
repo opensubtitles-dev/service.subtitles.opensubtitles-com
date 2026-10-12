@@ -1,6 +1,6 @@
 # Kodi Add-on Standards & Submission Rules
 
-This document outlines the official standards, repository rules, and validation guidelines for `service.subtitles.opensubtitles-com` to ensure full compliance with the official Kodi repository ([`xbmc/repo-plugins`](https://github.com/xbmc/repo-plugins)).
+This document outlines the official standards, repository rules, and validation guidelines for `service.subtitles.opensubtitles-com` to ensure full compliance with the official Kodi repository ([`xbmc/repo-scripts`](https://github.com/xbmc/repo-scripts) — subtitle add-ons live there, never in `repo-plugins`).
 
 ---
 
@@ -82,8 +82,8 @@ All checks should pass with **0 problems**.
 
 ## 5. Submitting Updates to Official Kodi Repositories
 
-When submitting updates to [`xbmc/repo-plugins`](https://github.com/xbmc/repo-plugins):
-1. **Branch**: Create PR against the appropriate Kodi branch (e.g., `matrix`, `nexus`, `omega`, `piers`).
+When submitting updates to [`xbmc/repo-scripts`](https://github.com/xbmc/repo-scripts):
+1. **Branch**: Create the PR against **`matrix`** — the only branch this add-on is merged into. The `nexus`/`omega`/`piers` mirrors inherit that build, so one PR reaches every Kodi version (verified 2026-10-12).
 2. **One Commit Only**: Squash all changes into a single commit.
 3. **Commit Title Format**: `[service.subtitles.opensubtitles-com] <version>` (e.g., `[service.subtitles.opensubtitles-com] 1.0.15`).
 4. **Clean Workspace**: Ensure no `__pycache__`, `.pyc`, or temporary files are present.
