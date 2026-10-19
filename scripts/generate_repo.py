@@ -292,6 +292,36 @@ def build_index_html(addons_info):
         </div>
 
         <div class="card">
+            <span class="method-tag">Work in progress &mdash; not an update, install by hand</span>
+            <h2 style="margin-top: 0.25rem;">🧪 Try v2.0.0 (beta)</h2>
+            <p style="color: var(--text-muted);">
+                The 2.x line adds a <strong>background service</strong> (silent multi-language
+                auto-download when playback starts, post-playback rating prompt, account alerts),
+                <strong>AI transcription</strong> for films with no subtitles at all, and
+                <strong>subtitle sync</strong> that retimes an out-of-sync subtitle against the
+                audio. It is still being developed &mdash; expect rough edges.
+            </p>
+            <p style="color: var(--text-muted);">
+                It is deliberately <strong>not in the repository feed above</strong>: Kodi will
+                never offer it to you as an update, and installing it will not happen by itself.
+                If you want to try it, download the zip and install it yourself; the stable
+                release stays the one served by the repository.
+            </p>
+            <div style="text-align: center;">
+                <a class="btn" href="https://github.com/opensubtitles/service.subtitles.opensubtitles-com/releases/tag/2.0.0-beta.1">⬇️ Download v2.0.0 beta zip</a>
+            </div>
+            <ol>
+                <li>Download <code>service.subtitles.opensubtitles-com-2.0.0.zip</code> from the page above.</li>
+                <li>In Kodi, go to <strong>Add-ons ➔ Install from zip file</strong> and pick the downloaded file.</li>
+                <li>To go back to the stable release, uninstall it and reinstall from the repository.</li>
+            </ol>
+            <p style="color: var(--text-muted); font-size: 0.9rem;">
+                Found a problem? Report it at
+                <a href="https://github.com/opensubtitles-dev/service.subtitles.opensubtitles-com/issues">GitHub Issues</a>.
+            </p>
+        </div>
+
+        <div class="card">
             <h2 style="margin-top: 0.25rem;">💻 Method 2: Direct Zip Download</h2>
             <p style="color: var(--text-muted);">For offline installation, or devices that cannot reach the repository directly:</p>
             <div style="text-align: center;">
