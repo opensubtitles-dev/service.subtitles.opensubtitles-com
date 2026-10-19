@@ -48,6 +48,32 @@ def log(msg):
     _log(__name__, msg)
 
 
+# A corrected subtitle is a text file; 8 MiB is already absurd for one (the
+# largest real .ass with embedded fonts seen in the wild is under 2 MiB).
+# Reading an unbounded body into memory on a 512 MB Android TV box is how a
+# misbehaving or hostile endpoint takes Kodi down, so the read is capped - the
+# 1.x Class 6 rule ("anything fetched remotely gets a size cap"), which until
+# now had only ever been applied to the update manifest.
+MAX_DOWNLOAD_BYTES = 8 * 1024 * 1024
+
+
+def read_capped(resp, cap=MAX_DOWNLOAD_BYTES):
+    """At most cap bytes of a streamed response; None when the cap is exceeded.
+
+    Deliberately returns None rather than truncating: a half subtitle written to
+    disk and handed to the player is worse than an honest failure.
+    """
+    chunks, total = [], 0
+    for chunk in resp.iter_content(chunk_size=65536):
+        if not chunk:
+            continue
+        total += len(chunk)
+        if total > cap:
+            return None
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
 class SyncError(Exception):
     """A synchronization attempt failed in a way worth telling the user."""
 
@@ -628,14 +654,23 @@ def sync_subtitle(sub_path, video_path=None, session=None, progress=None):
             f"(confidence {confidence:.0%}). It may be made for a different "
             f"cut or a different film - no changes were applied.")
 
-    sr = requests.get(url + result.get("subtitle_url", ""), auth=auth, timeout=60)
-    if sr.status_code != 200 or not sr.content:
+    sr = requests.get(url + result.get("subtitle_url", ""), auth=auth,
+                      timeout=60, stream=True)
+    if sr.status_code != 200:
+        raise SyncError("The corrected subtitle could not be fetched.")
+    body = read_capped(sr)
+    if body is None:
+        log(f"sync aborted: corrected subtitle exceeded "
+            f"{MAX_DOWNLOAD_BYTES // (1024 * 1024)} MiB")
+        raise SyncError("The corrected subtitle was unexpectedly large and was "
+                        "not applied.")
+    if not body:
         raise SyncError("The corrected subtitle could not be fetched.")
     out_path = os.path.join(
         _profile_dir(), f"synced.{uuid.uuid4().hex[:8]}"
                         f"{os.path.splitext(sub_path)[1] or '.srt'}")
     with open(out_path, "wb") as f:
-        f.write(sr.content)
+        f.write(body)
     log(f"sync done: {transform.get('type')} offset={transform.get('offset_ms')}ms "
         f"scale={transform.get('scale')} confidence={confidence:.2f} "
         f"engine={result.get('engine_used')}")

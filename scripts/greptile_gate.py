@@ -20,6 +20,8 @@ Rules (each maps to a shipped regression):
   G09 true division feeding an index                           (multipart RAR, 1.0.71)
   G10 truthiness gate on season/episode coordinates            (season 0 dropped, 1.0.57/58)
   G11 bare int()/float() of external values outside try        (malformed size, 1.0.69)
+  G12 playback-derived viewing history in log                  (Kodi review, 1.0.85-1.0.88)
+  G13 response body in log, incl. via subscript                (rate_subtitle resp.text, 2.0.0)
 
 Silence a deliberate exception with an inline pragma on the same line:
     ...  # greptile-ok: <reason>
@@ -51,6 +53,62 @@ HISTORY_NAMES = {"filename", "basename", "stem", "playing_file", "fallback_title
 EXTERNAL_VALUE_HINTS = ("getInfoLabel", "getProperty", "getSetting", "orig_",
                         "params[", "params.get", ".get(")
 LOG_FUNC_NAMES = {"log", "logging", "error"}
+# response-body attributes: never in a log line, in any shape (rule G13)
+BODY_ATTRS = {"text", "content", "raw", "body"}
+# objects whose .text/.content is a response body rather than, say, a UI label
+RESPONSE_NAMES = {"r", "resp", "response", "sr", "pr", "kr", "req", "reply", "res"}
+
+
+def _unwrap(expr):
+    """Strips slices, str()/repr() wrappers and attribute-free call chains so a
+    body reached as `resp.text[:100]` or `str(r.content).strip()` is still
+    recognisable as `resp.text` / `r.content`."""
+    while True:
+        if isinstance(expr, ast.Subscript):
+            expr = expr.value
+        elif isinstance(expr, (ast.UnaryOp, ast.Compare)):
+            # `not resp.text` / `resp.text == ""` yield a BOOLEAN - that is the
+            # sanctioned way to report emptiness and carries no body bytes.
+            return None
+        elif isinstance(expr, ast.BoolOp):
+            # `(resp.text or "")` IS the body with a fallback - keep looking
+            # inside it, otherwise the `or ""` idiom becomes a bypass.
+            for v in expr.values:
+                found = _unwrap(v)
+                if _bodyish_attr(found):
+                    return found
+            return None
+        elif isinstance(expr, ast.Call) and isinstance(expr.func, ast.Name) \
+                and expr.func.id in ("str", "repr", "bytes", "len") and expr.args:
+            # len() is a size, not a body - stop and report nothing
+            if expr.func.id == "len":
+                return None
+            expr = expr.args[0]
+        elif isinstance(expr, ast.Call) and isinstance(expr.func, ast.Attribute) \
+                and expr.func.attr in ("strip", "lstrip", "rstrip", "lower",
+                                       "upper", "decode", "replace"):
+            expr = expr.func.value
+        else:
+            return expr
+
+
+def _bodyish_attr(expr):
+    """The body attribute name when expr is <response>.text / .content / ...,
+    else None. Requires the receiver to look like a response object so a
+    legitimate `label.text` or `item.content` does not trip the rule."""
+    if not isinstance(expr, ast.Attribute) or expr.attr not in BODY_ATTRS:
+        return None
+    recv = expr.value
+    if isinstance(recv, ast.Name) and recv.id in RESPONSE_NAMES:
+        return expr.attr
+    # self.response.text, resp_obj.text, requests.get(...).text
+    if isinstance(recv, ast.Attribute) and recv.attr in RESPONSE_NAMES:
+        return expr.attr
+    if isinstance(recv, ast.Call):
+        seg = getattr(recv.func, "attr", "") or getattr(recv.func, "id", "")
+        if seg in ("get", "post", "put", "patch", "delete", "request"):
+            return expr.attr
+    return None
 
 
 def shipped_files():
@@ -215,6 +273,16 @@ class Gate(ast.NodeVisitor):
             if isinstance(expr, ast.Name) and expr.id in DICTISH_NAMES:
                 self.flag(node, "G06", f"whole '{expr.id}' interpolated in log - "
                                        "redact URL-shaped values first")
+            # G13: a response BODY in a log line. 1.0.89/1.0.90 removed the last
+            # of these from the 1.x line by hand, but the rule was never
+            # mechanized - so v2's rate_subtitle reintroduced it as
+            # `resp.text[:100]`, which no earlier rule could see (the body is
+            # reached through a Subscript, not a bare Name). Unwrap slices,
+            # str()/repr() wrappers and .strip()-style chains before testing.
+            if _bodyish_attr(_unwrap(expr)):
+                self.flag(node, "G13", f"response body '.{_bodyish_attr(_unwrap(expr))}' "
+                                       "in log - bodies echo request context; log "
+                                       "status code and emptiness only")
         # G04/G06 also via %-format and str concat: cheap source check
         src = ast.get_source_segment(self.source, node) or ""
         if "sys.argv" in src and "G04" not in "".join(self.findings[-3:]):

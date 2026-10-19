@@ -2,6 +2,7 @@
 toggle-gated row, service-configured gating, job lifecycle against a mocked
 service (contract measured live 2026-08-29), honest low-confidence rejection,
 delay-nudge detection."""
+import os
 from unittest.mock import patch, MagicMock
 
 import pytest
@@ -94,9 +95,20 @@ def _mock_service(status_flow, transform, warnings=(), sub_body=b"1\n00:00:01,00
                     "subtitle_url": "/v1/jobs/j_test/subtitle",
                     "warnings": list(warnings)} if s == "done" else None)})
              for s in status_flow]
-    sub = MagicMock(status_code=200, content=sub_body)
+    sub = _mock_sub_response(sub_body)
     get = MagicMock(side_effect=polls + [sub])
     return post, get
+
+
+def _mock_sub_response(sub_body, chunk=65536):
+    """The corrected-subtitle response. Streamed, because syncer reads it
+    through a capped reader (MAX_DOWNLOAD_BYTES) rather than touching
+    .content - an unbounded read would be a Class 6 violation."""
+    return MagicMock(
+        status_code=200,
+        content=sub_body,
+        iter_content=lambda chunk_size=chunk: (
+            sub_body[i:i + chunk_size] for i in range(0, len(sub_body), chunk_size)))
 
 
 def test_sync_subtitle_happy_path(tmp_path):
@@ -284,6 +296,10 @@ def test_fingerprint_low_confidence_falls_back_to_audio(tmp_path):
 def _resp(status=200, json_body=None, content=b"", headers=None):
     r = MagicMock(status_code=status, content=content, headers=headers or {})
     r.json.return_value = json_body or {}
+    # the subtitle fetch is read through syncer's capped reader, so the mock has
+    # to stream like the real response does
+    r.iter_content = lambda chunk_size=65536: (
+        content[i:i + chunk_size] for i in range(0, len(content), chunk_size))
     return r
 
 
@@ -460,3 +476,60 @@ def test_contribution_aborts_on_shutdown(tmp_path):
         assert syncer.contribute_fingerprint(vid, abort_check=lambda: True) is False
     assert not post.called
     xbmcaddon.Addon().setSetting("sync_service_url", "")
+
+
+# --- Class 6: anything fetched remotely gets a size cap ----------------------
+#
+# The 1.x line only ever applied this to the update manifest
+# (check_updates.MANIFEST_MAX_BYTES). syncer downloads the corrected subtitle
+# and writes it straight to disk, so it needs the same treatment: an unbounded
+# read on a 512 MB Android TV box is how a misbehaving endpoint takes Kodi down.
+
+def test_read_capped_returns_body_under_the_cap():
+    from resources.lib import syncer
+    body = b"x" * 1024
+    resp = _mock_sub_response(body)
+    assert syncer.read_capped(resp, cap=4096) == body
+
+
+def test_read_capped_refuses_oversized_body_instead_of_truncating():
+    from resources.lib import syncer
+    resp = _mock_sub_response(b"x" * 9000, chunk=1000)
+    # None, never a truncated prefix - half a subtitle handed to the player is
+    # worse than an honest failure
+    assert syncer.read_capped(resp, cap=4096) is None
+
+
+def test_oversized_corrected_subtitle_raises_syncerror_and_writes_nothing(tmp_path):
+    from resources.lib import syncer
+    addon = xbmcaddon.Addon()
+    addon.setSetting("sync_service_url", "https://subsync.example")
+    srt = tmp_path / "a.srt"; srt.write_text("1\n00:00:01,000 --> 00:00:02,000\nx\n")
+    vid = tmp_path / "a.mkv"; vid.write_bytes(b"\x00" * 32)
+    audio = tmp_path / "a.ogg"; audio.write_bytes(b"OggS")
+    huge = b"y" * (syncer.MAX_DOWNLOAD_BYTES + 1)
+    post, get = _mock_service(["done"],
+                              {"type": "constant", "offset_ms": 10, "scale": 1.0,
+                               "confidence": 0.99},
+                              sub_body=huge)
+    before = set(os.listdir(str(tmp_path)))
+    with patch("resources.lib.transcriber.get_capabilities", return_value={"ffmpeg": ""}), \
+         patch.object(syncer, "_extract_audio", return_value=str(audio)), \
+         patch.object(syncer, "_profile_dir", return_value=str(tmp_path)), \
+         patch.object(syncer, "POLL_SECONDS", 0), \
+         patch("requests.post", post), patch("requests.get", get):
+        with pytest.raises(syncer.SyncError):
+            syncer.sync_subtitle(str(srt), video_path=str(vid))
+    assert set(os.listdir(str(tmp_path))) == before, "no partial file may be left behind"
+    assert srt.read_text().startswith("1\n"), "the original must never be touched"
+    addon.setSetting("sync_service_url", "")
+
+
+def test_subtitle_fetch_is_streamed_not_buffered():
+    """A regression guard on the mechanism: if someone reverts to
+    requests.get(...).content the cap stops meaning anything."""
+    import inspect
+    from resources.lib import syncer
+    src = inspect.getsource(syncer)
+    assert "read_capped(sr)" in src
+    assert "sr.content" not in src, "the subtitle fetch must go through read_capped"

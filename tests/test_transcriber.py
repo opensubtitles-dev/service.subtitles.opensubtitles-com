@@ -370,3 +370,63 @@ def test_zero_credits_blocks_before_extraction(tmp_path):
                 None, "", {"file_original_path": str(src)}, "sk", mock=True)
     assert "0 AI credits" in str(e.value)
     assert not extract.called
+
+
+# --- Class 6: the result fetch gets a size cap -------------------------------
+#
+# The result url arrives INSIDE an API payload and the off-origin branch
+# fetches whatever it names. An unbounded read into memory on a 512 MB TV box
+# is the failure mode; MAX_RESULT_BYTES closes it on both branches.
+
+def _streamed(body, status=200, chunk=65536):
+    r = MagicMock(status_code=status, content=body)
+    r.raise_for_status = MagicMock()
+    r.iter_content = lambda chunk_size=chunk: (
+        body[i:i + chunk_size] for i in range(0, len(body), chunk_size))
+    return r
+
+
+def test_read_capped_passes_body_under_the_cap():
+    body = b"1\n00:00:01,000 --> 00:00:02,000\nhi\n"
+    assert transcriber._read_capped(_streamed(body), cap=4096) == body
+
+
+def test_read_capped_refuses_oversized_body():
+    assert transcriber._read_capped(_streamed(b"z" * 9000, chunk=1000), cap=4096) is None
+
+
+def test_on_origin_result_fetch_is_capped(profile):
+    """A hostile/broken API origin cannot stream unbounded bytes into memory."""
+    huge = b"z" * (transcriber.MAX_RESULT_BYTES + 1)
+    session = MagicMock()
+    session.get.return_value = _streamed(huge, chunk=1024 * 1024)
+    state = {"status": "COMPLETED",
+             "url": "https://api.opensubtitles.com/api/v1/ai/files/x.srt"}
+    with pytest.raises(transcriber.TranscriptionError, match="large"):
+        transcriber._save_completed_result(session, state)
+    assert session.get.call_args.kwargs.get("stream") is True, \
+        "an uncapped buffered read makes the cap meaningless"
+
+
+def test_off_origin_result_fetch_is_capped_and_anonymous(profile):
+    """The off-origin branch must stay credential-free AND capped."""
+    huge = b"z" * (transcriber.MAX_RESULT_BYTES + 1)
+    anon = MagicMock()
+    anon.get.return_value = _streamed(huge, chunk=1024 * 1024)
+    anon_session = MagicMock(__enter__=lambda s: anon, __exit__=lambda *a: False)
+    state = {"status": "COMPLETED", "url": "https://cdn.example.net/x.srt"}
+    with patch("requests.Session", return_value=anon_session):
+        with pytest.raises(transcriber.TranscriptionError, match="large"):
+            transcriber._save_completed_result(MagicMock(), state,
+                                               headers={"Authorization": "Bearer secret"})
+    sent = anon.get.call_args.kwargs.get("headers") or {}
+    assert "Authorization" not in sent, "no bearer may reach a third party"
+    assert anon.get.call_args.kwargs.get("stream") is True
+
+
+def test_result_fetch_goes_through_the_capped_reader():
+    """Mechanism guard: a revert to r.content would silently remove the cap."""
+    import inspect
+    src = inspect.getsource(transcriber._save_completed_result)
+    assert "_read_capped(r)" in src
+    assert "r.content" not in src

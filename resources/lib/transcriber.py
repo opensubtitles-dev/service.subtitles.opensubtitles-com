@@ -35,6 +35,12 @@ API_URL = "https://api.opensubtitles.com/api/v1/"
 API_TRANSCRIBE = "ai/transcribe"
 API_TRANSCRIBE_INFO = "ai/info/transcription"
 MAX_UPLOAD_BYTES = 100 * 1024 * 1024   # hard server-side cap per the spec
+# The downstream direction needs its own cap. A transcription result is a
+# subtitle file; 8 MiB is already far past any real one. The off-origin branch
+# below fetches a url that arrives INSIDE an API payload, so a spoofed or
+# compromised value could otherwise stream unbounded bytes into the memory of a
+# 512 MB TV box. 1.x Class 6: anything fetched remotely gets a size cap.
+MAX_RESULT_BYTES = 8 * 1024 * 1024
 
 
 def _is_api_origin(url):
@@ -74,6 +80,24 @@ FFMPEG_EXTRA_PATHS = ("/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg",
 
 def log(msg):
     _log(__name__, msg)
+
+
+def _read_capped(resp, cap=MAX_RESULT_BYTES):
+    """At most cap bytes of a streamed response; None when the cap is exceeded.
+
+    None rather than a truncated body on purpose: half a subtitle written to
+    disk and loaded into the player is worse than an honest failure.
+    """
+    chunks, total = [], 0
+    for chunk in resp.iter_content(chunk_size=65536):
+        if not chunk:
+            continue
+        total += len(chunk)
+        if total > cap:
+            log(f"result fetch aborted: exceeded {cap // (1024 * 1024)} MiB")
+            return None
+        chunks.append(chunk)
+    return b"".join(chunks)
 
 
 def _profile_dir():
@@ -672,7 +696,7 @@ def _save_completed_result(session, state, headers=None):
         fetch_headers = dict(headers or {})
         if _is_api_origin(url):
             fetch_headers.setdefault("User-Agent", get_user_agent())
-            r = session.get(url, headers=fetch_headers, timeout=120)
+            r = session.get(url, headers=fetch_headers, timeout=120, stream=True)
         else:
             # Off-origin: the provider's Session carries Api-Key (and possibly
             # other credentials) in session.headers, so dropping them from the
@@ -682,10 +706,25 @@ def _save_completed_result(session, state, headers=None):
             log("result url is off-origin - fetching it anonymously")
             import requests
             with requests.Session() as anon:
-                r = anon.get(url, headers={"User-Agent": get_user_agent()}, timeout=120)
+                r = anon.get(url, headers={"User-Agent": get_user_agent()},
+                             timeout=120, stream=True)
+                r.raise_for_status()
+                body = _read_capped(r)
+            if body is None:
+                raise TranscriptionError(
+                    "the transcription result was unexpectedly large and was "
+                    "not saved")
+            with open(out, "wb") as f:
+                f.write(body)
+            return out
         r.raise_for_status()
+        body = _read_capped(r)
+        if body is None:
+            raise TranscriptionError(
+                "the transcription result was unexpectedly large and was "
+                "not saved")
         with open(out, "wb") as f:
-            f.write(r.content)
+            f.write(body)
         return out
     for key in ("subtitles", "subtitle", "content", "data"):
         val = state.get(key)

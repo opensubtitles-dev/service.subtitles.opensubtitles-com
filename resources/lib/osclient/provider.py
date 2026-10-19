@@ -732,7 +732,12 @@ class OpenSubtitlesProvider:
             if resp.status_code == 404:
                 logging("Rating endpoint not deployed on API yet (404) - feedback dropped")
                 return False
-            logging(f"Rating submission response code {resp.status_code}: {resp.text[:100]}")
+            # Status and emptiness only. A response body can echo request
+            # context (ids, headers, the submitted payload) and Kodi debug logs
+            # get pasted on public forums - 1.0.90 removed the last body-bearing
+            # log line in the 1.x line and gate rule G13 now enforces it.
+            logging(f"Rating submission rejected: status={resp.status_code}, "
+                    f"empty={not (resp.text or '').strip()}")
             return False
         except Exception as e:
             logging(f"Error submitting subtitle rating: {type(e).__name__}")

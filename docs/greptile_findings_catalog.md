@@ -7,7 +7,7 @@ so future code is written to pass review the first time.
 
 Enforcement:
 - **`scripts/greptile_gate.py`** — static AST gate for the mechanically
-  detectable classes (rules G01–G11). Runs in the test suite
+  detectable classes (rules G01–G13). Runs in the test suite
   (`tests/test_greptile_gate.py`), so pytest / preflight / CI all fail on a hit.
   Deliberate exceptions carry an inline `# greptile-ok: <reason>` pragma.
 - **The review checklist** (bottom) — the judgment-call classes the gate cannot
@@ -163,6 +163,64 @@ reads/writes but **no compare-and-swap**.
 - Docs shipped in the zip may only reference things that exist in the zip
   (or absolute URLs).
 - Anything fetched remotely gets a size cap and an entity-expansion check.
+
+---
+
+## Self-audit round (v1.0.78) — found by simulating the reviewer, not by it
+
+A manual deep pass over every shipped file, hunting the same classes harder
+than the gate could, produced 13 more fixes before any reviewer saw them:
+
+| # | Finding | Class |
+|---|---------|-------|
+| 1 | Update check took the FIRST manifest answer; a lagging feed advertised an older version than GitHub carried → max across sources | 4 (first-non-empty-wins) |
+| 2 | Clear Cache hardcoded "0 items" although concurrent writes legitimately survive → recount | 6 (honest UX) |
+| 3 | `get_params()` returned a LIST for empty query strings; callers `.get()` crashed | 2 |
+| 4 | `sys.argv[2]` IndexError on RunScript-style short argv | 2 |
+| 5 | Malformed `videoinfo.current_oshash` went out as moviehash and failed the request | 2 |
+| 6 | Failed download continued into file-path logic; `params["language"]` could KeyError | 2 |
+| 7 | Whole `attributes` payload dumped per row in the render loop | 1 (bare-arg log, gate blind spot) |
+| 8 | Bad `ratings` value cost the entire row over a cosmetic icon | 2 |
+| 9 | `error(module, id, e)` call sites routed the raw exception into `log()` | 1 (call-shape blind spot) |
+| 10 | `ServiceUnavailable("Connection error: {e!r}")` embedded request URLs into dialogs | 1 |
+| 11 | Non-smart sort crashed on mixed str/int votes/ratings | 2 |
+| 12 | `clean_feature_release_name`/`get_flag` crashed on null API fields | 2 |
+| 13 | `_attrs()` helper: matcher dereferenced non-dict `attributes` in language grouping | 2 |
+
+Gate upgrades from this round: log-call checks now cover **bare Name
+arguments, %-formatting and the `error(…, e)` call shape**, not just
+f-strings. Lesson: whenever a finding is fixed, grep for the PATTERN, not the
+instance — 9 of these 13 were siblings of already-fixed findings.
+
+---
+
+## v2.0.0 parity round (2026-10-18) — applying the 1.x classes to new surface
+
+v2 added ~4,500 lines of shipped code that never existed during the 1.x review
+rounds: `transcriber.py`, `syncer.py`, `background_service.py`,
+`account_state.py`, `browser.py`, `qr.py`, `qr_dialog.py`,
+`upload_eligibility.py`, `audio_demux.py`, `android_audio.py`,
+`windows_audio.py`, `vendor_qrcodegen.py`, `buy_credits.py`, `show_qr.py`.
+Walking the classes above over that surface found:
+
+| # | Finding | Class | Fixed |
+|---|---------|-------|-------|
+| 1 | `rate_subtitle` logged `resp.text[:100]` — a response body in the log, which 1.0.90 had eliminated everywhere else. The gate was blind to it: its log checks covered names, f-strings and `%`-formatting, never an attribute reached through a subscript | 1 | 2.0.0 (G13) |
+| 2 | Synced-subtitle fetch in `syncer.py` read `sr.content` with no size cap and wrote it straight to disk — the Class 6 condition ("anything fetched remotely gets a size cap") had only ever been applied to the update manifest | 6 | 2.0.0 |
+| 3 | Transcription result fetch in `transcriber.py` read `r.content` uncapped on both the on-origin and the anonymous off-origin path | 6 | 2.0.0 |
+| 4 | `.greptile/config.json` (strictness 1 + all comment types) was never forward-ported, so v2 mirror PRs were reviewed at default depth | — | 2.0.0 |
+| 5 | This catalog's own v1.0.78 section was dropped from the v2 copy, losing the "grep for the PATTERN" lesson that prevents finding #1 above | — | 2.0.0 |
+
+**New gate rule G13** — a response-body attribute (`.text`, `.content`,
+`.raw`, `.body`) inside a log call, including through a subscript, slice or
+`str()` wrapper. Findings #1 and #5 are the same failure: the instance was
+fixed in 1.x but the pattern was not mechanized, so the next module
+reintroduced it.
+
+**New condition (Class 6):** every remote read that lands in memory or on disk
+goes through a capped reader. The cap lives in ONE place per module family —
+`syncer.MAX_DOWNLOAD_BYTES`, `transcriber.MAX_RESULT_BYTES`,
+`check_updates.MANIFEST_MAX_BYTES` — never as an inline literal.
 
 ---
 
