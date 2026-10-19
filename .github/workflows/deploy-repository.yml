@@ -21,6 +21,17 @@ concurrency:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    # ONLY the main repo may run this job. It publishes gh-pages with
+    # `cname: kodi.opensubtitles.com`, and a GitHub Pages custom domain can be
+    # bound to exactly one repository - so the same workflow running on the
+    # opensubtitles/ workbench fork TAKES THE DOMAIN OVER and starts serving the
+    # fork's addons.xml to every installed user. That happened live on
+    # 2026-10-19: a `v2.0.0-beta.1` tag pushed to the fork matched the `v*`
+    # trigger below, the fork's deploy claimed kodi.opensubtitles.com, and the
+    # feed advertised 2.0.0 to the whole 1.x install base for ~4 minutes until
+    # the domain was rebound and Pages rebuilt. The guard makes a fork push or
+    # fork tag a no-op instead of an outage.
+    if: github.repository == 'opensubtitles-dev/service.subtitles.opensubtitles-com'
     steps:
       - name: Checkout Code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7, SHA-pinned
